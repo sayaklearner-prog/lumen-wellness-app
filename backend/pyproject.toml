@@ -1,0 +1,53 @@
+[project]
+name = "lumen-backend"
+version = "0.1.0"
+description = "Lumen Wellness App Python Backend"
+authors = [
+    {name = "Lumen Team", email = "team@lumen.test"}
+]
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.111.0",
+    "uvicorn>=0.30.1",
+    "pydantic>=2.7.4",
+    "pydantic-settings>=2.3.4",
+    "sqlalchemy>=2.0.31",
+    "asyncpg>=0.29.0",
+    "alembic>=1.13.1",
+    "pgvector>=0.3.0",
+    "httpx>=0.27.0",
+    "redis>=5.0.6",
+    "dramatiq>=1.17.0",
+    "apscheduler>=3.10.4",
+    "loguru>=0.7.2",
+    "pyjwt>=2.8.0",
+    "opentelemetry-api>=1.25.0",
+    "opentelemetry-sdk>=1.25.0",
+    "opentelemetry-instrumentation-fastapi>=0.46b0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2.2",
+    "pytest-asyncio>=0.23.7",
+    "ruff>=0.4.9",
+    "black>=24.4.2",
+    "mypy>=1.10.0"
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.black]
+line-length = 100
+target-version = ["py313"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+

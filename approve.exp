@@ -1,0 +1,18 @@
+#!/usr/bin/expect -f
+set timeout 10
+
+spawn npx pnpm approve-builds
+
+expect {
+    "Choose which packages to build" {
+        send "a\r"
+        exp_continue
+    }
+    "Do you approve?" {
+        send "y\r"
+        exp_continue
+    }
+    eof {
+        exit 0
+    }
+}

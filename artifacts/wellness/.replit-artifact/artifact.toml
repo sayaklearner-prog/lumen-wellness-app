@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Lumen — AI Wellness"
+version = "1.0.0"
+id = "artifacts/wellness"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 20914
+
+[services.development]
+run = "pnpm --filter @workspace/wellness run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/wellness", "run", "build" ]
+publicDir = "artifacts/wellness/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "20914"
+BASE_PATH = "/"

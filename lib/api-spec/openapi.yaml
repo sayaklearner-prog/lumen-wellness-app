@@ -1,0 +1,1740 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: Lumen — AI-powered wellness companion API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Service health
+  - name: profile
+    description: User profile, health mode, premium status
+  - name: dashboard
+    description: Today/streaks/badges aggregates
+  - name: scores
+    description: Weekly/monthly 1-10 scoring
+  - name: meals
+    description: Nutrition logging and food recognition
+  - name: workouts
+    description: Activity logging
+  - name: sleep
+    description: Sleep entries
+  - name: screentime
+    description: Screen-time tracking
+  - name: ai
+    description: AI assistant, recommendations, chat
+  - name: reminders
+    description: AI-driven reminders
+  - name: sensors
+    description: Motion / device sensor ingest
+  - name: planner
+    description: Weekly and monthly planners
+  - name: anthropic
+    description: Anthropic AI conversations and streaming chat
+  - name: vision
+    description: Image analysis (food photo recognition)
+  - name: connections
+    description: Apple Health, Google Fit, and fitness band connections
+  - name: focus
+    description: In-app focus session tracking (real screen-time)
+  - name: glucose
+    description: Diabetes-mode blood glucose readings
+  - name: onboarding
+    description: First-run onboarding flow
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /profile:
+    get:
+      operationId: getProfile
+      tags: [profile]
+      summary: Get user profile, condition mode, premium status
+      responses:
+        "200":
+          description: Profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+    patch:
+      operationId: updateProfile
+      tags: [profile]
+      summary: Update profile (name, condition mode, daily targets)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProfileBody"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+  /profile/upgrade:
+    post:
+      operationId: togglePremium
+      tags: [profile]
+      summary: Toggle premium membership (mock freemium upgrade)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                premium:
+                  type: boolean
+              required: [premium]
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+
+  /dashboard/today:
+    get:
+      operationId: getTodayDashboard
+      tags: [dashboard]
+      summary: Today's wellness overview (totals, scores, AI tip)
+      responses:
+        "200":
+          description: Today dashboard
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TodayDashboard"
+  /dashboard/streaks:
+    get:
+      operationId: getStreaks
+      tags: [dashboard]
+      summary: Active streaks across categories
+      responses:
+        "200":
+          description: Streaks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Streak"
+  /dashboard/badges:
+    get:
+      operationId: getBadges
+      tags: [dashboard]
+      summary: Earned and locked badges
+      responses:
+        "200":
+          description: Badges
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Badge"
+
+  /scores/weekly:
+    get:
+      operationId: getWeeklyScores
+      tags: [scores]
+      summary: Weekly planner with day-by-day 1-10 scores
+      parameters:
+        - in: query
+          name: weekStart
+          required: false
+          schema:
+            type: string
+            description: ISO date (YYYY-MM-DD) for week start; defaults to current week
+      responses:
+        "200":
+          description: Weekly scores
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WeeklyScores"
+  /scores/monthly:
+    get:
+      operationId: getMonthlyScores
+      tags: [scores]
+      summary: Monthly planner with weekly aggregated 1-10 scores
+      parameters:
+        - in: query
+          name: month
+          required: false
+          schema:
+            type: string
+            description: YYYY-MM, defaults to current month
+      responses:
+        "200":
+          description: Monthly scores
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MonthlyScores"
+  /scores/trend:
+    get:
+      operationId: getScoreTrend
+      tags: [scores]
+      summary: Trend data points for charts
+      parameters:
+        - in: query
+          name: range
+          required: true
+          schema:
+            type: string
+            enum: [week, month, quarter]
+      responses:
+        "200":
+          description: Trend points
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TrendPoint"
+
+  /meals:
+    get:
+      operationId: listMeals
+      tags: [meals]
+      summary: List meal entries
+      parameters:
+        - in: query
+          name: date
+          required: false
+          schema:
+            type: string
+            description: YYYY-MM-DD; if omitted returns last 7 days
+      responses:
+        "200":
+          description: Meals
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Meal"
+    post:
+      operationId: createMeal
+      tags: [meals]
+      summary: Log a meal manually
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateMealBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Meal"
+  /meals/{id}:
+    patch:
+      operationId: updateMeal
+      tags: [meals]
+      summary: Manually correct a meal entry (e.g. after AI recognition)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMealBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Meal"
+    delete:
+      operationId: deleteMeal
+      tags: [meals]
+      summary: Delete a meal
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+  /meals/recognize:
+    post:
+      operationId: recognizeMealFromImage
+      tags: [meals]
+      summary: AI recognition of food items from a captured photo (data URL)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecognizeMealBody"
+      responses:
+        "200":
+          description: Recognized food + estimated nutrition (manual correction supported via PATCH /meals/{id})
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecognizedMeal"
+
+  /workouts:
+    get:
+      operationId: listWorkouts
+      tags: [workouts]
+      summary: List workouts
+      parameters:
+        - in: query
+          name: date
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Workouts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Workout"
+    post:
+      operationId: createWorkout
+      tags: [workouts]
+      summary: Log a workout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateWorkoutBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Workout"
+  /workouts/{id}:
+    delete:
+      operationId: deleteWorkout
+      tags: [workouts]
+      summary: Delete a workout
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  /sleep:
+    get:
+      operationId: listSleep
+      tags: [sleep]
+      summary: List sleep entries
+      responses:
+        "200":
+          description: Sleep entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SleepEntry"
+    post:
+      operationId: createSleep
+      tags: [sleep]
+      summary: Log sleep
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSleepBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SleepEntry"
+  /sleep/{id}:
+    delete:
+      operationId: deleteSleep
+      tags: [sleep]
+      summary: Delete sleep entry
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  /screentime:
+    get:
+      operationId: listScreenTime
+      tags: [screentime]
+      summary: List screen-time entries
+      responses:
+        "200":
+          description: Screen-time entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ScreenTimeEntry"
+    post:
+      operationId: createScreenTime
+      tags: [screentime]
+      summary: Log screen time
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateScreenTimeBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScreenTimeEntry"
+
+  /ai/recommendations:
+    get:
+      operationId: getAiRecommendations
+      tags: [ai]
+      summary: Today's personalized AI recommendations (condition-aware)
+      responses:
+        "200":
+          description: Recommendations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Recommendation"
+  /ai/insights:
+    get:
+      operationId: getAiInsights
+      tags: [ai]
+      summary: Weekly AI insights derived from logs
+      responses:
+        "200":
+          description: Insights
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Insight"
+  /ai/chat:
+    post:
+      operationId: askAiCoach
+      tags: [ai]
+      summary: Ask the AI wellness coach a question
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatBody"
+      responses:
+        "200":
+          description: AI reply
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatReply"
+
+  /reminders:
+    get:
+      operationId: listReminders
+      tags: [reminders]
+      summary: List reminders (AI-driven + user-created)
+      responses:
+        "200":
+          description: Reminders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Reminder"
+    post:
+      operationId: createReminder
+      tags: [reminders]
+      summary: Create reminder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateReminderBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Reminder"
+  /reminders/{id}:
+    patch:
+      operationId: updateReminder
+      tags: [reminders]
+      summary: Toggle / edit reminder
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateReminderBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Reminder"
+    delete:
+      operationId: deleteReminder
+      tags: [reminders]
+      summary: Delete reminder
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  /sensors/activity:
+    post:
+      operationId: ingestSensorActivity
+      tags: [sensors]
+      summary: Ingest motion/accelerometer-derived activity (steps, intensity)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SensorActivityBody"
+      responses:
+        "200":
+          description: Updated activity total
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SensorActivityResult"
+
+  /planner/weekly:
+    get:
+      operationId: getWeeklyPlan
+      tags: [planner]
+      summary: "Weekly plan: per-day suggested actions, condition-tailored"
+      parameters:
+        - in: query
+          name: weekStart
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Weekly plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WeeklyPlan"
+  /planner/monthly:
+    get:
+      operationId: getMonthlyPlan
+      tags: [planner]
+      summary: Monthly plan with weekly themes and goals
+      parameters:
+        - in: query
+          name: month
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Monthly plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MonthlyPlan"
+
+  /anthropic/conversations:
+    get:
+      operationId: listAnthropicConversations
+      tags: [anthropic]
+      summary: List all conversations
+      responses:
+        "200":
+          description: List of conversations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AnthropicConversation"
+    post:
+      operationId: createAnthropicConversation
+      tags: [anthropic]
+      summary: Create a new conversation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAnthropicConversationBody"
+      responses:
+        "201":
+          description: Created conversation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnthropicConversation"
+  /anthropic/conversations/{id}:
+    get:
+      operationId: getAnthropicConversation
+      tags: [anthropic]
+      summary: Get conversation with messages
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Conversation with messages
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnthropicConversationWithMessages"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnthropicError"
+    delete:
+      operationId: deleteAnthropicConversation
+      tags: [anthropic]
+      summary: Delete a conversation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnthropicError"
+  /anthropic/conversations/{id}/messages:
+    get:
+      operationId: listAnthropicMessages
+      tags: [anthropic]
+      summary: List messages in a conversation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AnthropicMessage"
+    post:
+      operationId: sendAnthropicMessage
+      tags: [anthropic]
+      summary: Send a message and stream the AI response (SSE)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendAnthropicMessageBody"
+      responses:
+        "200":
+          description: SSE stream of assistant response chunks
+          content:
+            text/event-stream: {}
+
+  /vision/food:
+    post:
+      operationId: analyzeFoodPhoto
+      tags: [vision]
+      summary: Analyze a food photo and return detected items + nutrition
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnalyzeFoodPhotoBody"
+      responses:
+        "200":
+          description: Detected food and nutrition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FoodAnalysisResult"
+
+  /connections:
+    get:
+      operationId: listHealthConnections
+      tags: [connections]
+      summary: List all health platform connections
+      responses:
+        "200":
+          description: List of connections
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HealthConnection"
+  /connections/{provider}/connect:
+    post:
+      operationId: connectHealthProvider
+      tags: [connections]
+      summary: Mark a provider as connected (for Google Fit / OAuth-style mocks)
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Connected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthConnection"
+  /connections/{provider}/disconnect:
+    post:
+      operationId: disconnectHealthProvider
+      tags: [connections]
+      summary: Disconnect a provider
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Disconnected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthConnection"
+  /connections/{provider}/sync:
+    post:
+      operationId: syncHealthProvider
+      tags: [connections]
+      summary: Trigger a sync for a connected provider
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Sync result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SyncResult"
+  /connections/apple-health/import:
+    post:
+      operationId: importAppleHealthData
+      tags: [connections]
+      summary: Import an Apple Health export.zip payload (base64) and ingest steps/sleep/heart-rate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AppleHealthImportBody"
+      responses:
+        "200":
+          description: Import result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SyncResult"
+
+  /focus-sessions:
+    get:
+      operationId: listFocusSessions
+      tags: [focus]
+      summary: List in-app focus sessions, optionally per-day aggregated
+      parameters:
+        - name: range
+          in: query
+          schema:
+            type: string
+            enum: [day, week, month]
+      responses:
+        "200":
+          description: Sessions with per-category aggregates
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FocusSessionsSummary"
+    post:
+      operationId: createFocusSession
+      tags: [focus]
+      summary: Record a focus session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateFocusSessionBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FocusSession"
+
+  /glucose-readings:
+    get:
+      operationId: listGlucoseReadings
+      tags: [glucose]
+      summary: List glucose readings
+      responses:
+        "200":
+          description: Readings with summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GlucoseReadingsResponse"
+    post:
+      operationId: createGlucoseReading
+      tags: [glucose]
+      summary: Log a glucose reading
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateGlucoseReadingBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GlucoseReading"
+  /glucose-readings/{id}:
+    delete:
+      operationId: deleteGlucoseReading
+      tags: [glucose]
+      summary: Delete a glucose reading
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  /onboarding/complete:
+    post:
+      operationId: completeOnboarding
+      tags: [onboarding]
+      summary: Mark onboarding complete and persist initial preferences
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompleteOnboardingBody"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required: [status]
+
+    HealthMode:
+      type: string
+      enum: [standard, diabetes, hypertension, heart_health, pregnancy, weight_loss]
+      description: Personalized mode that adapts AI recommendations
+
+    Profile:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        avatarColor: { type: string, description: "Tailwind-compatible accent for avatar" }
+        mode: { $ref: "#/components/schemas/HealthMode" }
+        premium: { type: boolean }
+        dailyCalorieTarget: { type: integer }
+        dailyProteinTarget: { type: integer }
+        dailySleepTargetHours: { type: number }
+        dailyStepsTarget: { type: integer }
+        dailyScreenTimeLimitMinutes: { type: integer }
+        glucoseTargetLow: { type: integer }
+        glucoseTargetHigh: { type: integer }
+        dailyCarbLimit: { type: integer }
+        onboardingComplete: { type: boolean }
+        voiceEnabled: { type: boolean }
+        motionPermissionGranted: { type: boolean }
+        notificationsEnabled: { type: boolean }
+        joinedAt: { type: string, format: date-time }
+      required: [id, name, mode, premium, dailyCalorieTarget, dailyProteinTarget, dailySleepTargetHours, dailyStepsTarget, dailyScreenTimeLimitMinutes, glucoseTargetLow, glucoseTargetHigh, dailyCarbLimit, onboardingComplete, voiceEnabled, motionPermissionGranted, notificationsEnabled, joinedAt]
+
+    UpdateProfileBody:
+      type: object
+      properties:
+        name: { type: string }
+        mode: { $ref: "#/components/schemas/HealthMode" }
+        dailyCalorieTarget: { type: integer }
+        dailyProteinTarget: { type: integer }
+        dailySleepTargetHours: { type: number }
+        dailyStepsTarget: { type: integer }
+        dailyScreenTimeLimitMinutes: { type: integer }
+        glucoseTargetLow: { type: integer }
+        glucoseTargetHigh: { type: integer }
+        dailyCarbLimit: { type: integer }
+        voiceEnabled: { type: boolean }
+        motionPermissionGranted: { type: boolean }
+        notificationsEnabled: { type: boolean }
+
+    CategoryScore:
+      type: object
+      properties:
+        category:
+          type: string
+          enum: [nutrition, sleep, activity, screen]
+        score:
+          type: number
+          minimum: 0
+          maximum: 10
+        label:
+          type: string
+          description: short qualitative label e.g. "Excellent", "Needs work"
+      required: [category, score, label]
+
+    TodayDashboard:
+      type: object
+      properties:
+        date: { type: string }
+        overallScore:
+          type: number
+          minimum: 0
+          maximum: 10
+        scores:
+          type: array
+          items:
+            $ref: "#/components/schemas/CategoryScore"
+        caloriesConsumed: { type: integer }
+        caloriesTarget: { type: integer }
+        proteinGrams: { type: integer }
+        proteinTarget: { type: integer }
+        carbsGrams: { type: integer }
+        fatGrams: { type: integer }
+        steps: { type: integer }
+        stepsTarget: { type: integer }
+        activeMinutes: { type: integer }
+        sleepHours: { type: number }
+        sleepTarget: { type: number }
+        screenTimeMinutes: { type: integer }
+        screenTimeLimit: { type: integer }
+        waterCups: { type: integer }
+        moodLabel:
+          type: string
+        topRecommendation:
+          $ref: "#/components/schemas/Recommendation"
+      required: [date, overallScore, scores, caloriesConsumed, caloriesTarget, proteinGrams, proteinTarget, carbsGrams, fatGrams, steps, stepsTarget, activeMinutes, sleepHours, sleepTarget, screenTimeMinutes, screenTimeLimit, waterCups, moodLabel, topRecommendation]
+
+    Streak:
+      type: object
+      properties:
+        id: { type: string }
+        category: { type: string, description: "e.g. nutrition, sleep, activity, hydration" }
+        days: { type: integer }
+        emoji: { type: string, description: "Single icon glyph code, NOT a literal emoji" }
+        message: { type: string }
+      required: [id, category, days, message]
+
+    Badge:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        description: { type: string }
+        tier:
+          type: string
+          enum: [bronze, silver, gold, platinum]
+        earned: { type: boolean }
+        earnedAt:
+          type: ["string", "null"]
+          format: date-time
+        progress:
+          type: number
+          minimum: 0
+          maximum: 1
+      required: [id, name, description, tier, earned, progress]
+
+    DayScore:
+      type: object
+      properties:
+        date: { type: string }
+        weekday: { type: string }
+        nutrition: { type: number, minimum: 0, maximum: 10 }
+        sleep: { type: number, minimum: 0, maximum: 10 }
+        activity: { type: number, minimum: 0, maximum: 10 }
+        screen: { type: number, minimum: 0, maximum: 10 }
+        overall: { type: number, minimum: 0, maximum: 10 }
+      required: [date, weekday, nutrition, sleep, activity, screen, overall]
+
+    WeeklyScores:
+      type: object
+      properties:
+        weekStart: { type: string }
+        weekEnd: { type: string }
+        days:
+          type: array
+          items:
+            $ref: "#/components/schemas/DayScore"
+        averages:
+          type: array
+          items:
+            $ref: "#/components/schemas/CategoryScore"
+        overallAverage:
+          type: number
+          minimum: 0
+          maximum: 10
+        bestCategory: { type: string }
+        worstCategory: { type: string }
+        narrative: { type: string }
+      required: [weekStart, weekEnd, days, averages, overallAverage, bestCategory, worstCategory, narrative]
+
+    MonthlyWeekScore:
+      type: object
+      properties:
+        weekLabel: { type: string }
+        weekStart: { type: string }
+        nutrition: { type: number }
+        sleep: { type: number }
+        activity: { type: number }
+        screen: { type: number }
+        overall: { type: number }
+      required: [weekLabel, weekStart, nutrition, sleep, activity, screen, overall]
+
+    MonthlyScores:
+      type: object
+      properties:
+        month: { type: string }
+        weeks:
+          type: array
+          items:
+            $ref: "#/components/schemas/MonthlyWeekScore"
+        averages:
+          type: array
+          items:
+            $ref: "#/components/schemas/CategoryScore"
+        overallAverage: { type: number }
+        narrative: { type: string }
+      required: [month, weeks, averages, overallAverage, narrative]
+
+    TrendPoint:
+      type: object
+      properties:
+        label: { type: string }
+        date: { type: string }
+        nutrition: { type: number }
+        sleep: { type: number }
+        activity: { type: number }
+        screen: { type: number }
+        overall: { type: number }
+      required: [label, date, nutrition, sleep, activity, screen, overall]
+
+    Meal:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        mealType:
+          type: string
+          enum: [breakfast, lunch, dinner, snack]
+        calories: { type: integer }
+        proteinGrams: { type: integer }
+        carbsGrams: { type: integer }
+        fatGrams: { type: integer }
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/FoodItem"
+        photoUrl:
+          type: ["string", "null"]
+        loggedAt: { type: string, format: date-time }
+        source:
+          type: string
+          enum: [manual, ai_camera]
+      required: [id, name, mealType, calories, proteinGrams, carbsGrams, fatGrams, items, loggedAt, source]
+
+    FoodItem:
+      type: object
+      properties:
+        name: { type: string }
+        quantity: { type: string, description: "e.g. '1 cup', '120 g'" }
+        calories: { type: integer }
+        proteinGrams: { type: integer }
+        carbsGrams: { type: integer }
+        fatGrams: { type: integer }
+        confidence:
+          type: ["number", "null"]
+          minimum: 0
+          maximum: 1
+      required: [name, quantity, calories, proteinGrams, carbsGrams, fatGrams]
+
+    CreateMealBody:
+      type: object
+      properties:
+        name: { type: string }
+        mealType:
+          type: string
+          enum: [breakfast, lunch, dinner, snack]
+        calories: { type: integer }
+        proteinGrams: { type: integer }
+        carbsGrams: { type: integer }
+        fatGrams: { type: integer }
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/FoodItem"
+        photoUrl:
+          type: ["string", "null"]
+        source:
+          type: string
+          enum: [manual, ai_camera]
+      required: [name, mealType, calories, proteinGrams, carbsGrams, fatGrams, source]
+
+    UpdateMealBody:
+      type: object
+      properties:
+        name: { type: string }
+        mealType:
+          type: string
+          enum: [breakfast, lunch, dinner, snack]
+        calories: { type: integer }
+        proteinGrams: { type: integer }
+        carbsGrams: { type: integer }
+        fatGrams: { type: integer }
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/FoodItem"
+
+    RecognizeMealBody:
+      type: object
+      properties:
+        imageDataUrl:
+          type: string
+          description: "data: URL of the captured image (we do not store it server-side in this build)"
+        hint:
+          type: ["string", "null"]
+          description: optional user hint, e.g. "lunch"
+      required: [imageDataUrl]
+
+    RecognizedMeal:
+      type: object
+      properties:
+        name: { type: string }
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        mealType:
+          type: string
+          enum: [breakfast, lunch, dinner, snack]
+        calories: { type: integer }
+        proteinGrams: { type: integer }
+        carbsGrams: { type: integer }
+        fatGrams: { type: integer }
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/FoodItem"
+        notes: { type: string, description: "AI explanation; user can correct via PATCH /meals/{id}" }
+      required: [name, confidence, mealType, calories, proteinGrams, carbsGrams, fatGrams, items, notes]
+
+    Workout:
+      type: object
+      properties:
+        id: { type: string }
+        type:
+          type: string
+          enum: [walk, run, cycle, strength, yoga, swim, hiit, sport, other]
+        durationMinutes: { type: integer }
+        caloriesBurned: { type: integer }
+        steps: { type: integer }
+        intensity:
+          type: string
+          enum: [light, moderate, vigorous]
+        loggedAt: { type: string, format: date-time }
+        source:
+          type: string
+          enum: [manual, sensor]
+      required: [id, type, durationMinutes, caloriesBurned, steps, intensity, loggedAt, source]
+
+    CreateWorkoutBody:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [walk, run, cycle, strength, yoga, swim, hiit, sport, other]
+        durationMinutes: { type: integer }
+        caloriesBurned: { type: integer }
+        steps: { type: integer }
+        intensity:
+          type: string
+          enum: [light, moderate, vigorous]
+        source:
+          type: string
+          enum: [manual, sensor]
+      required: [type, durationMinutes, caloriesBurned, steps, intensity, source]
+
+    SleepEntry:
+      type: object
+      properties:
+        id: { type: string }
+        date: { type: string }
+        durationHours: { type: number }
+        quality:
+          type: string
+          enum: [poor, fair, good, excellent]
+        bedtime: { type: string }
+        wakeTime: { type: string }
+        deepSleepHours:
+          type: ["number", "null"]
+        notes:
+          type: ["string", "null"]
+      required: [id, date, durationHours, quality, bedtime, wakeTime]
+
+    CreateSleepBody:
+      type: object
+      properties:
+        date: { type: string }
+        durationHours: { type: number }
+        quality:
+          type: string
+          enum: [poor, fair, good, excellent]
+        bedtime: { type: string }
+        wakeTime: { type: string }
+        deepSleepHours:
+          type: ["number", "null"]
+        notes:
+          type: ["string", "null"]
+      required: [date, durationHours, quality, bedtime, wakeTime]
+
+    ScreenTimeEntry:
+      type: object
+      properties:
+        id: { type: string }
+        date: { type: string }
+        totalMinutes: { type: integer }
+        socialMinutes: { type: integer }
+        productivityMinutes: { type: integer }
+        entertainmentMinutes: { type: integer }
+        otherMinutes: { type: integer }
+      required: [id, date, totalMinutes, socialMinutes, productivityMinutes, entertainmentMinutes, otherMinutes]
+
+    CreateScreenTimeBody:
+      type: object
+      properties:
+        date: { type: string }
+        totalMinutes: { type: integer }
+        socialMinutes: { type: integer }
+        productivityMinutes: { type: integer }
+        entertainmentMinutes: { type: integer }
+        otherMinutes: { type: integer }
+      required: [date, totalMinutes, socialMinutes, productivityMinutes, entertainmentMinutes, otherMinutes]
+
+    Recommendation:
+      type: object
+      properties:
+        id: { type: string }
+        category:
+          type: string
+          enum: [nutrition, sleep, activity, screen, mindfulness, condition]
+        title: { type: string }
+        body: { type: string }
+        priority:
+          type: string
+          enum: [low, medium, high]
+        action:
+          type: ["string", "null"]
+          description: optional CTA label
+        modeContext:
+          type: ["string", "null"]
+          description: e.g. "diabetes" — explains why this is tailored
+      required: [id, category, title, body, priority]
+
+    Insight:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: string }
+        body: { type: string }
+        category:
+          type: string
+          enum: [nutrition, sleep, activity, screen, overall]
+        delta:
+          type: ["number", "null"]
+          description: relative change vs prior week (-1..1)
+      required: [id, title, body, category]
+
+    ChatBody:
+      type: object
+      properties:
+        message:
+          type: string
+      required: [message]
+
+    ChatReply:
+      type: object
+      properties:
+        message: { type: string }
+        suggestions:
+          type: array
+          items:
+            type: string
+      required: [message, suggestions]
+
+    Reminder:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: string }
+        time: { type: string, description: "HH:MM 24h" }
+        category:
+          type: string
+          enum: [hydration, meal, movement, sleep, screen, mindfulness, medication]
+        enabled: { type: boolean }
+        repeatDays:
+          type: array
+          items:
+            type: string
+            enum: [mon, tue, wed, thu, fri, sat, sun]
+        aiGenerated: { type: boolean }
+      required: [id, title, time, category, enabled, repeatDays, aiGenerated]
+
+    CreateReminderBody:
+      type: object
+      properties:
+        title: { type: string }
+        time: { type: string }
+        category:
+          type: string
+          enum: [hydration, meal, movement, sleep, screen, mindfulness, medication]
+        enabled: { type: boolean }
+        repeatDays:
+          type: array
+          items:
+            type: string
+            enum: [mon, tue, wed, thu, fri, sat, sun]
+      required: [title, time, category, enabled, repeatDays]
+
+    UpdateReminderBody:
+      type: object
+      properties:
+        title: { type: string }
+        time: { type: string }
+        category:
+          type: string
+          enum: [hydration, meal, movement, sleep, screen, mindfulness, medication]
+        enabled: { type: boolean }
+        repeatDays:
+          type: array
+          items:
+            type: string
+            enum: [mon, tue, wed, thu, fri, sat, sun]
+
+    SensorActivityBody:
+      type: object
+      properties:
+        steps: { type: integer }
+        durationSeconds: { type: integer }
+        intensity:
+          type: string
+          enum: [light, moderate, vigorous]
+        sampleCount: { type: integer, description: "How many accelerometer samples produced this estimate" }
+      required: [steps, durationSeconds, intensity, sampleCount]
+
+    SensorActivityResult:
+      type: object
+      properties:
+        totalStepsToday: { type: integer }
+        activeMinutesToday: { type: integer }
+        message: { type: string }
+      required: [totalStepsToday, activeMinutesToday, message]
+
+    PlannedAction:
+      type: object
+      properties:
+        category:
+          type: string
+          enum: [nutrition, sleep, activity, screen, mindfulness, condition]
+        title: { type: string }
+        detail: { type: string }
+        targetValue:
+          type: ["string", "null"]
+      required: [category, title, detail]
+
+    WeeklyPlanDay:
+      type: object
+      properties:
+        date: { type: string }
+        weekday: { type: string }
+        focus: { type: string }
+        actions:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlannedAction"
+      required: [date, weekday, focus, actions]
+
+    WeeklyPlan:
+      type: object
+      properties:
+        weekStart: { type: string }
+        weekEnd: { type: string }
+        modeContext: { type: string, description: "Health mode the plan is tailored to" }
+        theme: { type: string }
+        days:
+          type: array
+          items:
+            $ref: "#/components/schemas/WeeklyPlanDay"
+      required: [weekStart, weekEnd, modeContext, theme, days]
+
+    MonthlyPlanWeek:
+      type: object
+      properties:
+        weekLabel: { type: string }
+        weekStart: { type: string }
+        theme: { type: string }
+        goals:
+          type: array
+          items: { type: string }
+      required: [weekLabel, weekStart, theme, goals]
+
+    MonthlyPlan:
+      type: object
+      properties:
+        month: { type: string }
+        modeContext: { type: string }
+        narrative: { type: string }
+        weeks:
+          type: array
+          items:
+            $ref: "#/components/schemas/MonthlyPlanWeek"
+      required: [month, modeContext, narrative, weeks]
+
+    AnthropicConversation:
+      type: object
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        createdAt: { type: string, format: date-time }
+      required: [id, title, createdAt]
+    AnthropicMessage:
+      type: object
+      properties:
+        id: { type: integer }
+        conversationId: { type: integer }
+        role: { type: string }
+        content: { type: string }
+        createdAt: { type: string, format: date-time }
+      required: [id, conversationId, role, content, createdAt]
+    CreateAnthropicConversationBody:
+      type: object
+      properties:
+        title: { type: string }
+      required: [title]
+    SendAnthropicMessageBody:
+      type: object
+      properties:
+        content: { type: string }
+        imageBase64:
+          type: string
+          description: Optional image (data URL or raw base64) for vision-enabled chat
+      required: [content]
+    AnthropicConversationWithMessages:
+      type: object
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        createdAt: { type: string, format: date-time }
+        messages:
+          type: array
+          items: { $ref: "#/components/schemas/AnthropicMessage" }
+      required: [id, title, createdAt, messages]
+    AnthropicError:
+      type: object
+      properties:
+        error: { type: string }
+      required: [error]
+
+    AnalyzeFoodPhotoBody:
+      type: object
+      properties:
+        imageBase64:
+          type: string
+          description: Image data URL or raw base64
+        hint:
+          type: string
+          description: Optional textual hint about what's in the photo
+      required: [imageBase64]
+    DetectedFoodItem:
+      type: object
+      properties:
+        name: { type: string }
+        portion: { type: string }
+        calories: { type: integer }
+        proteinGrams: { type: integer }
+        carbsGrams: { type: integer }
+        fatGrams: { type: integer }
+        confidence: { type: number, minimum: 0, maximum: 1 }
+      required: [name, portion, calories, proteinGrams, carbsGrams, fatGrams, confidence]
+    FoodAnalysisResult:
+      type: object
+      properties:
+        mealName: { type: string }
+        suggestedMealType:
+          type: string
+          enum: [breakfast, lunch, dinner, snack]
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/DetectedFoodItem" }
+        totalCalories: { type: integer }
+        totalProteinGrams: { type: integer }
+        totalCarbsGrams: { type: integer }
+        totalFatGrams: { type: integer }
+        modelNotes: { type: string }
+        confidence: { type: number, minimum: 0, maximum: 1 }
+      required: [mealName, suggestedMealType, items, totalCalories, totalProteinGrams, totalCarbsGrams, totalFatGrams, confidence]
+
+    HealthConnection:
+      type: object
+      properties:
+        id: { type: string }
+        provider:
+          type: string
+          enum: [apple_health, google_fit, fitbit, garmin, oura, whoop, manual]
+        status:
+          type: string
+          enum: [connected, disconnected, pending]
+        lastSyncedAt: { type: string, format: date-time, nullable: true }
+        syncedRecordCount: { type: integer }
+        createdAt: { type: string, format: date-time }
+      required: [id, provider, status, syncedRecordCount, createdAt]
+    SyncResult:
+      type: object
+      properties:
+        provider: { type: string }
+        importedSteps: { type: integer }
+        importedSleepEntries: { type: integer }
+        importedWorkouts: { type: integer }
+        importedHeartRateSamples: { type: integer }
+        message: { type: string }
+        connection: { $ref: "#/components/schemas/HealthConnection" }
+      required: [provider, importedSteps, importedSleepEntries, importedWorkouts, importedHeartRateSamples, message, connection]
+    AppleHealthImportBody:
+      type: object
+      properties:
+        zipBase64:
+          type: string
+          description: Base64-encoded Apple Health export.zip
+        filename: { type: string }
+      required: [zipBase64]
+
+    FocusSession:
+      type: object
+      properties:
+        id: { type: string }
+        date: { type: string }
+        durationSeconds: { type: integer }
+        category: { type: string }
+        startedAt: { type: string, format: date-time }
+        endedAt: { type: string, format: date-time }
+      required: [id, date, durationSeconds, category, startedAt, endedAt]
+    CreateFocusSessionBody:
+      type: object
+      properties:
+        durationSeconds: { type: integer, minimum: 1 }
+        category: { type: string }
+        startedAt: { type: string, format: date-time }
+        endedAt: { type: string, format: date-time }
+      required: [durationSeconds, category, startedAt, endedAt]
+    FocusCategoryAggregate:
+      type: object
+      properties:
+        category: { type: string }
+        totalMinutes: { type: integer }
+      required: [category, totalMinutes]
+    FocusDailyAggregate:
+      type: object
+      properties:
+        date: { type: string }
+        totalMinutes: { type: integer }
+      required: [date, totalMinutes]
+    FocusSessionsSummary:
+      type: object
+      properties:
+        sessions:
+          type: array
+          items: { $ref: "#/components/schemas/FocusSession" }
+        totalMinutesToday: { type: integer }
+        totalMinutesThisWeek: { type: integer }
+        byCategory:
+          type: array
+          items: { $ref: "#/components/schemas/FocusCategoryAggregate" }
+        byDay:
+          type: array
+          items: { $ref: "#/components/schemas/FocusDailyAggregate" }
+      required: [sessions, totalMinutesToday, totalMinutesThisWeek, byCategory, byDay]
+
+    GlucoseReading:
+      type: object
+      properties:
+        id: { type: string }
+        valueMgDl: { type: integer }
+        context:
+          type: string
+          enum: [fasting, pre_meal, post_meal, bedtime, random]
+        notes: { type: string, nullable: true }
+        source:
+          type: string
+          enum: [manual, cgm, imported]
+        loggedAt: { type: string, format: date-time }
+      required: [id, valueMgDl, context, source, loggedAt]
+    CreateGlucoseReadingBody:
+      type: object
+      properties:
+        valueMgDl: { type: integer, minimum: 20, maximum: 600 }
+        context:
+          type: string
+          enum: [fasting, pre_meal, post_meal, bedtime, random]
+        notes: { type: string }
+      required: [valueMgDl, context]
+    GlucoseSummary:
+      type: object
+      properties:
+        averageMgDl: { type: number }
+        timeInRangePct: { type: number }
+        readingsCount: { type: integer }
+        lastReadingMgDl: { type: integer, nullable: true }
+        targetLow: { type: integer }
+        targetHigh: { type: integer }
+        lowEvents: { type: integer }
+        highEvents: { type: integer }
+      required: [averageMgDl, timeInRangePct, readingsCount, targetLow, targetHigh, lowEvents, highEvents]
+    GlucoseReadingsResponse:
+      type: object
+      properties:
+        readings:
+          type: array
+          items: { $ref: "#/components/schemas/GlucoseReading" }
+        summary: { $ref: "#/components/schemas/GlucoseSummary" }
+      required: [readings, summary]
+
+    CompleteOnboardingBody:
+      type: object
+      properties:
+        name: { type: string }
+        mode: { $ref: "#/components/schemas/HealthMode" }
+        dailyCalorieTarget: { type: integer }
+        dailyProteinTarget: { type: integer }
+        dailySleepTargetHours: { type: number }
+        dailyStepsTarget: { type: integer }
+        dailyScreenTimeLimitMinutes: { type: integer }
+        glucoseTargetLow: { type: integer }
+        glucoseTargetHigh: { type: integer }
+        dailyCarbLimit: { type: integer }
+        voiceEnabled: { type: boolean }
+        motionPermissionGranted: { type: boolean }
+        notificationsEnabled: { type: boolean }
+      required: [name, mode]

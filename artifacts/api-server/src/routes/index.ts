@@ -1,0 +1,42 @@
+import { Router, type IRouter } from "express";
+import healthRouter from "./health";
+import profileRouter from "./profile";
+import dashboardRouter from "./dashboard";
+import scoresRouter from "./scores";
+import mealsRouter from "./meals";
+import workoutsRouter from "./workouts";
+import sleepRouter from "./sleep";
+import screentimeRouter from "./screentime";
+import aiRouter from "./ai";
+import remindersRouter from "./reminders";
+import sensorsRouter from "./sensors";
+import plannerRouter from "./planner";
+import anthropicRouter from "./anthropic";
+import visionRouter from "./vision";
+import connectionsRouter from "./connections";
+import focusRouter from "./focus";
+import glucoseRouter from "./glucose";
+import onboardingRouter from "./onboarding";
+
+const router: IRouter = Router();
+
+router.use(healthRouter);
+router.use(profileRouter);
+router.use(dashboardRouter);
+router.use(scoresRouter);
+router.use(mealsRouter);
+router.use(workoutsRouter);
+router.use(sleepRouter);
+router.use(screentimeRouter);
+router.use(aiRouter);
+router.use(remindersRouter);
+router.use(sensorsRouter);
+router.use(plannerRouter);
+router.use(anthropicRouter);
+router.use(visionRouter);
+router.use(connectionsRouter);
+router.use(focusRouter);
+router.use(glucoseRouter);
+router.use(onboardingRouter);
+
+export default router;

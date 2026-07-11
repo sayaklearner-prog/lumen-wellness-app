@@ -1,0 +1,30 @@
+{
+  "name": "workspace",
+  "version": "0.0.0",
+  "license": "MIT",
+  "scripts": {
+    "build": "pnpm run typecheck && pnpm -r --if-present run build",
+    "typecheck:libs": "tsc --build",
+    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
+  },
+  "private": true,
+  "devDependencies": {
+    "prettier": "^3.8.1",
+    "typescript": "~5.9.2"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  },
+  "dependencies": {
+    "@esbuild/darwin-arm64": "^0.27.3",
+    "@esbuild/darwin-x64": "^0.27.3",
+    "@rollup/rollup-darwin-arm64": "^4.62.2",
+    "@rollup/rollup-darwin-x64": "^4.62.2",
+    "@tailwindcss/oxide-darwin-arm64": "^4.3.2",
+    "@tailwindcss/oxide-darwin-x64": "^4.3.2",
+    "lightningcss-darwin-arm64": "^1.32.0",
+    "lightningcss-darwin-x64": "^1.32.0"
+  }
+}
