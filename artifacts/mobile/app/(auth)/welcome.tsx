@@ -2,7 +2,7 @@ import { View, Text, StyleSheet, Pressable, ImageBackground, Dimensions, Platfor
 import { useRouter } from "expo-router";
 import { storage } from "@/services/storage";
 import { useQueryClient } from "@tanstack/react-query";
-import { getGetProfileQueryKey } from "@workspace/api-client-react";
+import { getGetMyProfileQueryKey } from "@workspace/api-client-react";
 import { Ionicons } from "@expo/vector-icons";
 
 const { width } = Dimensions.get("window");
@@ -16,7 +16,7 @@ export default function WelcomeScreen() {
     if (Platform.OS === "web" && typeof localStorage !== "undefined") {
       localStorage.setItem("lumen_authenticated", "true");
     }
-    qc.invalidateQueries({ queryKey: getGetProfileQueryKey() });
+    qc.invalidateQueries({ queryKey: getGetMyProfileQueryKey() });
     router.replace("/(auth)/onboarding");
   };
 
@@ -25,7 +25,7 @@ export default function WelcomeScreen() {
     if (Platform.OS === "web" && typeof localStorage !== "undefined") {
       localStorage.setItem("lumen_authenticated", "true");
     }
-    qc.invalidateQueries({ queryKey: getGetProfileQueryKey() });
+    qc.invalidateQueries({ queryKey: getGetMyProfileQueryKey() });
   };
 
   return (

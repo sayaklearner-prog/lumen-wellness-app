@@ -3,7 +3,7 @@ import { Platform } from "react-native";
 import { Stack, Slot, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useGetProfile, getGetProfileQueryKey, setBaseUrl } from "@workspace/api-client-react";
+import { useGetMyProfile, getGetMyProfileQueryKey, setBaseUrl } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { storage } from "@/services/storage";
 
@@ -37,9 +37,9 @@ function AuthGate() {
   const [authChecked, setAuthChecked] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  const { data: profile, isLoading } = useGetProfile({
+  const { data: profile, isLoading } = useGetMyProfile({
     query: {
-      queryKey: getGetProfileQueryKey(),
+      queryKey: getGetMyProfileQueryKey(),
       enabled: isAuthenticated,
       retry: false,
     }
