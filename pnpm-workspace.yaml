@@ -65,7 +65,7 @@ catalog:
   vite: ^7.3.2
   zod: ^3.25.76
 
-autoInstallPeers: false
+autoInstallPeers: true
 
 onlyBuiltDependencies:
   - '@swc/core'

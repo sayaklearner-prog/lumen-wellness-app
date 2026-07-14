@@ -1,0 +1,48 @@
+{
+  "expo": {
+    "name": "Lumen OS",
+    "slug": "lumen-wellness-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": false,
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0b120f"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.meshmind.lumen",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Lumen OS requires access to the camera to scan food nutrition and photograph meals.",
+        "NSMicrophoneUsageDescription": "Lumen OS requires access to the microphone for AI voice coach interactions.",
+        "NSPhotoLibraryUsageDescription": "Lumen OS requires access to the gallery to import nutrition records."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0b120f"
+      },
+      "package": "com.meshmind.lumen",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
