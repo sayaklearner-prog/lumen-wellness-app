@@ -1,18 +1,41 @@
 import Anthropic from "@anthropic-ai/sdk";
 
-if (!process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL) {
-  throw new Error(
-    "AI_INTEGRATIONS_ANTHROPIC_BASE_URL must be set. Did you forget to provision the Anthropic AI integration?",
-  );
-}
+let anthropicInstance: Anthropic | null = null;
 
-if (!process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY) {
-  throw new Error(
-    "AI_INTEGRATIONS_ANTHROPIC_API_KEY must be set. Did you forget to provision the Anthropic AI integration?",
-  );
-}
+export const getAnthropicClient = (): Anthropic => {
+  if (anthropicInstance) return anthropicInstance;
 
-export const anthropic = new Anthropic({
-  apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL,
+  const baseURL = process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL;
+  const apiKey = process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY;
+
+  if (!baseURL) {
+    throw new Error(
+      "AI_INTEGRATIONS_ANTHROPIC_BASE_URL must be set. Did you forget to provision the Anthropic AI integration?",
+    );
+  }
+
+  if (!apiKey) {
+    throw new Error(
+      "AI_INTEGRATIONS_ANTHROPIC_API_KEY must be set. Did you forget to provision the Anthropic AI integration?",
+    );
+  }
+
+  anthropicInstance = new Anthropic({
+    apiKey,
+    baseURL,
+  });
+
+  return anthropicInstance;
+};
+
+// Export a proxy object that mimics Anthropic to avoid breaking existing static imports
+export const anthropic = new Proxy({} as Anthropic, {
+  get(target, prop, receiver) {
+    const client = getAnthropicClient();
+    const value = Reflect.get(client, prop);
+    if (typeof value === "function") {
+      return value.bind(client);
+    }
+    return value;
+  }
 });
