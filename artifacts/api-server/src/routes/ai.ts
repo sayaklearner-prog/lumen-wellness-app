@@ -24,6 +24,7 @@ import {
   buildAiReply,
 } from "../lib/wellness";
 
+
 const router: IRouter = Router();
 
 router.get("/ai/recommendations", async (req, res): Promise<void> => {

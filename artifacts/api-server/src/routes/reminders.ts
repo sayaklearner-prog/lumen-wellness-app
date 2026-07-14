@@ -72,8 +72,10 @@ router.patch("/reminders/:id", async (req, res): Promise<void> => {
   }
   const [row] = await db
     .update(remindersTable)
-    .set(body.data)
-    .where(eq(remindersTable.id, params.data.id))
+    .set(Object.fromEntries(
+      Object.entries(body.data).filter(([, v]) => v !== null && v !== undefined)
+    ))
+    .where(eq(remindersTable.id, params.data.reminder_id))
     .returning();
   if (!row) {
     res.status(404).json({ error: "Reminder not found" });
@@ -90,7 +92,7 @@ router.delete("/reminders/:id", async (req, res): Promise<void> => {
   }
   const [row] = await db
     .delete(remindersTable)
-    .where(eq(remindersTable.id, params.data.id))
+    .where(eq(remindersTable.id, params.data.reminder_id))
     .returning();
   if (!row) {
     res.status(404).json({ error: "Reminder not found" });

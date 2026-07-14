@@ -34,9 +34,17 @@ router.post("/screentime", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  const data = parsed.data as Record<string, unknown>;
   const [row] = await db
     .insert(screenTimeTable)
-    .values(parsed.data)
+    .values({
+      date: (data["date"] as string) ?? new Date().toISOString().slice(0, 10),
+      totalMinutes: Number(data["totalMinutes"] ?? data["durationSeconds"] ?? 0),
+      socialMinutes: Number(data["socialMinutes"] ?? 0),
+      productivityMinutes: Number(data["productivityMinutes"] ?? 0),
+      entertainmentMinutes: Number(data["entertainmentMinutes"] ?? 0),
+      otherMinutes: Number(data["otherMinutes"] ?? 0),
+    })
     .returning();
   res.status(201).json(toApi(row!));
 });
