@@ -16,6 +16,30 @@ const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
 // ---------------------------------------------------------------------------
 
 let _baseUrl: string | null = null;
+
+const getEnvApiUrl = (): string | null => {
+  try {
+    const meta = import.meta as any;
+    if (meta && meta.env && meta.env.VITE_API_URL) {
+      return meta.env.VITE_API_URL;
+    }
+  } catch (e) {}
+
+  try {
+    const proc = (globalThis as any).process;
+    if (proc && proc.env && proc.env.EXPO_PUBLIC_API_URL) {
+      return proc.env.EXPO_PUBLIC_API_URL;
+    }
+  } catch (e) {}
+
+  return null;
+};
+
+const defaultEnvUrl = getEnvApiUrl();
+if (defaultEnvUrl) {
+  _baseUrl = defaultEnvUrl.replace(/\/+$/, "");
+}
+
 let _authTokenGetter: AuthTokenGetter | null = null;
 
 /**
