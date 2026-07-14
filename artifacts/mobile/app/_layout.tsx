@@ -105,7 +105,15 @@ function AuthGate() {
   }, [isAuthenticated, profile, authChecked, isLoading, segments]);
 
   if (!authChecked || (isAuthenticated && isLoading)) {
-    return null;
+    const { View, ActivityIndicator, Text } = require("react-native");
+    return (
+      <View style={{ flex: 1, backgroundColor: "#070c0a", justifyContent: "center", alignItems: "center" }}>
+        <ActivityIndicator size="large" color="#10b981" />
+        <Text style={{ color: "#64748b", marginTop: 16, fontSize: 14, fontWeight: "600" }}>
+          Waking up secure health database...
+        </Text>
+      </View>
+    );
   }
 
   return <Slot />;
