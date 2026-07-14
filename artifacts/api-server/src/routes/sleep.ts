@@ -36,7 +36,9 @@ router.post("/sleep", async (req, res): Promise<void> => {
   const [row] = await db
     .insert(sleepTable)
     .values({
-      date: parsed.data.date,
+      date: String(parsed.data.date instanceof Date
+        ? parsed.data.date.toISOString().slice(0, 10)
+        : parsed.data.date),
       durationHours: String(parsed.data.durationHours),
       quality: parsed.data.quality,
       bedtime: parsed.data.bedtime,

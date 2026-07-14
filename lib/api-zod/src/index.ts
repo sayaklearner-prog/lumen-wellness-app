@@ -36,7 +36,9 @@ export { CreateConversationBody as CreateAnthropicConversationBody } from './gen
 // Connections — Apple Health import (not generated — define inline)
 export const ImportAppleHealthDataBody = zod.object({
   fileBase64: zod.string().optional(),
+  zipBase64: zod.string().optional(),
   provider: zod.string().optional(),
+  filename: zod.string().optional(),
 });
 
 // Focus sessions (not generated — define inline)
@@ -70,9 +72,9 @@ export const GetMonthlyPlanResponse = zod.unknown();
 
 // Sensors (not generated — define inline)
 export const IngestSensorActivityBody = zod.object({
-  steps: zod.number().optional(),
-  durationSeconds: zod.number().optional(),
-  intensity: zod.string().optional(),
+  steps: zod.number(),
+  durationSeconds: zod.number(),
+  intensity: zod.string(),
   sampleCount: zod.number().optional(),
 });
 export const IngestSensorActivityResponse = zod.unknown();
@@ -98,7 +100,7 @@ export const ListMealsQueryParams = zod.object({ date: zod.string().optional() }
 // (generated CreateGlucoseBody uses readingMgdl/contextType which differ)
 export const CreateGlucoseReadingBody = zod.object({
   valueMgDl: zod.number(),
-  context: zod.string().optional(),
+  context: zod.string().default('random'),
   notes: zod.string().nullable().optional(),
 });
 export { DeleteGlucoseParams as DeleteGlucoseReadingParams } from './generated/api';
@@ -120,3 +122,9 @@ export const ListWorkoutsQueryParams = zod.object({ date: zod.string().optional(
 export {
   DeleteWorkoutsParams as DeleteWorkoutParams,
 } from './generated/api';
+
+// AI route schemas (not generated — define inline for ai.ts route)
+export const GetAiRecommendationsResponse = zod.array(zod.any());
+export const GetAiInsightsResponse = zod.array(zod.any());
+export const AskAiCoachBody = zod.object({ message: zod.string() });
+export const AskAiCoachResponse = zod.object({ reply: zod.string() });
