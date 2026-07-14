@@ -19,16 +19,9 @@ let _baseUrl: string | null = null;
 
 const getEnvApiUrl = (): string | null => {
   try {
-    const meta = import.meta as any;
-    if (meta && meta.env && meta.env.VITE_API_URL) {
-      return meta.env.VITE_API_URL;
-    }
-  } catch (e) {}
-
-  try {
-    const proc = (globalThis as any).process;
-    if (proc && proc.env && proc.env.EXPO_PUBLIC_API_URL) {
-      return proc.env.EXPO_PUBLIC_API_URL;
+    const proc = (globalThis as any).process || (typeof window !== "undefined" && (window as any).process);
+    if (proc && proc.env) {
+      return proc.env.VITE_API_URL || proc.env.EXPO_PUBLIC_API_URL || null;
     }
   } catch (e) {}
 

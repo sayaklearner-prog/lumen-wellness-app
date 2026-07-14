@@ -1,5 +1,5 @@
 import { Tabs } from "expo-router";
-import { LayoutDashboard, BrainCircuit, Activity, Utensils, Settings, BarChart2, ShieldAlert } from "lucide-react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { View, Platform } from "react-native";
 
 export default function TabsLayout() {
@@ -28,49 +28,49 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: "Today",
-          tabBarIcon: ({ color }) => <LayoutDashboard size={22} color={color} />,
+          tabBarIcon: ({ color }) => <Ionicons name="grid-outline" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
         name="coach"
         options={{
           title: "AI Coach",
-          tabBarIcon: ({ color }) => <BrainCircuit size={22} color={color} />,
+          tabBarIcon: ({ color }) => <Ionicons name="brain-outline" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
         name="activity"
         options={{
           title: "Activity",
-          tabBarIcon: ({ color }) => <Activity size={22} color={color} />,
+          tabBarIcon: ({ color }) => <Ionicons name="pulse-outline" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
         name="nutrition"
         options={{
           title: "Nutrition",
-          tabBarIcon: ({ color }) => <Utensils size={22} color={color} />,
+          tabBarIcon: ({ color }) => <Ionicons name="restaurant-outline" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
         name="analytics"
         options={{
           title: "Analytics",
-          tabBarIcon: ({ color }) => <BarChart2 size={22} color={color} />,
+          tabBarIcon: ({ color }) => <Ionicons name="bar-chart-outline" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
         name="safety"
         options={{
           title: "Safety",
-          tabBarIcon: ({ color }) => <ShieldAlert size={22} color={color} />,
+          tabBarIcon: ({ color }) => <Ionicons name="shield-outline" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           title: "Profile",
-          tabBarIcon: ({ color }) => <Settings size={22} color={color} />,
+          tabBarIcon: ({ color }) => <Ionicons name="settings-outline" size={22} color={color} />,
         }}
       />
     </Tabs>

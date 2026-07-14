@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, Platform, RefreshControl } from "react-native";
-import { useGetTodayDashboard, useGetMyProfile, useGetTimeline, getGetTimelineQueryKey, getGetTodayDashboardQueryKey } from "@workspace/api-client-react";
+import { useGetTodayDashboard, useGetProfile, useGetTimeline, getGetTimelineQueryKey, getGetTodayDashboardQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { 
   Activity, Flame, Trophy, Moon, Brain, ClipboardList, 
@@ -35,7 +35,7 @@ export default function DashboardScreen() {
     syncedMetrics: []
   });
 
-  const { data: profile } = useGetMyProfile();
+  const { data: profile } = useGetProfile();
   const { data: dashboard, refetch } = useGetTodayDashboard();
   const { data: timelineEvents, refetch: refetchTimeline } = useGetTimeline();
 

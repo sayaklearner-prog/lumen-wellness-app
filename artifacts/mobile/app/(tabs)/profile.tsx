@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Platform, Switch } from "react-native";
 import { useRouter } from "expo-router";
-import { useGetMyProfile, useUpdateMyProfile, getGetMyProfileQueryKey } from "@workspace/api-client-react";
+import { useGetProfile, useUpdateProfile, getGetProfileQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { storage } from "@/services/storage";
 import { Settings, LogOut, ShieldAlert, Award, ShieldCheck } from "lucide-react-native";
@@ -11,8 +11,8 @@ import { syncHealthData } from "@/services/health";
 export default function ProfileScreen() {
   const router = useRouter();
   const qc = useQueryClient();
-  const { data: profile } = useGetMyProfile();
-  const updateProfile = useUpdateMyProfile();
+  const { data: profile } = useGetProfile();
+  const updateProfile = useUpdateProfile();
 
   const [name, setName] = useState(profile?.name || "");
   const [mode, setMode] = useState(profile?.mode || "standard");
@@ -49,7 +49,7 @@ export default function ProfileScreen() {
           dailyStepsTarget: parseInt(steps) || 9000
         }
       });
-      qc.invalidateQueries({ queryKey: getGetMyProfileQueryKey() });
+      qc.invalidateQueries({ queryKey: getGetProfileQueryKey() });
       alert("Settings updated successfully!");
     } catch {
       alert("Failed to update settings");

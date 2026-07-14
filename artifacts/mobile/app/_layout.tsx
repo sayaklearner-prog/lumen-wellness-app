@@ -3,17 +3,21 @@ import { Platform } from "react-native";
 import { Stack, Slot, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useGetMyProfile, getGetMyProfileQueryKey, setBaseUrl } from "@workspace/api-client-react";
+import { useGetProfile, getGetProfileQueryKey, setBaseUrl } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { storage } from "@/services/storage";
 
-// Set dynamic API base URL: use current website host on web, environment variable or local fallback on native
-const getBaseApiUrl = () => {
-  if (Platform.OS === "web" && typeof window !== "undefined") {
+// Resolve backend API URL
+function getBaseApiUrl() {
+  if (typeof window !== "undefined") {
+    // browser environments
+    if (process.env.EXPO_PUBLIC_API_URL) {
+      return process.env.EXPO_PUBLIC_API_URL;
+    }
     return window.location.origin;
   }
-  return process.env.EXPO_PUBLIC_API_URL || "http://127.0.0.1:8000";
-};
+  return "https://lumen-wellness-app.onrender.com";
+}
 
 setBaseUrl(getBaseApiUrl());
 
@@ -33,9 +37,9 @@ function AuthGate() {
   const [authChecked, setAuthChecked] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  const { data: profile, isLoading } = useGetMyProfile({
+  const { data: profile, isLoading } = useGetProfile({
     query: {
-      queryKey: getGetMyProfileQueryKey(),
+      queryKey: getGetProfileQueryKey(),
       enabled: isAuthenticated,
       retry: false,
     }
@@ -105,15 +109,7 @@ function AuthGate() {
   }, [isAuthenticated, profile, authChecked, isLoading, segments]);
 
   if (!authChecked || (isAuthenticated && isLoading)) {
-    const { View, ActivityIndicator, Text } = require("react-native");
-    return (
-      <View style={{ flex: 1, backgroundColor: "#070c0a", justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator size="large" color="#10b981" />
-        <Text style={{ color: "#64748b", marginTop: 16, fontSize: 14, fontWeight: "600" }}>
-          Waking up secure health database...
-        </Text>
-      </View>
-    );
+    return null;
   }
 
   return <Slot />;
@@ -123,7 +119,6 @@ export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthGate />
-      <StatusBar style="light" />
     </QueryClientProvider>
   );
 }

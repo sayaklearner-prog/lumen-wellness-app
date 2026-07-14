@@ -1,1 +1,5190 @@
-{"openapi":"3.1.0","info":{"title":"Lumen Wellness Backend","version":"0.1.0"},"paths":{"/api/anthropic/conversations":{"get":{"summary":"List Conversations","operationId":"list_conversations","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}}}},"post":{"summary":"Create Conversation","operationId":"create_conversation","requestBody":{"content":{"application/json":{"schema":{"additionalProperties":true,"type":"object","title":"Data"}}},"required":true},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/anthropic/conversations/{conversation_id}":{"get":{"summary":"Get Conversation","operationId":"get_conversation","parameters":[{"name":"conversation_id","in":"path","required":true,"schema":{"type":"integer","title":"Conversation Id"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}},"delete":{"summary":"Delete Conversation","operationId":"delete_conversation","parameters":[{"name":"conversation_id","in":"path","required":true,"schema":{"type":"integer","title":"Conversation Id"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/anthropic/conversations/{conversation_id}/messages":{"get":{"summary":"List Messages","operationId":"list_messages","parameters":[{"name":"conversation_id","in":"path","required":true,"schema":{"type":"integer","title":"Conversation Id"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}},"post":{"summary":"Send Anthropic Message","description":"Streaming endpoint that utilizes PostgreSQL conversations, pgvector memory, and AI Provider.","operationId":"send_anthropic_message","parameters":[{"name":"conversation_id","in":"path","required":true,"schema":{"type":"string","title":"Conversation Id"}}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/MessageCreate"}}}},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/profile":{"get":{"tags":["profiles"],"summary":"Get My Profile","operationId":"get_my_profile","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/ProfileResponse"}}}}}},"patch":{"tags":["profiles"],"summary":"Update My Profile","operationId":"update_my_profile","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ProfileCreate"}}},"required":true},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/ProfileResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/meals":{"get":{"tags":["meals"],"summary":"List Meals","operationId":"list_meals","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"items":{"$ref":"#/components/schemas/MealResponse"},"type":"array","title":"Response List Meals"}}}}}},"post":{"tags":["meals"],"summary":"Create Meal","operationId":"create_meal","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/MealCreate"}}},"required":true},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/MealResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/meals/{meal_id}":{"delete":{"tags":["meals"],"summary":"Delete Meal","operationId":"delete_meal","parameters":[{"name":"meal_id","in":"path","required":true,"schema":{"type":"string","title":"Meal Id"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/meals/recognize":{"post":{"tags":["meals"],"summary":"Recognize Food","description":"Simulates advanced Computer Vision capabilities to recognize food from images.\nReturns portion estimation, macro estimation, confidence scoring, and vitamin content.","operationId":"recognize_food","requestBody":{"content":{"application/json":{"schema":{"additionalProperties":true,"type":"object","title":"Body"}}},"required":true},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/meals/{id}":{"put":{"tags":["meals"],"summary":"Update Meals","operationId":"update_meals","parameters":[{"name":"id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Id"}}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/MealUpdate"}}}},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/MealResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}},"delete":{"tags":["meals"],"summary":"Delete Meals","operationId":"delete_meals","parameters":[{"name":"id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Id"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/dashboard/today":{"get":{"tags":["dashboard"],"summary":"Get Today Dashboard","operationId":"get_today_dashboard","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/TodayDashboardResponse"}}}}}}},"/api/dashboard/timeline":{"get":{"tags":["dashboard"],"summary":"Get Timeline","operationId":"get_timeline","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"items":{"$ref":"#/components/schemas/TimelineEvent"},"type":"array","title":"Response Get Timeline"}}}}}}},"/api/dashboard/timeline/summary":{"get":{"tags":["dashboard"],"summary":"Get Timeline Summary","operationId":"get_timeline_summary","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/TimelineSummaryResponse"}}}}}}},"/api/dashboard/streaks":{"get":{"tags":["dashboard"],"summary":"Get Streaks","operationId":"get_streaks","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}}}}},"/api/scores/trend":{"get":{"tags":["scores"],"summary":"Get Score Trend","operationId":"get_score_trend","parameters":[{"name":"range","in":"query","required":false,"schema":{"type":"string","default":"week","title":"Range"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/goals/":{"get":{"tags":["goals"],"summary":"Get Goals","description":"Fetch active goals and habit tracking status for the user.","operationId":"get_goals","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}}}},"post":{"tags":["goals"],"summary":"Create Goal","description":"Create a new long-term goal.","operationId":"create_goal","requestBody":{"content":{"application/json":{"schema":{"additionalProperties":true,"type":"object","title":"Goal Data"}}},"required":true},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/goals/habit-status":{"get":{"tags":["goals"],"summary":"Get Habit Status","description":"Returns AI-detected habit decline warnings. \nThis hooks into the intelligence background worker analysis.","operationId":"get_habit_status","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}}}}},"/api/planner/weekly":{"get":{"tags":["planner"],"summary":"Generate Weekly Plan","operationId":"generate_weekly_plan","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/WeeklyPlan"}}}}}}},"/api/planner/monthly":{"get":{"tags":["planner"],"summary":"Generate Monthly Plan","operationId":"generate_monthly_plan","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/MonthlyPlan"}}}}}}},"/api/hydration":{"get":{"tags":["hydration"],"summary":"List Hydration","operationId":"list_hydration","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"items":{"$ref":"#/components/schemas/HydrationResponse"},"type":"array","title":"Response List Hydration"}}}}}},"post":{"tags":["hydration"],"summary":"Create Hydration","operationId":"create_hydration","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/HydrationCreate"}}},"required":true},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HydrationResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/hydration/{id}":{"put":{"tags":["hydration"],"summary":"Update Hydration","operationId":"update_hydration","parameters":[{"name":"id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Id"}}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/HydrationUpdate"}}}},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HydrationResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}},"delete":{"tags":["hydration"],"summary":"Delete Hydration","operationId":"delete_hydration","parameters":[{"name":"id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Id"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/bodymeasurements":{"get":{"tags":["bodymeasurements"],"summary":"List Body Measurements","operationId":"list_body_measurements","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"items":{"$ref":"#/components/schemas/BodyMeasurementResponse"},"type":"array","title":"Response List Body Measurements"}}}}}},"post":{"tags":["bodymeasurements"],"summary":"Create Body Measurement","operationId":"create_body_measurement","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/BodyMeasurementCreate"}}},"required":true},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/BodyMeasurementResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/bodymeasurements/{id}":{"put":{"tags":["bodymeasurements"],"summary":"Update Bodymeasurements","operationId":"update_bodymeasurements","parameters":[{"name":"id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Id"}}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/BodyMeasurementUpdate"}}}},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/BodyMeasurementResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}},"delete":{"tags":["bodymeasurements"],"summary":"Delete Bodymeasurements","operationId":"delete_bodymeasurements","parameters":[{"name":"id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Id"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/vitals":{"get":{"tags":["vitals"],"summary":"List Vitals","operationId":"list_vitals","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"items":{"$ref":"#/components/schemas/VitalSignResponse"},"type":"array","title":"Response List Vitals"}}}}}},"post":{"tags":["vitals"],"summary":"Create Vital","operationId":"create_vital","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/VitalSignCreate"}}},"required":true},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/VitalSignResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/vitals/{id}":{"put":{"tags":["vitals"],"summary":"Update Vitals","operationId":"update_vitals","parameters":[{"name":"id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Id"}}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/VitalSignUpdate"}}}},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/VitalSignResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}},"delete":{"tags":["vitals"],"summary":"Delete Vitals","operationId":"delete_vitals","parameters":[{"name":"id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Id"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/mentalwellness":{"get":{"tags":["mentalwellness"],"summary":"List Mental Wellness","operationId":"list_mental_wellness","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"items":{"$ref":"#/components/schemas/MentalWellnessResponse"},"type":"array","title":"Response List Mental Wellness"}}}}}},"post":{"tags":["mentalwellness"],"summary":"Create Mental Wellness","operationId":"create_mental_wellness","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/MentalWellnessCreate"}}},"required":true},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/MentalWellnessResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/mentalwellness/{id}":{"put":{"tags":["mentalwellness"],"summary":"Update Mentalwellness","operationId":"update_mentalwellness","parameters":[{"name":"id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Id"}}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/MentalWellnessUpdate"}}}},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/MentalWellnessResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}},"delete":{"tags":["mentalwellness"],"summary":"Delete Mentalwellness","operationId":"delete_mentalwellness","parameters":[{"name":"id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Id"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/medications":{"get":{"tags":["medications"],"summary":"List Medications","operationId":"list_medications","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"items":{"$ref":"#/components/schemas/MedicationResponse"},"type":"array","title":"Response List Medications"}}}}}},"post":{"tags":["medications"],"summary":"Create Medication","operationId":"create_medication","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/MedicationCreate"}}},"required":true},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/MedicationResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/medications/{id}":{"put":{"tags":["medications"],"summary":"Update Medications","operationId":"update_medications","parameters":[{"name":"id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Id"}}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/MedicationUpdate"}}}},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/MedicationResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}},"delete":{"tags":["medications"],"summary":"Delete Medications","operationId":"delete_medications","parameters":[{"name":"id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Id"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/workouts":{"get":{"tags":["workouts"],"summary":"List Workouts","operationId":"list_workouts","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"items":{"$ref":"#/components/schemas/WorkoutResponse"},"type":"array","title":"Response List Workouts"}}}}}},"post":{"tags":["workouts"],"summary":"Create Workout","operationId":"create_workout","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/WorkoutCreate"}}},"required":true},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/WorkoutResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/workouts/{id}":{"put":{"tags":["workouts"],"summary":"Update Workouts","operationId":"update_workouts","parameters":[{"name":"id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Id"}}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/WorkoutUpdate"}}}},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/WorkoutResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}},"delete":{"tags":["workouts"],"summary":"Delete Workouts","operationId":"delete_workouts","parameters":[{"name":"id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Id"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/workouts/{id}/ai-summary":{"post":{"tags":["workouts"],"summary":"Generate Workout Summary","operationId":"generate_workout_summary","parameters":[{"name":"id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Id"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/WorkoutAISummaryResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/workouts/readiness":{"get":{"tags":["workouts"],"summary":"Get Workout Readiness","operationId":"get_workout_readiness","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/WorkoutReadinessResponse"}}}}}}},"/api/workouts/insights":{"get":{"tags":["workouts"],"summary":"Get Workout Insights","operationId":"get_workout_insights","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/WorkoutInsightsResponse"}}}}}}},"/api/workouts/challenges":{"get":{"tags":["workouts"],"summary":"Get Workout Challenges","operationId":"get_workout_challenges","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/WorkoutChallengesResponse"}}}}}}},"/api/sleep":{"get":{"tags":["sleep"],"summary":"List Sleep","operationId":"list_sleep","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"items":{"$ref":"#/components/schemas/SleepSessionResponse"},"type":"array","title":"Response List Sleep"}}}}}},"post":{"tags":["sleep"],"summary":"Create Sleep","operationId":"create_sleep","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/SleepSessionCreate"}}},"required":true},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/SleepSessionResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/sleep/{id}":{"put":{"tags":["sleep"],"summary":"Update Sleep","operationId":"update_sleep","parameters":[{"name":"id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Id"}}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/SleepSessionUpdate"}}}},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/SleepSessionResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}},"delete":{"tags":["sleep"],"summary":"Delete Sleep","operationId":"delete_sleep","parameters":[{"name":"id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Id"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/screentime":{"get":{"tags":["screentime"],"summary":"List Screentime","operationId":"list_screentime","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"items":{"$ref":"#/components/schemas/ScreenTimeEntryResponse"},"type":"array","title":"Response List Screentime"}}}}}},"post":{"tags":["screentime"],"summary":"Create Screentime","operationId":"create_screentime","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ScreenTimeEntryCreate"}}},"required":true},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/ScreenTimeEntryResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/screentime/{id}":{"put":{"tags":["screentime"],"summary":"Update Screentime","operationId":"update_screentime","parameters":[{"name":"id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Id"}}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ScreenTimeEntryUpdate"}}}},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/ScreenTimeEntryResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}},"delete":{"tags":["screentime"],"summary":"Delete Screentime","operationId":"delete_screentime","parameters":[{"name":"id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Id"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/glucose":{"get":{"tags":["glucose"],"summary":"List Glucose","operationId":"list_glucose","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"items":{"$ref":"#/components/schemas/GlucoseReadingResponse"},"type":"array","title":"Response List Glucose"}}}}}},"post":{"tags":["glucose"],"summary":"Create Glucose","operationId":"create_glucose","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/GlucoseReadingCreate"}}},"required":true},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/GlucoseReadingResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/glucose/{id}":{"put":{"tags":["glucose"],"summary":"Update Glucose","operationId":"update_glucose","parameters":[{"name":"id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Id"}}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/GlucoseReadingUpdate"}}}},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/GlucoseReadingResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}},"delete":{"tags":["glucose"],"summary":"Delete Glucose","operationId":"delete_glucose","parameters":[{"name":"id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Id"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/reminders":{"get":{"tags":["reminders"],"summary":"List Reminders","operationId":"list_reminders","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"items":{"$ref":"#/components/schemas/ReminderResponse"},"type":"array","title":"Response List Reminders"}}}}}},"post":{"tags":["reminders"],"summary":"Create Reminder","operationId":"create_reminder","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ReminderCreate"}}},"required":true},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/ReminderResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/reminders/{reminder_id}":{"put":{"tags":["reminders"],"summary":"Update Reminder","operationId":"update_reminder","parameters":[{"name":"reminder_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Reminder Id"}}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ReminderUpdate"}}}},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/ReminderResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}},"delete":{"tags":["reminders"],"summary":"Delete Reminder","operationId":"delete_reminder","parameters":[{"name":"reminder_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Reminder Id"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/intelligence/report":{"get":{"tags":["intelligence"],"summary":"Get Intelligence Report","description":"Generate a personalized AI Health Intelligence report using the user's real data.","operationId":"get_intelligence_report","parameters":[{"name":"period","in":"query","required":false,"schema":{"type":"string","default":"weekly","title":"Period"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/IntelligenceResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/health":{"get":{"summary":"Health Check","operationId":"health_check","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}}}}}},"components":{"schemas":{"ActionItem":{"properties":{"title":{"type":"string","title":"Title"},"detail":{"type":"string","title":"Detail"},"targetValue":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Targetvalue"}},"type":"object","required":["title","detail"],"title":"ActionItem"},"BodyMeasurementCreate":{"properties":{"weightKg":{"anyOf":[{"type":"number"},{"type":"null"}],"title":"Weightkg"},"bodyFatPercentage":{"anyOf":[{"type":"number"},{"type":"null"}],"title":"Bodyfatpercentage"},"muscleMassKg":{"anyOf":[{"type":"number"},{"type":"null"}],"title":"Musclemasskg"},"waistCircumferenceCm":{"anyOf":[{"type":"number"},{"type":"null"}],"title":"Waistcircumferencecm"}},"type":"object","title":"BodyMeasurementCreate"},"BodyMeasurementResponse":{"properties":{"weightKg":{"anyOf":[{"type":"number"},{"type":"null"}],"title":"Weightkg"},"bodyFatPercentage":{"anyOf":[{"type":"number"},{"type":"null"}],"title":"Bodyfatpercentage"},"muscleMassKg":{"anyOf":[{"type":"number"},{"type":"null"}],"title":"Musclemasskg"},"waistCircumferenceCm":{"anyOf":[{"type":"number"},{"type":"null"}],"title":"Waistcircumferencecm"},"id":{"anyOf":[{"type":"string"},{"type":"string","format":"uuid"}],"title":"Id"},"loggedAt":{"type":"string","format":"date-time","title":"Loggedat"}},"type":"object","required":["id","loggedAt"],"title":"BodyMeasurementResponse"},"BodyMeasurementUpdate":{"properties":{"weightKg":{"anyOf":[{"type":"number"},{"type":"null"}],"title":"Weightkg"},"bodyFatPercentage":{"anyOf":[{"type":"number"},{"type":"null"}],"title":"Bodyfatpercentage"},"muscleMassKg":{"anyOf":[{"type":"number"},{"type":"null"}],"title":"Musclemasskg"},"waistCircumferenceCm":{"anyOf":[{"type":"number"},{"type":"null"}],"title":"Waistcircumferencecm"}},"type":"object","title":"BodyMeasurementUpdate"},"Briefing":{"properties":{"title":{"type":"string","title":"Title"},"summary":{"type":"string","title":"Summary"},"priorities":{"items":{"type":"string"},"type":"array","title":"Priorities"}},"type":"object","required":["title","summary","priorities"],"title":"Briefing"},"CategoryScore":{"properties":{"category":{"type":"string","title":"Category"},"score":{"type":"number","title":"Score"},"label":{"type":"string","title":"Label"}},"type":"object","required":["category","score","label"],"title":"CategoryScore"},"DailyPlan":{"properties":{"weekday":{"type":"string","title":"Weekday"},"date":{"type":"string","title":"Date"},"focus":{"type":"string","title":"Focus"},"actions":{"items":{"$ref":"#/components/schemas/ActionItem"},"type":"array","title":"Actions"}},"type":"object","required":["weekday","date","focus","actions"],"title":"DailyPlan"},"GlucoseReadingCreate":{"properties":{"readingMgdl":{"type":"integer","title":"Readingmgdl"},"contextType":{"type":"string","title":"Contexttype"},"notes":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Notes"}},"type":"object","required":["readingMgdl","contextType"],"title":"GlucoseReadingCreate"},"GlucoseReadingResponse":{"properties":{"readingMgdl":{"type":"integer","title":"Readingmgdl"},"contextType":{"type":"string","title":"Contexttype"},"notes":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Notes"},"id":{"anyOf":[{"type":"string"},{"type":"string","format":"uuid"}],"title":"Id"},"loggedAt":{"type":"string","format":"date-time","title":"Loggedat"}},"type":"object","required":["readingMgdl","contextType","id","loggedAt"],"title":"GlucoseReadingResponse"},"GlucoseReadingUpdate":{"properties":{"readingMgdl":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Readingmgdl"},"contextType":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Contexttype"},"notes":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Notes"}},"type":"object","title":"GlucoseReadingUpdate"},"HTTPValidationError":{"properties":{"detail":{"items":{"$ref":"#/components/schemas/ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"},"HydrationCreate":{"properties":{"amountMl":{"type":"integer","title":"Amountml"},"beverageType":{"type":"string","title":"Beveragetype","default":"water"}},"type":"object","required":["amountMl"],"title":"HydrationCreate"},"HydrationResponse":{"properties":{"amountMl":{"type":"integer","title":"Amountml"},"beverageType":{"type":"string","title":"Beveragetype","default":"water"},"id":{"anyOf":[{"type":"string"},{"type":"string","format":"uuid"}],"title":"Id"},"loggedAt":{"type":"string","format":"date-time","title":"Loggedat"}},"type":"object","required":["amountMl","id","loggedAt"],"title":"HydrationResponse"},"HydrationUpdate":{"properties":{"amountMl":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Amountml"},"beverageType":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Beveragetype"}},"type":"object","title":"HydrationUpdate"},"IntelligenceResponse":{"properties":{"synthesis":{"type":"string","title":"Synthesis"},"consistencyScore":{"type":"string","title":"Consistencyscore"},"avgRecovery":{"type":"string","title":"Avgrecovery"},"topMetric":{"type":"string","title":"Topmetric"},"goalProbability":{"type":"string","title":"Goalprobability"},"adjustments":{"type":"string","title":"Adjustments"},"period":{"type":"string","title":"Period"}},"type":"object","required":["synthesis","consistencyScore","avgRecovery","topMetric","goalProbability","adjustments","period"],"title":"IntelligenceResponse"},"MealCreate":{"properties":{"name":{"type":"string","title":"Name"},"mealType":{"type":"string","title":"Mealtype"},"calories":{"type":"integer","title":"Calories"},"proteinGrams":{"type":"integer","title":"Proteingrams"},"carbsGrams":{"type":"integer","title":"Carbsgrams"},"fatGrams":{"type":"integer","title":"Fatgrams"},"items":{"anyOf":[{"items":{"$ref":"#/components/schemas/MealItem"},"type":"array"},{"type":"null"}],"title":"Items"},"photoUrl":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Photourl"},"vitamins":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Vitamins"},"source":{"type":"string","title":"Source","default":"manual"}},"type":"object","required":["name","mealType","calories","proteinGrams","carbsGrams","fatGrams"],"title":"MealCreate"},"MealItem":{"properties":{"name":{"type":"string","title":"Name"},"quantity":{"type":"string","title":"Quantity"},"calories":{"type":"integer","title":"Calories"},"proteinGrams":{"type":"integer","title":"Proteingrams"},"carbsGrams":{"type":"integer","title":"Carbsgrams"},"fatGrams":{"type":"integer","title":"Fatgrams"},"confidence":{"anyOf":[{"type":"number"},{"type":"null"}],"title":"Confidence"},"vitamins":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Vitamins"}},"type":"object","required":["name","quantity","calories","proteinGrams","carbsGrams","fatGrams"],"title":"MealItem"},"MealResponse":{"properties":{"name":{"type":"string","title":"Name"},"mealType":{"type":"string","title":"Mealtype"},"calories":{"type":"integer","title":"Calories"},"proteinGrams":{"type":"integer","title":"Proteingrams"},"carbsGrams":{"type":"integer","title":"Carbsgrams"},"fatGrams":{"type":"integer","title":"Fatgrams"},"items":{"anyOf":[{"items":{"$ref":"#/components/schemas/MealItem"},"type":"array"},{"type":"null"}],"title":"Items"},"photoUrl":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Photourl"},"vitamins":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Vitamins"},"source":{"type":"string","title":"Source","default":"manual"},"id":{"anyOf":[{"type":"string"},{"type":"string","format":"uuid"}],"title":"Id"},"loggedAt":{"type":"string","format":"date-time","title":"Loggedat"}},"type":"object","required":["name","mealType","calories","proteinGrams","carbsGrams","fatGrams","id","loggedAt"],"title":"MealResponse"},"MealUpdate":{"properties":{"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"mealType":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Mealtype"},"calories":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Calories"},"proteinGrams":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Proteingrams"},"carbsGrams":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Carbsgrams"},"fatGrams":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Fatgrams"},"items":{"anyOf":[{"items":{"$ref":"#/components/schemas/MealItem"},"type":"array"},{"type":"null"}],"title":"Items"},"photoUrl":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Photourl"},"vitamins":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Vitamins"}},"type":"object","title":"MealUpdate"},"MedicationCreate":{"properties":{"name":{"type":"string","title":"Name"},"dosage":{"type":"string","title":"Dosage"},"taken":{"type":"boolean","title":"Taken","default":false},"scheduledFor":{"type":"string","format":"date-time","title":"Scheduledfor"}},"type":"object","required":["name","dosage","scheduledFor"],"title":"MedicationCreate"},"MedicationResponse":{"properties":{"name":{"type":"string","title":"Name"},"dosage":{"type":"string","title":"Dosage"},"taken":{"type":"boolean","title":"Taken","default":false},"scheduledFor":{"type":"string","format":"date-time","title":"Scheduledfor"},"id":{"anyOf":[{"type":"string"},{"type":"string","format":"uuid"}],"title":"Id"},"takenAt":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Takenat"}},"type":"object","required":["name","dosage","scheduledFor","id"],"title":"MedicationResponse"},"MedicationUpdate":{"properties":{"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"dosage":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Dosage"},"taken":{"anyOf":[{"type":"boolean"},{"type":"null"}],"title":"Taken"},"scheduledFor":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Scheduledfor"}},"type":"object","title":"MedicationUpdate"},"MentalWellnessCreate":{"properties":{"moodScore":{"type":"integer","title":"Moodscore"},"stressLevel":{"type":"integer","title":"Stresslevel"},"notes":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Notes"}},"type":"object","required":["moodScore","stressLevel"],"title":"MentalWellnessCreate"},"MentalWellnessResponse":{"properties":{"moodScore":{"type":"integer","title":"Moodscore"},"stressLevel":{"type":"integer","title":"Stresslevel"},"notes":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Notes"},"id":{"anyOf":[{"type":"string"},{"type":"string","format":"uuid"}],"title":"Id"},"loggedAt":{"type":"string","format":"date-time","title":"Loggedat"}},"type":"object","required":["moodScore","stressLevel","id","loggedAt"],"title":"MentalWellnessResponse"},"MentalWellnessUpdate":{"properties":{"moodScore":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Moodscore"},"stressLevel":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Stresslevel"},"notes":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Notes"}},"type":"object","title":"MentalWellnessUpdate"},"MessageCreate":{"properties":{"content":{"type":"string","title":"Content"},"imageBase64":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Imagebase64"}},"type":"object","required":["content"],"title":"MessageCreate"},"MonthlyPlan":{"properties":{"month":{"type":"string","title":"Month"},"narrative":{"type":"string","title":"Narrative"},"modeContext":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Modecontext"},"weeks":{"items":{"$ref":"#/components/schemas/WeeklyGoalItem"},"type":"array","title":"Weeks"}},"type":"object","required":["month","narrative","weeks"],"title":"MonthlyPlan"},"ProfileCreate":{"properties":{"name":{"type":"string","title":"Name"},"mode":{"type":"string","title":"Mode","default":"standard"},"dailyCalorieTarget":{"type":"integer","title":"Dailycalorietarget","default":2100},"dailyProteinTarget":{"type":"integer","title":"Dailyproteintarget","default":110},"dailySleepTargetHours":{"type":"number","title":"Dailysleeptargethours","default":8.0},"dailyStepsTarget":{"type":"integer","title":"Dailystepstarget","default":9000},"dailyScreenTimeLimitMinutes":{"type":"integer","title":"Dailyscreentimelimitminutes","default":180},"glucoseTargetLow":{"type":"integer","title":"Glucosetargetlow","default":80},"glucoseTargetHigh":{"type":"integer","title":"Glucosetargethigh","default":140},"dailyCarbLimit":{"type":"integer","title":"Dailycarblimit","default":180},"onboardingComplete":{"type":"boolean","title":"Onboardingcomplete","default":false}},"type":"object","required":["name"],"title":"ProfileCreate"},"ProfileResponse":{"properties":{"name":{"type":"string","title":"Name"},"mode":{"type":"string","title":"Mode","default":"standard"},"dailyCalorieTarget":{"type":"integer","title":"Dailycalorietarget","default":2100},"dailyProteinTarget":{"type":"integer","title":"Dailyproteintarget","default":110},"dailySleepTargetHours":{"type":"number","title":"Dailysleeptargethours","default":8.0},"dailyStepsTarget":{"type":"integer","title":"Dailystepstarget","default":9000},"dailyScreenTimeLimitMinutes":{"type":"integer","title":"Dailyscreentimelimitminutes","default":180},"glucoseTargetLow":{"type":"integer","title":"Glucosetargetlow","default":80},"glucoseTargetHigh":{"type":"integer","title":"Glucosetargethigh","default":140},"dailyCarbLimit":{"type":"integer","title":"Dailycarblimit","default":180},"onboardingComplete":{"type":"boolean","title":"Onboardingcomplete","default":false},"id":{"anyOf":[{"type":"string"},{"type":"string","format":"uuid"}],"title":"Id"},"avatarColor":{"type":"string","title":"Avatarcolor","default":"aurora"},"premium":{"type":"boolean","title":"Premium","default":false},"joinedAt":{"type":"string","format":"date-time","title":"Joinedat"}},"type":"object","required":["name","id","joinedAt"],"title":"ProfileResponse"},"ReminderCreate":{"properties":{"title":{"type":"string","title":"Title"},"time":{"type":"string","title":"Time"},"category":{"type":"string","title":"Category"},"enabled":{"type":"boolean","title":"Enabled","default":true},"repeatDays":{"items":{"type":"string"},"type":"array","title":"Repeatdays","default":[]},"aiGenerated":{"type":"boolean","title":"Aigenerated","default":false}},"type":"object","required":["title","time","category"],"title":"ReminderCreate"},"ReminderResponse":{"properties":{"title":{"type":"string","title":"Title"},"time":{"type":"string","title":"Time"},"category":{"type":"string","title":"Category"},"enabled":{"type":"boolean","title":"Enabled","default":true},"repeatDays":{"items":{"type":"string"},"type":"array","title":"Repeatdays","default":[]},"aiGenerated":{"type":"boolean","title":"Aigenerated","default":false},"id":{"type":"string","format":"uuid","title":"Id"},"createdAt":{"type":"string","format":"date-time","title":"Createdat"}},"type":"object","required":["title","time","category","id","createdAt"],"title":"ReminderResponse"},"ReminderUpdate":{"properties":{"title":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Title"},"time":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Time"},"category":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Category"},"enabled":{"anyOf":[{"type":"boolean"},{"type":"null"}],"title":"Enabled"},"repeatDays":{"anyOf":[{"items":{"type":"string"},"type":"array"},{"type":"null"}],"title":"Repeatdays"}},"type":"object","title":"ReminderUpdate"},"ScreenTimeEntryCreate":{"properties":{"category":{"type":"string","title":"Category"},"durationSeconds":{"type":"integer","title":"Durationseconds"},"startedAt":{"type":"string","format":"date-time","title":"Startedat"},"endedAt":{"type":"string","format":"date-time","title":"Endedat"}},"type":"object","required":["category","durationSeconds","startedAt","endedAt"],"title":"ScreenTimeEntryCreate"},"ScreenTimeEntryResponse":{"properties":{"category":{"type":"string","title":"Category"},"durationSeconds":{"type":"integer","title":"Durationseconds"},"startedAt":{"type":"string","format":"date-time","title":"Startedat"},"endedAt":{"type":"string","format":"date-time","title":"Endedat"},"id":{"anyOf":[{"type":"string"},{"type":"string","format":"uuid"}],"title":"Id"}},"type":"object","required":["category","durationSeconds","startedAt","endedAt","id"],"title":"ScreenTimeEntryResponse"},"ScreenTimeEntryUpdate":{"properties":{"category":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Category"},"durationSeconds":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Durationseconds"},"startedAt":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Startedat"},"endedAt":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Endedat"}},"type":"object","title":"ScreenTimeEntryUpdate"},"SleepSessionCreate":{"properties":{"date":{"anyOf":[{"type":"string"},{"type":"string","format":"date"}],"title":"Date"},"durationHours":{"type":"number","title":"Durationhours"},"quality":{"type":"string","title":"Quality"},"bedtime":{"type":"string","title":"Bedtime"},"wakeTime":{"type":"string","title":"Waketime"},"deepSleepHours":{"anyOf":[{"type":"number"},{"type":"null"}],"title":"Deepsleephours"},"notes":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Notes"}},"type":"object","required":["date","durationHours","quality","bedtime","wakeTime"],"title":"SleepSessionCreate"},"SleepSessionResponse":{"properties":{"date":{"anyOf":[{"type":"string"},{"type":"string","format":"date"}],"title":"Date"},"durationHours":{"type":"number","title":"Durationhours"},"quality":{"type":"string","title":"Quality"},"bedtime":{"type":"string","title":"Bedtime"},"wakeTime":{"type":"string","title":"Waketime"},"deepSleepHours":{"anyOf":[{"type":"number"},{"type":"null"}],"title":"Deepsleephours"},"notes":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Notes"},"id":{"anyOf":[{"type":"string"},{"type":"string","format":"uuid"}],"title":"Id"}},"type":"object","required":["date","durationHours","quality","bedtime","wakeTime","id"],"title":"SleepSessionResponse"},"SleepSessionUpdate":{"properties":{"date":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Date"},"durationHours":{"anyOf":[{"type":"number"},{"type":"null"}],"title":"Durationhours"},"quality":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Quality"},"bedtime":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Bedtime"},"wakeTime":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Waketime"},"deepSleepHours":{"anyOf":[{"type":"number"},{"type":"null"}],"title":"Deepsleephours"},"notes":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Notes"}},"type":"object","title":"SleepSessionUpdate"},"TimelineEvent":{"properties":{"id":{"type":"string","title":"Id"},"type":{"type":"string","title":"Type"},"title":{"type":"string","title":"Title"},"description":{"type":"string","title":"Description"},"timestamp":{"type":"string","title":"Timestamp"},"icon":{"type":"string","title":"Icon"}},"type":"object","required":["id","type","title","description","timestamp","icon"],"title":"TimelineEvent"},"TimelineSummaryResponse":{"properties":{"summary":{"type":"string","title":"Summary"}},"type":"object","required":["summary"],"title":"TimelineSummaryResponse"},"TodayDashboardResponse":{"properties":{"date":{"type":"string","title":"Date"},"overallScore":{"type":"number","title":"Overallscore"},"scores":{"items":{"$ref":"#/components/schemas/CategoryScore"},"type":"array","title":"Scores"},"caloriesConsumed":{"type":"integer","title":"Caloriesconsumed"},"caloriesTarget":{"type":"integer","title":"Caloriestarget"},"proteinGrams":{"type":"integer","title":"Proteingrams"},"proteinTarget":{"type":"integer","title":"Proteintarget"},"carbsGrams":{"type":"integer","title":"Carbsgrams"},"fatGrams":{"type":"integer","title":"Fatgrams"},"steps":{"type":"integer","title":"Steps"},"stepsTarget":{"type":"integer","title":"Stepstarget"},"activeMinutes":{"type":"integer","title":"Activeminutes"},"sleepHours":{"type":"number","title":"Sleephours"},"sleepTarget":{"type":"number","title":"Sleeptarget"},"screenTimeMinutes":{"type":"integer","title":"Screentimeminutes"},"screenTimeLimit":{"type":"integer","title":"Screentimelimit"},"waterCups":{"type":"integer","title":"Watercups"},"moodLabel":{"type":"string","title":"Moodlabel"},"topRecommendation":{"$ref":"#/components/schemas/TopRecommendation"},"briefing":{"$ref":"#/components/schemas/Briefing"}},"type":"object","required":["date","overallScore","scores","caloriesConsumed","caloriesTarget","proteinGrams","proteinTarget","carbsGrams","fatGrams","steps","stepsTarget","activeMinutes","sleepHours","sleepTarget","screenTimeMinutes","screenTimeLimit","waterCups","moodLabel","topRecommendation","briefing"],"title":"TodayDashboardResponse"},"TopRecommendation":{"properties":{"id":{"type":"string","title":"Id"},"category":{"type":"string","title":"Category"},"title":{"type":"string","title":"Title"},"body":{"type":"string","title":"Body"},"priority":{"type":"string","title":"Priority"},"action":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Action"},"modeContext":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Modecontext"}},"type":"object","required":["id","category","title","body","priority"],"title":"TopRecommendation"},"ValidationError":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"VitalSignCreate":{"properties":{"heartRateBpm":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Heartratebpm"},"bloodPressureSystolic":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Bloodpressuresystolic"},"bloodPressureDiastolic":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Bloodpressurediastolic"},"bodyTemperatureCelsius":{"anyOf":[{"type":"number"},{"type":"null"}],"title":"Bodytemperaturecelsius"},"bloodOxygenPercentage":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Bloodoxygenpercentage"}},"type":"object","title":"VitalSignCreate"},"VitalSignResponse":{"properties":{"heartRateBpm":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Heartratebpm"},"bloodPressureSystolic":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Bloodpressuresystolic"},"bloodPressureDiastolic":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Bloodpressurediastolic"},"bodyTemperatureCelsius":{"anyOf":[{"type":"number"},{"type":"null"}],"title":"Bodytemperaturecelsius"},"bloodOxygenPercentage":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Bloodoxygenpercentage"},"id":{"anyOf":[{"type":"string"},{"type":"string","format":"uuid"}],"title":"Id"},"loggedAt":{"type":"string","format":"date-time","title":"Loggedat"}},"type":"object","required":["id","loggedAt"],"title":"VitalSignResponse"},"VitalSignUpdate":{"properties":{"heartRateBpm":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Heartratebpm"},"bloodPressureSystolic":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Bloodpressuresystolic"},"bloodPressureDiastolic":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Bloodpressurediastolic"},"bodyTemperatureCelsius":{"anyOf":[{"type":"number"},{"type":"null"}],"title":"Bodytemperaturecelsius"},"bloodOxygenPercentage":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Bloodoxygenpercentage"}},"type":"object","title":"VitalSignUpdate"},"WeeklyGoalItem":{"properties":{"weekLabel":{"type":"string","title":"Weeklabel"},"theme":{"type":"string","title":"Theme"},"goals":{"items":{"type":"string"},"type":"array","title":"Goals"}},"type":"object","required":["weekLabel","theme","goals"],"title":"WeeklyGoalItem"},"WeeklyPlan":{"properties":{"theme":{"type":"string","title":"Theme"},"modeContext":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Modecontext"},"days":{"items":{"$ref":"#/components/schemas/DailyPlan"},"type":"array","title":"Days"}},"type":"object","required":["theme","days"],"title":"WeeklyPlan"},"WorkoutAISummaryResponse":{"properties":{"summary":{"type":"string","title":"Summary"}},"type":"object","required":["summary"],"title":"WorkoutAISummaryResponse"},"WorkoutChallengesResponse":{"properties":{"challenges":{"items":{"type":"string"},"type":"array","title":"Challenges"}},"type":"object","required":["challenges"],"title":"WorkoutChallengesResponse"},"WorkoutCreate":{"properties":{"type":{"type":"string","title":"Type"},"durationMinutes":{"type":"integer","title":"Durationminutes"},"caloriesBurned":{"type":"integer","title":"Caloriesburned"},"steps":{"type":"integer","title":"Steps","default":0},"intensity":{"type":"string","title":"Intensity"},"source":{"type":"string","title":"Source","default":"manual"},"distanceKm":{"anyOf":[{"type":"number"},{"type":"null"}],"title":"Distancekm"},"avgHeartRate":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Avgheartrate"},"notes":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Notes"}},"type":"object","required":["type","durationMinutes","caloriesBurned","intensity"],"title":"WorkoutCreate"},"WorkoutInsightsResponse":{"properties":{"insights":{"items":{"type":"string"},"type":"array","title":"Insights"}},"type":"object","required":["insights"],"title":"WorkoutInsightsResponse"},"WorkoutReadinessResponse":{"properties":{"readinessScore":{"type":"integer","title":"Readinessscore"},"explanation":{"type":"string","title":"Explanation"}},"type":"object","required":["readinessScore","explanation"],"title":"WorkoutReadinessResponse"},"WorkoutResponse":{"properties":{"type":{"type":"string","title":"Type"},"durationMinutes":{"type":"integer","title":"Durationminutes"},"caloriesBurned":{"type":"integer","title":"Caloriesburned"},"steps":{"type":"integer","title":"Steps","default":0},"intensity":{"type":"string","title":"Intensity"},"source":{"type":"string","title":"Source","default":"manual"},"distanceKm":{"anyOf":[{"type":"number"},{"type":"null"}],"title":"Distancekm"},"avgHeartRate":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Avgheartrate"},"notes":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Notes"},"id":{"anyOf":[{"type":"string"},{"type":"string","format":"uuid"}],"title":"Id"},"loggedAt":{"type":"string","format":"date-time","title":"Loggedat"}},"type":"object","required":["type","durationMinutes","caloriesBurned","intensity","id","loggedAt"],"title":"WorkoutResponse"},"WorkoutUpdate":{"properties":{"type":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Type"},"durationMinutes":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Durationminutes"},"caloriesBurned":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Caloriesburned"},"steps":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Steps"},"intensity":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Intensity"},"source":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Source"},"distanceKm":{"anyOf":[{"type":"number"},{"type":"null"}],"title":"Distancekm"},"avgHeartRate":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Avgheartrate"},"notes":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Notes"}},"type":"object","title":"WorkoutUpdate"}}}}
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Lumen Wellness Backend",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/anthropic/conversations": {
+      "get": {
+        "summary": "List Conversations",
+        "operationId": "list_conversations",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create Conversation",
+        "operationId": "create_conversation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "type": "object",
+                "title": "Data"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/anthropic/conversations/{conversation_id}": {
+      "get": {
+        "summary": "Get Conversation",
+        "operationId": "get_conversation",
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Conversation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete Conversation",
+        "operationId": "delete_conversation",
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Conversation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/anthropic/conversations/{conversation_id}/messages": {
+      "get": {
+        "summary": "List Messages",
+        "operationId": "list_messages",
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Conversation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Send Anthropic Message",
+        "description": "Streaming endpoint that utilizes PostgreSQL conversations, pgvector memory, and AI Provider.",
+        "operationId": "send_anthropic_message",
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Conversation Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MessageCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/profile": {
+      "get": {
+        "tags": [
+          "profiles"
+        ],
+        "summary": "Get My Profile",
+        "operationId": "get_my_profile",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "profiles"
+        ],
+        "summary": "Update My Profile",
+        "operationId": "update_my_profile",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfileCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/meals": {
+      "get": {
+        "tags": [
+          "meals"
+        ],
+        "summary": "List Meals",
+        "operationId": "list_meals",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MealResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Meals"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "meals"
+        ],
+        "summary": "Create Meal",
+        "operationId": "create_meal",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MealCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MealResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/meals/{meal_id}": {
+      "delete": {
+        "tags": [
+          "meals"
+        ],
+        "summary": "Delete Meal",
+        "operationId": "delete_meal",
+        "parameters": [
+          {
+            "name": "meal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Meal Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/meals/recognize": {
+      "post": {
+        "tags": [
+          "meals"
+        ],
+        "summary": "Recognize Food",
+        "description": "Simulates advanced Computer Vision capabilities to recognize food from images.\nReturns portion estimation, macro estimation, confidence scoring, and vitamin content.",
+        "operationId": "recognize_food",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "type": "object",
+                "title": "Body"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/meals/{id}": {
+      "put": {
+        "tags": [
+          "meals"
+        ],
+        "summary": "Update Meals",
+        "operationId": "update_meals",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MealUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MealResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "meals"
+        ],
+        "summary": "Delete Meals",
+        "operationId": "delete_meals",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dashboard/today": {
+      "get": {
+        "tags": [
+          "dashboard"
+        ],
+        "summary": "Get Today Dashboard",
+        "operationId": "get_today_dashboard",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TodayDashboardResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dashboard/timeline": {
+      "get": {
+        "tags": [
+          "dashboard"
+        ],
+        "summary": "Get Timeline",
+        "operationId": "get_timeline",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TimelineEvent"
+                  },
+                  "type": "array",
+                  "title": "Response Get Timeline"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dashboard/timeline/summary": {
+      "get": {
+        "tags": [
+          "dashboard"
+        ],
+        "summary": "Get Timeline Summary",
+        "operationId": "get_timeline_summary",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimelineSummaryResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dashboard/streaks": {
+      "get": {
+        "tags": [
+          "dashboard"
+        ],
+        "summary": "Get Streaks",
+        "operationId": "get_streaks",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/scores/trend": {
+      "get": {
+        "tags": [
+          "scores"
+        ],
+        "summary": "Get Score Trend",
+        "operationId": "get_score_trend",
+        "parameters": [
+          {
+            "name": "range",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "week",
+              "title": "Range"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/goals/": {
+      "get": {
+        "tags": [
+          "goals"
+        ],
+        "summary": "Get Goals",
+        "description": "Fetch active goals and habit tracking status for the user.",
+        "operationId": "get_goals",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "goals"
+        ],
+        "summary": "Create Goal",
+        "description": "Create a new long-term goal.",
+        "operationId": "create_goal",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "type": "object",
+                "title": "Goal Data"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/goals/habit-status": {
+      "get": {
+        "tags": [
+          "goals"
+        ],
+        "summary": "Get Habit Status",
+        "description": "Returns AI-detected habit decline warnings. \nThis hooks into the intelligence background worker analysis.",
+        "operationId": "get_habit_status",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/planner/weekly": {
+      "get": {
+        "tags": [
+          "planner"
+        ],
+        "summary": "Generate Weekly Plan",
+        "operationId": "generate_weekly_plan",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WeeklyPlan"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/planner/monthly": {
+      "get": {
+        "tags": [
+          "planner"
+        ],
+        "summary": "Generate Monthly Plan",
+        "operationId": "generate_monthly_plan",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonthlyPlan"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hydration": {
+      "get": {
+        "tags": [
+          "hydration"
+        ],
+        "summary": "List Hydration",
+        "operationId": "list_hydration",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/HydrationResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Hydration"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "hydration"
+        ],
+        "summary": "Create Hydration",
+        "operationId": "create_hydration",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HydrationCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HydrationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hydration/{id}": {
+      "put": {
+        "tags": [
+          "hydration"
+        ],
+        "summary": "Update Hydration",
+        "operationId": "update_hydration",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HydrationUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HydrationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "hydration"
+        ],
+        "summary": "Delete Hydration",
+        "operationId": "delete_hydration",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/bodymeasurements": {
+      "get": {
+        "tags": [
+          "bodymeasurements"
+        ],
+        "summary": "List Body Measurements",
+        "operationId": "list_body_measurements",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BodyMeasurementResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Body Measurements"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "bodymeasurements"
+        ],
+        "summary": "Create Body Measurement",
+        "operationId": "create_body_measurement",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BodyMeasurementCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BodyMeasurementResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/bodymeasurements/{id}": {
+      "put": {
+        "tags": [
+          "bodymeasurements"
+        ],
+        "summary": "Update Bodymeasurements",
+        "operationId": "update_bodymeasurements",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BodyMeasurementUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BodyMeasurementResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "bodymeasurements"
+        ],
+        "summary": "Delete Bodymeasurements",
+        "operationId": "delete_bodymeasurements",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/vitals": {
+      "get": {
+        "tags": [
+          "vitals"
+        ],
+        "summary": "List Vitals",
+        "operationId": "list_vitals",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/VitalSignResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Vitals"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "vitals"
+        ],
+        "summary": "Create Vital",
+        "operationId": "create_vital",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VitalSignCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VitalSignResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/vitals/{id}": {
+      "put": {
+        "tags": [
+          "vitals"
+        ],
+        "summary": "Update Vitals",
+        "operationId": "update_vitals",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VitalSignUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VitalSignResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "vitals"
+        ],
+        "summary": "Delete Vitals",
+        "operationId": "delete_vitals",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mentalwellness": {
+      "get": {
+        "tags": [
+          "mentalwellness"
+        ],
+        "summary": "List Mental Wellness",
+        "operationId": "list_mental_wellness",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MentalWellnessResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Mental Wellness"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "mentalwellness"
+        ],
+        "summary": "Create Mental Wellness",
+        "operationId": "create_mental_wellness",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MentalWellnessCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MentalWellnessResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mentalwellness/{id}": {
+      "put": {
+        "tags": [
+          "mentalwellness"
+        ],
+        "summary": "Update Mentalwellness",
+        "operationId": "update_mentalwellness",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MentalWellnessUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MentalWellnessResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "mentalwellness"
+        ],
+        "summary": "Delete Mentalwellness",
+        "operationId": "delete_mentalwellness",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/medications": {
+      "get": {
+        "tags": [
+          "medications"
+        ],
+        "summary": "List Medications",
+        "operationId": "list_medications",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MedicationResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Medications"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "medications"
+        ],
+        "summary": "Create Medication",
+        "operationId": "create_medication",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MedicationCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MedicationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/medications/{id}": {
+      "put": {
+        "tags": [
+          "medications"
+        ],
+        "summary": "Update Medications",
+        "operationId": "update_medications",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MedicationUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MedicationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "medications"
+        ],
+        "summary": "Delete Medications",
+        "operationId": "delete_medications",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workouts": {
+      "get": {
+        "tags": [
+          "workouts"
+        ],
+        "summary": "List Workouts",
+        "operationId": "list_workouts",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/WorkoutResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Workouts"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "workouts"
+        ],
+        "summary": "Create Workout",
+        "operationId": "create_workout",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkoutCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkoutResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workouts/{id}": {
+      "put": {
+        "tags": [
+          "workouts"
+        ],
+        "summary": "Update Workouts",
+        "operationId": "update_workouts",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkoutUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkoutResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "workouts"
+        ],
+        "summary": "Delete Workouts",
+        "operationId": "delete_workouts",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workouts/{id}/ai-summary": {
+      "post": {
+        "tags": [
+          "workouts"
+        ],
+        "summary": "Generate Workout Summary",
+        "operationId": "generate_workout_summary",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkoutAISummaryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workouts/readiness": {
+      "get": {
+        "tags": [
+          "workouts"
+        ],
+        "summary": "Get Workout Readiness",
+        "operationId": "get_workout_readiness",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkoutReadinessResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workouts/insights": {
+      "get": {
+        "tags": [
+          "workouts"
+        ],
+        "summary": "Get Workout Insights",
+        "operationId": "get_workout_insights",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkoutInsightsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workouts/challenges": {
+      "get": {
+        "tags": [
+          "workouts"
+        ],
+        "summary": "Get Workout Challenges",
+        "operationId": "get_workout_challenges",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkoutChallengesResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sleep": {
+      "get": {
+        "tags": [
+          "sleep"
+        ],
+        "summary": "List Sleep",
+        "operationId": "list_sleep",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SleepSessionResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Sleep"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "sleep"
+        ],
+        "summary": "Create Sleep",
+        "operationId": "create_sleep",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SleepSessionCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SleepSessionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sleep/{id}": {
+      "put": {
+        "tags": [
+          "sleep"
+        ],
+        "summary": "Update Sleep",
+        "operationId": "update_sleep",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SleepSessionUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SleepSessionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "sleep"
+        ],
+        "summary": "Delete Sleep",
+        "operationId": "delete_sleep",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/screentime": {
+      "get": {
+        "tags": [
+          "screentime"
+        ],
+        "summary": "List Screentime",
+        "operationId": "list_screentime",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ScreenTimeEntryResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Screentime"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "screentime"
+        ],
+        "summary": "Create Screentime",
+        "operationId": "create_screentime",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScreenTimeEntryCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScreenTimeEntryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/screentime/{id}": {
+      "put": {
+        "tags": [
+          "screentime"
+        ],
+        "summary": "Update Screentime",
+        "operationId": "update_screentime",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScreenTimeEntryUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScreenTimeEntryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "screentime"
+        ],
+        "summary": "Delete Screentime",
+        "operationId": "delete_screentime",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/glucose": {
+      "get": {
+        "tags": [
+          "glucose"
+        ],
+        "summary": "List Glucose",
+        "operationId": "list_glucose",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/GlucoseReadingResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Glucose"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "glucose"
+        ],
+        "summary": "Create Glucose",
+        "operationId": "create_glucose",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GlucoseReadingCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GlucoseReadingResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/glucose/{id}": {
+      "put": {
+        "tags": [
+          "glucose"
+        ],
+        "summary": "Update Glucose",
+        "operationId": "update_glucose",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GlucoseReadingUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GlucoseReadingResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "glucose"
+        ],
+        "summary": "Delete Glucose",
+        "operationId": "delete_glucose",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reminders": {
+      "get": {
+        "tags": [
+          "reminders"
+        ],
+        "summary": "List Reminders",
+        "operationId": "list_reminders",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ReminderResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Reminders"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "reminders"
+        ],
+        "summary": "Create Reminder",
+        "operationId": "create_reminder",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReminderCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReminderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reminders/{reminder_id}": {
+      "put": {
+        "tags": [
+          "reminders"
+        ],
+        "summary": "Update Reminder",
+        "operationId": "update_reminder",
+        "parameters": [
+          {
+            "name": "reminder_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Reminder Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReminderUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReminderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "reminders"
+        ],
+        "summary": "Delete Reminder",
+        "operationId": "delete_reminder",
+        "parameters": [
+          {
+            "name": "reminder_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Reminder Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/intelligence/report": {
+      "get": {
+        "tags": [
+          "intelligence"
+        ],
+        "summary": "Get Intelligence Report",
+        "description": "Generate a personalized AI Health Intelligence report using the user's real data.",
+        "operationId": "get_intelligence_report",
+        "parameters": [
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "weekly",
+              "title": "Period"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntelligenceResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Health Check",
+        "operationId": "health_check",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ActionItem": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          },
+          "targetValue": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Targetvalue"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "detail"
+        ],
+        "title": "ActionItem"
+      },
+      "BodyMeasurementCreate": {
+        "properties": {
+          "weightKg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weightkg"
+          },
+          "bodyFatPercentage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bodyfatpercentage"
+          },
+          "muscleMassKg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Musclemasskg"
+          },
+          "waistCircumferenceCm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Waistcircumferencecm"
+          }
+        },
+        "type": "object",
+        "title": "BodyMeasurementCreate"
+      },
+      "BodyMeasurementResponse": {
+        "properties": {
+          "weightKg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weightkg"
+          },
+          "bodyFatPercentage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bodyfatpercentage"
+          },
+          "muscleMassKg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Musclemasskg"
+          },
+          "waistCircumferenceCm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Waistcircumferencecm"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "format": "uuid"
+              }
+            ],
+            "title": "Id"
+          },
+          "loggedAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Loggedat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "loggedAt"
+        ],
+        "title": "BodyMeasurementResponse"
+      },
+      "BodyMeasurementUpdate": {
+        "properties": {
+          "weightKg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weightkg"
+          },
+          "bodyFatPercentage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bodyfatpercentage"
+          },
+          "muscleMassKg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Musclemasskg"
+          },
+          "waistCircumferenceCm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Waistcircumferencecm"
+          }
+        },
+        "type": "object",
+        "title": "BodyMeasurementUpdate"
+      },
+      "Briefing": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "priorities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Priorities"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "summary",
+          "priorities"
+        ],
+        "title": "Briefing"
+      },
+      "CategoryScore": {
+        "properties": {
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "score": {
+            "type": "number",
+            "title": "Score"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "category",
+          "score",
+          "label"
+        ],
+        "title": "CategoryScore"
+      },
+      "DailyPlan": {
+        "properties": {
+          "weekday": {
+            "type": "string",
+            "title": "Weekday"
+          },
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "focus": {
+            "type": "string",
+            "title": "Focus"
+          },
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/ActionItem"
+            },
+            "type": "array",
+            "title": "Actions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "weekday",
+          "date",
+          "focus",
+          "actions"
+        ],
+        "title": "DailyPlan"
+      },
+      "GlucoseReadingCreate": {
+        "properties": {
+          "readingMgdl": {
+            "type": "integer",
+            "title": "Readingmgdl"
+          },
+          "contextType": {
+            "type": "string",
+            "title": "Contexttype"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "readingMgdl",
+          "contextType"
+        ],
+        "title": "GlucoseReadingCreate"
+      },
+      "GlucoseReadingResponse": {
+        "properties": {
+          "readingMgdl": {
+            "type": "integer",
+            "title": "Readingmgdl"
+          },
+          "contextType": {
+            "type": "string",
+            "title": "Contexttype"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "format": "uuid"
+              }
+            ],
+            "title": "Id"
+          },
+          "loggedAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Loggedat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "readingMgdl",
+          "contextType",
+          "id",
+          "loggedAt"
+        ],
+        "title": "GlucoseReadingResponse"
+      },
+      "GlucoseReadingUpdate": {
+        "properties": {
+          "readingMgdl": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Readingmgdl"
+          },
+          "contextType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contexttype"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "title": "GlucoseReadingUpdate"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HydrationCreate": {
+        "properties": {
+          "amountMl": {
+            "type": "integer",
+            "title": "Amountml"
+          },
+          "beverageType": {
+            "type": "string",
+            "title": "Beveragetype",
+            "default": "water"
+          }
+        },
+        "type": "object",
+        "required": [
+          "amountMl"
+        ],
+        "title": "HydrationCreate"
+      },
+      "HydrationResponse": {
+        "properties": {
+          "amountMl": {
+            "type": "integer",
+            "title": "Amountml"
+          },
+          "beverageType": {
+            "type": "string",
+            "title": "Beveragetype",
+            "default": "water"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "format": "uuid"
+              }
+            ],
+            "title": "Id"
+          },
+          "loggedAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Loggedat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "amountMl",
+          "id",
+          "loggedAt"
+        ],
+        "title": "HydrationResponse"
+      },
+      "HydrationUpdate": {
+        "properties": {
+          "amountMl": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amountml"
+          },
+          "beverageType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Beveragetype"
+          }
+        },
+        "type": "object",
+        "title": "HydrationUpdate"
+      },
+      "IntelligenceResponse": {
+        "properties": {
+          "synthesis": {
+            "type": "string",
+            "title": "Synthesis"
+          },
+          "consistencyScore": {
+            "type": "string",
+            "title": "Consistencyscore"
+          },
+          "avgRecovery": {
+            "type": "string",
+            "title": "Avgrecovery"
+          },
+          "topMetric": {
+            "type": "string",
+            "title": "Topmetric"
+          },
+          "goalProbability": {
+            "type": "string",
+            "title": "Goalprobability"
+          },
+          "adjustments": {
+            "type": "string",
+            "title": "Adjustments"
+          },
+          "period": {
+            "type": "string",
+            "title": "Period"
+          }
+        },
+        "type": "object",
+        "required": [
+          "synthesis",
+          "consistencyScore",
+          "avgRecovery",
+          "topMetric",
+          "goalProbability",
+          "adjustments",
+          "period"
+        ],
+        "title": "IntelligenceResponse"
+      },
+      "MealCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "mealType": {
+            "type": "string",
+            "title": "Mealtype"
+          },
+          "calories": {
+            "type": "integer",
+            "title": "Calories"
+          },
+          "proteinGrams": {
+            "type": "integer",
+            "title": "Proteingrams"
+          },
+          "carbsGrams": {
+            "type": "integer",
+            "title": "Carbsgrams"
+          },
+          "fatGrams": {
+            "type": "integer",
+            "title": "Fatgrams"
+          },
+          "items": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/MealItem"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Items"
+          },
+          "photoUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photourl"
+          },
+          "vitamins": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vitamins"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "default": "manual"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "mealType",
+          "calories",
+          "proteinGrams",
+          "carbsGrams",
+          "fatGrams"
+        ],
+        "title": "MealCreate"
+      },
+      "MealItem": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "quantity": {
+            "type": "string",
+            "title": "Quantity"
+          },
+          "calories": {
+            "type": "integer",
+            "title": "Calories"
+          },
+          "proteinGrams": {
+            "type": "integer",
+            "title": "Proteingrams"
+          },
+          "carbsGrams": {
+            "type": "integer",
+            "title": "Carbsgrams"
+          },
+          "fatGrams": {
+            "type": "integer",
+            "title": "Fatgrams"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "vitamins": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vitamins"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "quantity",
+          "calories",
+          "proteinGrams",
+          "carbsGrams",
+          "fatGrams"
+        ],
+        "title": "MealItem"
+      },
+      "MealResponse": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "mealType": {
+            "type": "string",
+            "title": "Mealtype"
+          },
+          "calories": {
+            "type": "integer",
+            "title": "Calories"
+          },
+          "proteinGrams": {
+            "type": "integer",
+            "title": "Proteingrams"
+          },
+          "carbsGrams": {
+            "type": "integer",
+            "title": "Carbsgrams"
+          },
+          "fatGrams": {
+            "type": "integer",
+            "title": "Fatgrams"
+          },
+          "items": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/MealItem"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Items"
+          },
+          "photoUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photourl"
+          },
+          "vitamins": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vitamins"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "default": "manual"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "format": "uuid"
+              }
+            ],
+            "title": "Id"
+          },
+          "loggedAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Loggedat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "mealType",
+          "calories",
+          "proteinGrams",
+          "carbsGrams",
+          "fatGrams",
+          "id",
+          "loggedAt"
+        ],
+        "title": "MealResponse"
+      },
+      "MealUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "mealType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mealtype"
+          },
+          "calories": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Calories"
+          },
+          "proteinGrams": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proteingrams"
+          },
+          "carbsGrams": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Carbsgrams"
+          },
+          "fatGrams": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fatgrams"
+          },
+          "items": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/MealItem"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Items"
+          },
+          "photoUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photourl"
+          },
+          "vitamins": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vitamins"
+          }
+        },
+        "type": "object",
+        "title": "MealUpdate"
+      },
+      "MedicationCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "dosage": {
+            "type": "string",
+            "title": "Dosage"
+          },
+          "taken": {
+            "type": "boolean",
+            "title": "Taken",
+            "default": false
+          },
+          "scheduledFor": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Scheduledfor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "dosage",
+          "scheduledFor"
+        ],
+        "title": "MedicationCreate"
+      },
+      "MedicationResponse": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "dosage": {
+            "type": "string",
+            "title": "Dosage"
+          },
+          "taken": {
+            "type": "boolean",
+            "title": "Taken",
+            "default": false
+          },
+          "scheduledFor": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Scheduledfor"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "format": "uuid"
+              }
+            ],
+            "title": "Id"
+          },
+          "takenAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Takenat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "dosage",
+          "scheduledFor",
+          "id"
+        ],
+        "title": "MedicationResponse"
+      },
+      "MedicationUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "dosage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dosage"
+          },
+          "taken": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Taken"
+          },
+          "scheduledFor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheduledfor"
+          }
+        },
+        "type": "object",
+        "title": "MedicationUpdate"
+      },
+      "MentalWellnessCreate": {
+        "properties": {
+          "moodScore": {
+            "type": "integer",
+            "title": "Moodscore"
+          },
+          "stressLevel": {
+            "type": "integer",
+            "title": "Stresslevel"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "moodScore",
+          "stressLevel"
+        ],
+        "title": "MentalWellnessCreate"
+      },
+      "MentalWellnessResponse": {
+        "properties": {
+          "moodScore": {
+            "type": "integer",
+            "title": "Moodscore"
+          },
+          "stressLevel": {
+            "type": "integer",
+            "title": "Stresslevel"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "format": "uuid"
+              }
+            ],
+            "title": "Id"
+          },
+          "loggedAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Loggedat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "moodScore",
+          "stressLevel",
+          "id",
+          "loggedAt"
+        ],
+        "title": "MentalWellnessResponse"
+      },
+      "MentalWellnessUpdate": {
+        "properties": {
+          "moodScore": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Moodscore"
+          },
+          "stressLevel": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stresslevel"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "title": "MentalWellnessUpdate"
+      },
+      "MessageCreate": {
+        "properties": {
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "imageBase64": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Imagebase64"
+          }
+        },
+        "type": "object",
+        "required": [
+          "content"
+        ],
+        "title": "MessageCreate"
+      },
+      "MonthlyPlan": {
+        "properties": {
+          "month": {
+            "type": "string",
+            "title": "Month"
+          },
+          "narrative": {
+            "type": "string",
+            "title": "Narrative"
+          },
+          "modeContext": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Modecontext"
+          },
+          "weeks": {
+            "items": {
+              "$ref": "#/components/schemas/WeeklyGoalItem"
+            },
+            "type": "array",
+            "title": "Weeks"
+          }
+        },
+        "type": "object",
+        "required": [
+          "month",
+          "narrative",
+          "weeks"
+        ],
+        "title": "MonthlyPlan"
+      },
+      "ProfileCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "mode": {
+            "type": "string",
+            "title": "Mode",
+            "default": "standard"
+          },
+          "dailyCalorieTarget": {
+            "type": "integer",
+            "title": "Dailycalorietarget",
+            "default": 2100
+          },
+          "dailyProteinTarget": {
+            "type": "integer",
+            "title": "Dailyproteintarget",
+            "default": 110
+          },
+          "dailySleepTargetHours": {
+            "type": "number",
+            "title": "Dailysleeptargethours",
+            "default": 8.0
+          },
+          "dailyStepsTarget": {
+            "type": "integer",
+            "title": "Dailystepstarget",
+            "default": 9000
+          },
+          "dailyScreenTimeLimitMinutes": {
+            "type": "integer",
+            "title": "Dailyscreentimelimitminutes",
+            "default": 180
+          },
+          "glucoseTargetLow": {
+            "type": "integer",
+            "title": "Glucosetargetlow",
+            "default": 80
+          },
+          "glucoseTargetHigh": {
+            "type": "integer",
+            "title": "Glucosetargethigh",
+            "default": 140
+          },
+          "dailyCarbLimit": {
+            "type": "integer",
+            "title": "Dailycarblimit",
+            "default": 180
+          },
+          "onboardingComplete": {
+            "type": "boolean",
+            "title": "Onboardingcomplete",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "ProfileCreate"
+      },
+      "ProfileResponse": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "mode": {
+            "type": "string",
+            "title": "Mode",
+            "default": "standard"
+          },
+          "dailyCalorieTarget": {
+            "type": "integer",
+            "title": "Dailycalorietarget",
+            "default": 2100
+          },
+          "dailyProteinTarget": {
+            "type": "integer",
+            "title": "Dailyproteintarget",
+            "default": 110
+          },
+          "dailySleepTargetHours": {
+            "type": "number",
+            "title": "Dailysleeptargethours",
+            "default": 8.0
+          },
+          "dailyStepsTarget": {
+            "type": "integer",
+            "title": "Dailystepstarget",
+            "default": 9000
+          },
+          "dailyScreenTimeLimitMinutes": {
+            "type": "integer",
+            "title": "Dailyscreentimelimitminutes",
+            "default": 180
+          },
+          "glucoseTargetLow": {
+            "type": "integer",
+            "title": "Glucosetargetlow",
+            "default": 80
+          },
+          "glucoseTargetHigh": {
+            "type": "integer",
+            "title": "Glucosetargethigh",
+            "default": 140
+          },
+          "dailyCarbLimit": {
+            "type": "integer",
+            "title": "Dailycarblimit",
+            "default": 180
+          },
+          "onboardingComplete": {
+            "type": "boolean",
+            "title": "Onboardingcomplete",
+            "default": false
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "format": "uuid"
+              }
+            ],
+            "title": "Id"
+          },
+          "avatarColor": {
+            "type": "string",
+            "title": "Avatarcolor",
+            "default": "aurora"
+          },
+          "premium": {
+            "type": "boolean",
+            "title": "Premium",
+            "default": false
+          },
+          "joinedAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Joinedat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "id",
+          "joinedAt"
+        ],
+        "title": "ProfileResponse"
+      },
+      "ReminderCreate": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "time": {
+            "type": "string",
+            "title": "Time"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
+          },
+          "repeatDays": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Repeatdays",
+            "default": []
+          },
+          "aiGenerated": {
+            "type": "boolean",
+            "title": "Aigenerated",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "time",
+          "category"
+        ],
+        "title": "ReminderCreate"
+      },
+      "ReminderResponse": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "time": {
+            "type": "string",
+            "title": "Time"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
+          },
+          "repeatDays": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Repeatdays",
+            "default": []
+          },
+          "aiGenerated": {
+            "type": "boolean",
+            "title": "Aigenerated",
+            "default": false
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Createdat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "time",
+          "category",
+          "id",
+          "createdAt"
+        ],
+        "title": "ReminderResponse"
+      },
+      "ReminderUpdate": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
+          },
+          "repeatDays": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repeatdays"
+          }
+        },
+        "type": "object",
+        "title": "ReminderUpdate"
+      },
+      "ScreenTimeEntryCreate": {
+        "properties": {
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "durationSeconds": {
+            "type": "integer",
+            "title": "Durationseconds"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Startedat"
+          },
+          "endedAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Endedat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "category",
+          "durationSeconds",
+          "startedAt",
+          "endedAt"
+        ],
+        "title": "ScreenTimeEntryCreate"
+      },
+      "ScreenTimeEntryResponse": {
+        "properties": {
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "durationSeconds": {
+            "type": "integer",
+            "title": "Durationseconds"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Startedat"
+          },
+          "endedAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Endedat"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "format": "uuid"
+              }
+            ],
+            "title": "Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "category",
+          "durationSeconds",
+          "startedAt",
+          "endedAt",
+          "id"
+        ],
+        "title": "ScreenTimeEntryResponse"
+      },
+      "ScreenTimeEntryUpdate": {
+        "properties": {
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "durationSeconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Durationseconds"
+          },
+          "startedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Startedat"
+          },
+          "endedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Endedat"
+          }
+        },
+        "type": "object",
+        "title": "ScreenTimeEntryUpdate"
+      },
+      "SleepSessionCreate": {
+        "properties": {
+          "date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "format": "date"
+              }
+            ],
+            "title": "Date"
+          },
+          "durationHours": {
+            "type": "number",
+            "title": "Durationhours"
+          },
+          "quality": {
+            "type": "string",
+            "title": "Quality"
+          },
+          "bedtime": {
+            "type": "string",
+            "title": "Bedtime"
+          },
+          "wakeTime": {
+            "type": "string",
+            "title": "Waketime"
+          },
+          "deepSleepHours": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deepsleephours"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "durationHours",
+          "quality",
+          "bedtime",
+          "wakeTime"
+        ],
+        "title": "SleepSessionCreate"
+      },
+      "SleepSessionResponse": {
+        "properties": {
+          "date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "format": "date"
+              }
+            ],
+            "title": "Date"
+          },
+          "durationHours": {
+            "type": "number",
+            "title": "Durationhours"
+          },
+          "quality": {
+            "type": "string",
+            "title": "Quality"
+          },
+          "bedtime": {
+            "type": "string",
+            "title": "Bedtime"
+          },
+          "wakeTime": {
+            "type": "string",
+            "title": "Waketime"
+          },
+          "deepSleepHours": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deepsleephours"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "format": "uuid"
+              }
+            ],
+            "title": "Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "durationHours",
+          "quality",
+          "bedtime",
+          "wakeTime",
+          "id"
+        ],
+        "title": "SleepSessionResponse"
+      },
+      "SleepSessionUpdate": {
+        "properties": {
+          "date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
+          },
+          "durationHours": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Durationhours"
+          },
+          "quality": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quality"
+          },
+          "bedtime": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bedtime"
+          },
+          "wakeTime": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Waketime"
+          },
+          "deepSleepHours": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deepsleephours"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "title": "SleepSessionUpdate"
+      },
+      "TimelineEvent": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "timestamp": {
+            "type": "string",
+            "title": "Timestamp"
+          },
+          "icon": {
+            "type": "string",
+            "title": "Icon"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "type",
+          "title",
+          "description",
+          "timestamp",
+          "icon"
+        ],
+        "title": "TimelineEvent"
+      },
+      "TimelineSummaryResponse": {
+        "properties": {
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          }
+        },
+        "type": "object",
+        "required": [
+          "summary"
+        ],
+        "title": "TimelineSummaryResponse"
+      },
+      "TodayDashboardResponse": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "overallScore": {
+            "type": "number",
+            "title": "Overallscore"
+          },
+          "scores": {
+            "items": {
+              "$ref": "#/components/schemas/CategoryScore"
+            },
+            "type": "array",
+            "title": "Scores"
+          },
+          "caloriesConsumed": {
+            "type": "integer",
+            "title": "Caloriesconsumed"
+          },
+          "caloriesTarget": {
+            "type": "integer",
+            "title": "Caloriestarget"
+          },
+          "proteinGrams": {
+            "type": "integer",
+            "title": "Proteingrams"
+          },
+          "proteinTarget": {
+            "type": "integer",
+            "title": "Proteintarget"
+          },
+          "carbsGrams": {
+            "type": "integer",
+            "title": "Carbsgrams"
+          },
+          "fatGrams": {
+            "type": "integer",
+            "title": "Fatgrams"
+          },
+          "steps": {
+            "type": "integer",
+            "title": "Steps"
+          },
+          "stepsTarget": {
+            "type": "integer",
+            "title": "Stepstarget"
+          },
+          "activeMinutes": {
+            "type": "integer",
+            "title": "Activeminutes"
+          },
+          "sleepHours": {
+            "type": "number",
+            "title": "Sleephours"
+          },
+          "sleepTarget": {
+            "type": "number",
+            "title": "Sleeptarget"
+          },
+          "screenTimeMinutes": {
+            "type": "integer",
+            "title": "Screentimeminutes"
+          },
+          "screenTimeLimit": {
+            "type": "integer",
+            "title": "Screentimelimit"
+          },
+          "waterCups": {
+            "type": "integer",
+            "title": "Watercups"
+          },
+          "moodLabel": {
+            "type": "string",
+            "title": "Moodlabel"
+          },
+          "topRecommendation": {
+            "$ref": "#/components/schemas/TopRecommendation"
+          },
+          "briefing": {
+            "$ref": "#/components/schemas/Briefing"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "overallScore",
+          "scores",
+          "caloriesConsumed",
+          "caloriesTarget",
+          "proteinGrams",
+          "proteinTarget",
+          "carbsGrams",
+          "fatGrams",
+          "steps",
+          "stepsTarget",
+          "activeMinutes",
+          "sleepHours",
+          "sleepTarget",
+          "screenTimeMinutes",
+          "screenTimeLimit",
+          "waterCups",
+          "moodLabel",
+          "topRecommendation",
+          "briefing"
+        ],
+        "title": "TodayDashboardResponse"
+      },
+      "TopRecommendation": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "body": {
+            "type": "string",
+            "title": "Body"
+          },
+          "priority": {
+            "type": "string",
+            "title": "Priority"
+          },
+          "action": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action"
+          },
+          "modeContext": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Modecontext"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "category",
+          "title",
+          "body",
+          "priority"
+        ],
+        "title": "TopRecommendation"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "VitalSignCreate": {
+        "properties": {
+          "heartRateBpm": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heartratebpm"
+          },
+          "bloodPressureSystolic": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bloodpressuresystolic"
+          },
+          "bloodPressureDiastolic": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bloodpressurediastolic"
+          },
+          "bodyTemperatureCelsius": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bodytemperaturecelsius"
+          },
+          "bloodOxygenPercentage": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bloodoxygenpercentage"
+          }
+        },
+        "type": "object",
+        "title": "VitalSignCreate"
+      },
+      "VitalSignResponse": {
+        "properties": {
+          "heartRateBpm": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heartratebpm"
+          },
+          "bloodPressureSystolic": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bloodpressuresystolic"
+          },
+          "bloodPressureDiastolic": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bloodpressurediastolic"
+          },
+          "bodyTemperatureCelsius": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bodytemperaturecelsius"
+          },
+          "bloodOxygenPercentage": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bloodoxygenpercentage"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "format": "uuid"
+              }
+            ],
+            "title": "Id"
+          },
+          "loggedAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Loggedat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "loggedAt"
+        ],
+        "title": "VitalSignResponse"
+      },
+      "VitalSignUpdate": {
+        "properties": {
+          "heartRateBpm": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heartratebpm"
+          },
+          "bloodPressureSystolic": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bloodpressuresystolic"
+          },
+          "bloodPressureDiastolic": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bloodpressurediastolic"
+          },
+          "bodyTemperatureCelsius": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bodytemperaturecelsius"
+          },
+          "bloodOxygenPercentage": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bloodoxygenpercentage"
+          }
+        },
+        "type": "object",
+        "title": "VitalSignUpdate"
+      },
+      "WeeklyGoalItem": {
+        "properties": {
+          "weekLabel": {
+            "type": "string",
+            "title": "Weeklabel"
+          },
+          "theme": {
+            "type": "string",
+            "title": "Theme"
+          },
+          "goals": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Goals"
+          }
+        },
+        "type": "object",
+        "required": [
+          "weekLabel",
+          "theme",
+          "goals"
+        ],
+        "title": "WeeklyGoalItem"
+      },
+      "WeeklyPlan": {
+        "properties": {
+          "theme": {
+            "type": "string",
+            "title": "Theme"
+          },
+          "modeContext": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Modecontext"
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/DailyPlan"
+            },
+            "type": "array",
+            "title": "Days"
+          }
+        },
+        "type": "object",
+        "required": [
+          "theme",
+          "days"
+        ],
+        "title": "WeeklyPlan"
+      },
+      "WorkoutAISummaryResponse": {
+        "properties": {
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          }
+        },
+        "type": "object",
+        "required": [
+          "summary"
+        ],
+        "title": "WorkoutAISummaryResponse"
+      },
+      "WorkoutChallengesResponse": {
+        "properties": {
+          "challenges": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Challenges"
+          }
+        },
+        "type": "object",
+        "required": [
+          "challenges"
+        ],
+        "title": "WorkoutChallengesResponse"
+      },
+      "WorkoutCreate": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "durationMinutes": {
+            "type": "integer",
+            "title": "Durationminutes"
+          },
+          "caloriesBurned": {
+            "type": "integer",
+            "title": "Caloriesburned"
+          },
+          "steps": {
+            "type": "integer",
+            "title": "Steps",
+            "default": 0
+          },
+          "intensity": {
+            "type": "string",
+            "title": "Intensity"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "default": "manual"
+          },
+          "distanceKm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distancekm"
+          },
+          "avgHeartRate": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avgheartrate"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "type",
+          "durationMinutes",
+          "caloriesBurned",
+          "intensity"
+        ],
+        "title": "WorkoutCreate"
+      },
+      "WorkoutInsightsResponse": {
+        "properties": {
+          "insights": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Insights"
+          }
+        },
+        "type": "object",
+        "required": [
+          "insights"
+        ],
+        "title": "WorkoutInsightsResponse"
+      },
+      "WorkoutReadinessResponse": {
+        "properties": {
+          "readinessScore": {
+            "type": "integer",
+            "title": "Readinessscore"
+          },
+          "explanation": {
+            "type": "string",
+            "title": "Explanation"
+          }
+        },
+        "type": "object",
+        "required": [
+          "readinessScore",
+          "explanation"
+        ],
+        "title": "WorkoutReadinessResponse"
+      },
+      "WorkoutResponse": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "durationMinutes": {
+            "type": "integer",
+            "title": "Durationminutes"
+          },
+          "caloriesBurned": {
+            "type": "integer",
+            "title": "Caloriesburned"
+          },
+          "steps": {
+            "type": "integer",
+            "title": "Steps",
+            "default": 0
+          },
+          "intensity": {
+            "type": "string",
+            "title": "Intensity"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "default": "manual"
+          },
+          "distanceKm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distancekm"
+          },
+          "avgHeartRate": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avgheartrate"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "format": "uuid"
+              }
+            ],
+            "title": "Id"
+          },
+          "loggedAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Loggedat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "type",
+          "durationMinutes",
+          "caloriesBurned",
+          "intensity",
+          "id",
+          "loggedAt"
+        ],
+        "title": "WorkoutResponse"
+      },
+      "WorkoutUpdate": {
+        "properties": {
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
+          },
+          "durationMinutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Durationminutes"
+          },
+          "caloriesBurned": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caloriesburned"
+          },
+          "steps": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Steps"
+          },
+          "intensity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Intensity"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "distanceKm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distancekm"
+          },
+          "avgHeartRate": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avgheartrate"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "title": "WorkoutUpdate"
+      }
+    }
+  }
+}

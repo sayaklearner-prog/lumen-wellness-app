@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { View, Text, StyleSheet, ScrollView, TextInput, Pressable, Platform, KeyboardAvoidingView } from "react-native";
 import { 
-  useGetMyProfile, 
+  useGetProfile, 
   useListConversations, 
   useCreateConversation, 
   useListMessages, 
@@ -19,7 +19,7 @@ export default function CoachScreen() {
   const scrollViewRef = useRef<ScrollView>(null);
   
   const [inputText, setInputText] = useState("");
-  const { data: profile } = useGetMyProfile();
+  const { data: profile } = useGetProfile();
   const { data: conversations } = useListConversations();
   const createConversation = useCreateConversation();
   const sendMessageMutation = useSendAnthropicMessage();

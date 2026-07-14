@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Platform } from "react-native";
 import { useRouter } from "expo-router";
-import { useGetMyProfile, useUpdateMyProfile, getGetMyProfileQueryKey } from "@workspace/api-client-react";
+import { useGetProfile, useUpdateProfile, getGetProfileQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { User, Flame, Sparkles, Moon, Clock, Trophy, ChevronRight, Check } from "lucide-react-native";
 
@@ -16,8 +16,8 @@ const healthModes = [
 export default function OnboardingScreen() {
   const router = useRouter();
   const qc = useQueryClient();
-  const { data: profile } = useGetMyProfile();
-  const updateProfile = useUpdateMyProfile();
+  const { data: profile } = useGetProfile();
+  const updateProfile = useUpdateProfile();
 
   const [step, setStep] = useState(1);
   const [name, setName] = useState(profile?.name || "");
@@ -54,7 +54,7 @@ export default function OnboardingScreen() {
           onboardingComplete: true
         }
       });
-      qc.invalidateQueries({ queryKey: getGetMyProfileQueryKey() });
+      qc.invalidateQueries({ queryKey: getGetProfileQueryKey() });
       router.replace("/(tabs)");
     } catch {
       alert("Failed to initialize profile. Please try again.");

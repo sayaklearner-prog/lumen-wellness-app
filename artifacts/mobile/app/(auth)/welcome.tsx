@@ -2,8 +2,8 @@ import { View, Text, StyleSheet, Pressable, ImageBackground, Dimensions, Platfor
 import { useRouter } from "expo-router";
 import { storage } from "@/services/storage";
 import { useQueryClient } from "@tanstack/react-query";
-import { getGetMyProfileQueryKey } from "@workspace/api-client-react";
-import { Activity, ShieldCheck, ChevronRight } from "lucide-react-native";
+import { getGetProfileQueryKey } from "@workspace/api-client-react";
+import { Ionicons } from "@expo/vector-icons";
 
 const { width } = Dimensions.get("window");
 
@@ -16,7 +16,7 @@ export default function WelcomeScreen() {
     if (Platform.OS === "web" && typeof localStorage !== "undefined") {
       localStorage.setItem("lumen_authenticated", "true");
     }
-    qc.invalidateQueries({ queryKey: getGetMyProfileQueryKey() });
+    qc.invalidateQueries({ queryKey: getGetProfileQueryKey() });
     router.replace("/(auth)/onboarding");
   };
 
@@ -25,7 +25,7 @@ export default function WelcomeScreen() {
     if (Platform.OS === "web" && typeof localStorage !== "undefined") {
       localStorage.setItem("lumen_authenticated", "true");
     }
-    qc.invalidateQueries({ queryKey: getGetMyProfileQueryKey() });
+    qc.invalidateQueries({ queryKey: getGetProfileQueryKey() });
   };
 
   return (
@@ -36,9 +36,6 @@ export default function WelcomeScreen() {
       <View style={styles.content}>
         {/* Logo Header */}
         <View style={styles.logoRow}>
-          <View style={styles.logoBox}>
-            <Activity size={20} color="#10b981" />
-          </View>
           <Text style={styles.logoText}>Lumen OS</Text>
         </View>
 
@@ -54,7 +51,6 @@ export default function WelcomeScreen() {
         <View style={styles.btnRow}>
           <Pressable style={styles.primaryBtn} onPress={handleGetStarted}>
             <Text style={styles.primaryBtnText}>Get Started</Text>
-            <ChevronRight size={16} color="#050b08" />
           </Pressable>
 
           <Pressable style={styles.secondaryBtn} onPress={handleSignIn}>
@@ -64,7 +60,6 @@ export default function WelcomeScreen() {
 
         {/* Branding Footer */}
         <View style={styles.footer}>
-          <ShieldCheck size={14} color="#10b981" style={{ marginRight: 6 }} />
           <Text style={styles.footerText}>Secure on-device storage. Created by MeshMind.</Text>
         </View>
       </View>
