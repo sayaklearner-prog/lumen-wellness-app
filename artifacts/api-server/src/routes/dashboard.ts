@@ -29,12 +29,21 @@ router.get("/dashboard/today", async (req, res): Promise<void> => {
   const todayKey = ymd(today);
   const yesterdayKey = ymd(addDays(today, -1));
 
-  const [meals, workouts, sleep, screen] = await Promise.all([
-    db.select().from(mealsTable),
-    db.select().from(workoutsTable),
-    db.select().from(sleepTable),
-    db.select().from(screenTimeTable),
-  ]);
+  let meals: any[] = [];
+  let workouts: any[] = [];
+  let sleep: any[] = [];
+  let screen: any[] = [];
+
+  try {
+    [meals, workouts, sleep, screen] = await Promise.all([
+      db.select().from(mealsTable),
+      db.select().from(workoutsTable),
+      db.select().from(sleepTable),
+      db.select().from(screenTimeTable),
+    ]);
+  } catch (err: any) {
+    req.log.warn({ err: err?.message }, "Database query failed, calculating dashboard using default metrics");
+  }
 
   const totals = totalsForDate(todayKey, meals, workouts, sleep, screen);
   const yTotals = totalsForDate(yesterdayKey, meals, workouts, sleep, screen);

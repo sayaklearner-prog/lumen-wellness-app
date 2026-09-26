@@ -28,12 +28,18 @@ router.patch("/profile", async (req, res): Promise<void> => {
   if (parsed.data.dailySleepTargetHours !== undefined) {
     update.dailySleepTargetHours = String(parsed.data.dailySleepTargetHours);
   }
-  const [updated] = await db
-    .update(profilesTable)
-    .set(update)
-    .where(eq(profilesTable.id, profile.id))
-    .returning();
-  res.json(UpdateProfileResponse.parse(profileToApi(updated!)));
+  try {
+    const [updated] = await db
+      .update(profilesTable)
+      .set(update)
+      .where(eq(profilesTable.id, profile.id))
+      .returning();
+    res.json(UpdateProfileResponse.parse(profileToApi(updated!)));
+  } catch (err: any) {
+    req.log.warn({ err: err?.message }, "Database update failed, updating in-memory profile");
+    Object.assign(profile, update);
+    res.json(UpdateProfileResponse.parse(profileToApi(profile)));
+  }
 });
 
 router.post("/profile/upgrade", async (req, res): Promise<void> => {

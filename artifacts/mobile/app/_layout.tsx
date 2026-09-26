@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Platform } from "react-native";
+import { Platform, View, Text, ActivityIndicator } from "react-native";
 import { Stack, Slot, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -116,8 +116,22 @@ function AuthGate() {
     evaluateNavigation();
   }, [segments, profile, isLoading]);
 
-  if (!authChecked || (isAuthenticated && isLoading)) {
-    return null;
+  const [loadingTimedOut, setLoadingTimedOut] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setLoadingTimedOut(true), 1500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (!authChecked || (isAuthenticated && isLoading && !loadingTimedOut)) {
+    return (
+      <View style={{ flex: 1, backgroundColor: "#050b08", alignItems: "center", justifyContent: "center" }}>
+        <Text style={{ color: "#10b981", fontSize: 26, fontWeight: "900", letterSpacing: 1.5, marginBottom: 12 }}>
+          LUMEN OS
+        </Text>
+        <ActivityIndicator size="small" color="#10b981" />
+      </View>
+    );
   }
 
   return <Slot />;

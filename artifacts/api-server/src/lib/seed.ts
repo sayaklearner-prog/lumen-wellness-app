@@ -27,11 +27,16 @@ function setTime(d: Date, h: number, m: number) {
 }
 
 export async function seedIfEmpty() {
-  await getOrCreateProfile();
+  try {
+    await getOrCreateProfile();
 
-  const existingMeals = await db.select().from(mealsTable).limit(1);
-  if (existingMeals.length > 0) {
-    logger.info("Seed skipped — data already present");
+    const existingMeals = await db.select().from(mealsTable).limit(1);
+    if (existingMeals.length > 0) {
+      logger.info("Seed skipped — data already present");
+      return;
+    }
+  } catch (err: any) {
+    logger.warn({ err: err?.message }, "Startup database check skipped (database offline or unreachable)");
     return;
   }
 
