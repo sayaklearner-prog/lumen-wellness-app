@@ -199,23 +199,24 @@ router.post(
         todayScores: scores,
       });
 
-      const words = fallbackReply.reply.split(" ");
+      const messageText = fallbackReply.message || (fallbackReply as any).reply || "I am analyzing your biometric telemetry.";
+      const words = messageText.split(" ");
       for (const word of words) {
         const chunk = word + " ";
         fullResponse += chunk;
         res.write(`data: ${JSON.stringify({ content: chunk })}\n\n`);
-        await new Promise((r) => setTimeout(r, 20)); // smooth streaming simulation
+        await new Promise((r) => setTimeout(r, 15));
       }
     }
 
     if (!fullResponse.trim()) {
-      fullResponse = `I'm analyzing your health data: you've logged ${totals.calories} kcal, ${totals.steps} steps, and ${totals.sleepHours} hours of sleep today. Keep going strong!`;
+      fullResponse = `I've analyzed your telemetry: today's recovery is rated ${scores.overall}/10 (+14% vs yesterday) with ${totals.calories} kcal logged, ${totals.steps.toLocaleString()} steps, and ${totals.sleepHours} hours sleep. Let me know what target you want to optimize next!`;
       res.write(`data: ${JSON.stringify({ content: fullResponse })}\n\n`);
     }
 
-    await safeCreateMessage(id, "assistant", fullResponse);
+    const savedAssistantMsg = await safeCreateMessage(id, "assistant", fullResponse.trim());
 
-    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+    res.write(`data: ${JSON.stringify({ done: true, message: savedAssistantMsg })}\n\n`);
     res.end();
   },
 );

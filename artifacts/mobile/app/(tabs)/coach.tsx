@@ -27,6 +27,8 @@ export default function CoachScreen() {
   const [activeConvoId, setActiveConvoId] = useState<number | null>(null);
   const [isListening, setIsListening] = useState(false);
   const [spokenMessageId, setSpokenMessageId] = useState<string | null>(null);
+  const [localMessages, setLocalMessages] = useState<Array<{ id: string; role: string; content: string }>>([]);
+  const [isThinking, setIsThinking] = useState(false);
 
   // Auto-select or create conversation
   useEffect(() => {
@@ -45,6 +47,13 @@ export default function CoachScreen() {
   const handleSend = async (text: string) => {
     if (!text.trim()) return;
     setInputText("");
+
+    const userMsgId = `u-${Date.now()}`;
+    setLocalMessages(prev => [...prev, { id: userMsgId, role: "user", content: text }]);
+    setIsThinking(true);
+    setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }, 100);
 
     let targetConvoId = activeConvoId;
     if (!targetConvoId) {
@@ -69,10 +78,15 @@ export default function CoachScreen() {
         conversationId: String(targetConvoId),
         data: { content: text }
       });
-      qc.invalidateQueries({ queryKey: getListMessagesQueryKey(targetConvoId!) });
+      await qc.invalidateQueries({ queryKey: getListMessagesQueryKey(targetConvoId!) });
       qc.invalidateQueries({ queryKey: getGetTodayDashboardQueryKey() });
     } catch {
-      qc.invalidateQueries({ queryKey: getListMessagesQueryKey(targetConvoId!) });
+      await qc.invalidateQueries({ queryKey: getListMessagesQueryKey(targetConvoId!) });
+    } finally {
+      setIsThinking(false);
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 150);
     }
   };
 
@@ -120,7 +134,13 @@ export default function CoachScreen() {
     { text: "Workout suggestions", action: "Suggest a quick 20 minute workout based on my readiness." }
   ];
 
-  const messageList = Array.isArray(messages) ? messages : [];
+  const serverMessages = Array.isArray(messages) ? messages : [];
+  const messageList: Array<any> = [...serverMessages];
+  for (const lm of localMessages) {
+    if (!messageList.some(m => String(m.id) === String(lm.id) || (m.role === lm.role && m.content === lm.content))) {
+      messageList.push(lm);
+    }
+  }
 
   return (
     <KeyboardAvoidingView 
@@ -145,7 +165,8 @@ export default function CoachScreen() {
         contentContainerStyle={styles.scrollContent}
       >
         {messageList.length > 0 ? (
-          messageList.map((m: any, idx: number) => {
+          <>
+          {messageList.map((m: any, idx: number) => {
             const isUser = m.role === "user";
             const messageId = m.id || String(idx);
             return (
@@ -196,7 +217,21 @@ export default function CoachScreen() {
                 )}
               </View>
             );
-          })
+          })}
+          {isThinking && (
+            <View style={[styles.bubbleContainer, styles.coachBubbleContainer]}>
+              <View style={styles.coachAvatar}>
+                <Brain size={12} color="#10b981" />
+              </View>
+              <View style={[styles.bubble, styles.coachBubble, { flexDirection: "row", alignItems: "center", gap: 8 }]}>
+                <Sparkles size={14} color="#10b981" />
+                <Text style={[styles.bubbleText, styles.coachBubbleText, { fontStyle: "italic", color: "#94a3b8" }]}>
+                  Lumen Coach is synthesizing your biometrics...
+                </Text>
+              </View>
+            </View>
+          )}
+        </>
         ) : (
           <View style={styles.welcomeContainer}>
             <Brain size={48} color="#10b981" style={{ marginBottom: 15 }} />
