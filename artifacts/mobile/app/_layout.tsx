@@ -14,7 +14,12 @@ function getBaseApiUrl() {
     if (process.env.EXPO_PUBLIC_API_URL) {
       return process.env.EXPO_PUBLIC_API_URL;
     }
-    return window.location.origin;
+    // When running on Render web service directly, use window.location.origin
+    if (window.location.hostname.includes("onrender.com")) {
+      return window.location.origin;
+    }
+    // When running on Vercel, localhost, or any other web host, connect to Render backend
+    return "https://lumen-wellness-app.onrender.com";
   }
   return "https://lumen-wellness-app.onrender.com";
 }
@@ -24,7 +29,7 @@ setBaseUrl(getBaseApiUrl());
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      retry: 1,
+      retry: 2,
       staleTime: 5 * 60 * 1000,
     },
   },

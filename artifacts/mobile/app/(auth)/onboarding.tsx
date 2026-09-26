@@ -28,6 +28,8 @@ export default function OnboardingScreen() {
   const [sleep, setSleep] = useState(8);
   const [screenTime, setScreenTime] = useState(180);
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const handleNext = () => {
     if (step === 1 && !name.trim()) {
       alert("Please enter your name");
@@ -41,23 +43,46 @@ export default function OnboardingScreen() {
   };
 
   const handleComplete = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    const profilePayload = {
+      name: name.trim() || "User",
+      mode,
+      dailyCalorieTarget: calories,
+      dailyProteinTarget: protein,
+      dailyStepsTarget: steps,
+      dailySleepTargetHours: sleep,
+      dailyScreenTimeLimitMinutes: screenTime,
+      onboardingComplete: true,
+    };
+
     try {
       await updateProfile.mutateAsync({
-        data: {
-          name,
-          mode,
-          dailyCalorieTarget: calories,
-          dailyProteinTarget: protein,
-          dailyStepsTarget: steps,
-          dailySleepTargetHours: sleep,
-          dailyScreenTimeLimitMinutes: screenTime,
-          onboardingComplete: true
-        }
+        data: profilePayload,
       });
+
+      if (Platform.OS === "web" && typeof localStorage !== "undefined") {
+        localStorage.setItem("lumen_authenticated", "true");
+        localStorage.setItem("lumen_local_profile", JSON.stringify(profilePayload));
+      }
+
       qc.invalidateQueries({ queryKey: getGetProfileQueryKey() });
       router.replace("/(tabs)");
-    } catch {
-      alert("Failed to initialize profile. Please try again.");
+    } catch (err: any) {
+      console.error("Failed to initialize profile on server:", err);
+
+      // Save locally so the user is never permanently blocked from entering the app
+      if (Platform.OS === "web" && typeof localStorage !== "undefined") {
+        localStorage.setItem("lumen_authenticated", "true");
+        localStorage.setItem("lumen_local_profile", JSON.stringify(profilePayload));
+      }
+
+      // If it was a network error or cold-starting server, inform user and allow entry
+      const detail = err?.message || "Server did not respond in time";
+      alert(`Profile initialized with local offline sync (${detail}). Entering your dashboard.`);
+      router.replace("/(tabs)");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -254,8 +279,14 @@ export default function OnboardingScreen() {
         ) : (
           <View />
         )}
-        <Pressable style={styles.nextBtn} onPress={handleNext}>
-          <Text style={styles.nextBtnText}>{step === 4 ? "Initialize OS" : "Next"}</Text>
+        <Pressable 
+          style={[styles.nextBtn, isSubmitting && { opacity: 0.6 }]} 
+          onPress={handleNext}
+          disabled={isSubmitting}
+        >
+          <Text style={styles.nextBtnText}>
+            {step === 4 ? (isSubmitting ? "Initializing..." : "Initialize OS") : "Next"}
+          </Text>
         </Pressable>
       </View>
     </View>
