@@ -35,7 +35,7 @@ export default function TabsLayout() {
         name="coach"
         options={{
           title: "AI Coach",
-          tabBarIcon: ({ color }) => <Ionicons name="brain-outline" size={22} color={color} />,
+          tabBarIcon: ({ color }) => <Ionicons name="sparkles-outline" size={22} color={color} />,
         }}
       />
       <Tabs.Screen

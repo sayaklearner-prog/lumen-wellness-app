@@ -152,9 +152,15 @@ router.post(
       return;
     }
 
+    const rawBase64 = parsed.data.zipBase64 ?? parsed.data.fileBase64;
+    if (!rawBase64) {
+      res.status(400).json({ error: "Missing file or zip base64 payload" });
+      return;
+    }
+
     let xml: string | null = null;
     try {
-      const buf = Buffer.from(parsed.data.zipBase64, "base64");
+      const buf = Buffer.from(rawBase64, "base64");
       // Apple Health export ships as a zip containing apple_health_export/export.xml.
       // If user uploaded the XML directly it may already be plaintext.
       try {

@@ -30,8 +30,10 @@ export const CompleteOnboardingBody = zod.object({
 // Dashboard — badge (not generated)
 export const GetBadgesResponse = zod.unknown();
 
-// Anthropic conversation alias
-export { CreateConversationBody as CreateAnthropicConversationBody } from './generated/api';
+// Anthropic conversation schema
+export const CreateAnthropicConversationBody = zod.object({
+  title: zod.string().optional(),
+});
 
 // Connections — Apple Health import (not generated — define inline)
 export const ImportAppleHealthDataBody = zod.object({
@@ -75,7 +77,7 @@ export const IngestSensorActivityBody = zod.object({
   steps: zod.number(),
   durationSeconds: zod.number(),
   intensity: zod.string(),
-  sampleCount: zod.number().optional(),
+  sampleCount: zod.number().default(1),
 });
 export const IngestSensorActivityResponse = zod.unknown();
 

@@ -49,12 +49,15 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const mobileDist = path.resolve(__dirname, "../../mobile/dist");
+const wellnessPublicDist = path.resolve(__dirname, "../../wellness/dist/public");
 const wellnessDist = path.resolve(__dirname, "../../wellness/dist");
 
 let staticPath = "";
-if (fs.existsSync(mobileDist)) {
+if (fs.existsSync(path.join(mobileDist, "index.html"))) {
   staticPath = mobileDist;
-} else if (fs.existsSync(wellnessDist)) {
+} else if (fs.existsSync(path.join(wellnessPublicDist, "index.html"))) {
+  staticPath = wellnessPublicDist;
+} else if (fs.existsSync(path.join(wellnessDist, "index.html"))) {
   staticPath = wellnessDist;
 }
 

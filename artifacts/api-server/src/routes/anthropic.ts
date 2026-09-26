@@ -64,7 +64,7 @@ router.post("/anthropic/conversations", async (req, res): Promise<void> => {
   }
   const [created] = await db
     .insert(conversations)
-    .values({ title: parsed.data.title })
+    .values({ title: parsed.data.title ?? "Health Consultation" })
     .returning();
   res.status(201).json(serializeConversation(created!));
 });

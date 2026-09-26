@@ -21,7 +21,7 @@ router.post("/sensors/activity", async (req, res): Promise<void> => {
     steps: parsed.data.steps,
     durationSeconds: parsed.data.durationSeconds,
     intensity: parsed.data.intensity,
-    sampleCount: parsed.data.sampleCount,
+    sampleCount: parsed.data.sampleCount ?? 1,
   });
 
   // Roll the burst into a workout entry so it shows up in totals.
