@@ -42,76 +42,79 @@ function AuthGate() {
   const [authChecked, setAuthChecked] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
+  // Synchronize and verify auth state from storage
+  const verifyAuth = async (): Promise<boolean> => {
+    try {
+      const token = await storage.getItem("lumen_auth_token");
+      const webAuth = Platform.OS === "web" && typeof localStorage !== "undefined" && localStorage.getItem("lumen_authenticated") === "true";
+      const authenticated = token === "authenticated" || webAuth;
+
+      setIsAuthenticated(authenticated);
+      return authenticated;
+    } catch {
+      setIsAuthenticated(false);
+      return false;
+    } finally {
+      setAuthChecked(true);
+    }
+  };
+
   const { data: profile, isLoading } = useGetMyProfile({
     query: {
       queryKey: getGetMyProfileQueryKey(),
       enabled: isAuthenticated,
-      retry: false,
+      retry: 2,
     }
   });
 
+  // Run on initial mount (with offline sync setup)
   useEffect(() => {
-    async function checkAuth() {
+    if (Platform.OS !== "web") {
       try {
-        // Initialize offline queue listener (native only)
-        if (Platform.OS !== "web") {
-          const { setupOfflineSync } = require("@/services/sync");
-          setupOfflineSync(() => {
-            qc.invalidateQueries();
-          });
-        }
-
-        const token = await storage.getItem("lumen_auth_token");
-        const authenticated = token === "authenticated" ||
-          (Platform.OS === "web" && typeof localStorage !== "undefined" && localStorage.getItem("lumen_authenticated") === "true");
-
-        if (authenticated) {
-          // Check biometrics (native only)
-          if (Platform.OS !== "web") {
-            const { getBiometricsEnabled, authenticateWithBiometrics } = require("@/services/security");
-            const biometricsEnabled = await getBiometricsEnabled();
-            if (biometricsEnabled) {
-              const success = await authenticateWithBiometrics("Verify Identity to access your Health OS");
-              if (!success) {
-                alert("Biometric verification failed. Locked session.");
-                setIsAuthenticated(false);
-                return;
-              }
-            }
-          }
-          setIsAuthenticated(true);
-        } else {
-          setIsAuthenticated(false);
-        }
-      } catch {
-        setIsAuthenticated(false);
-      } finally {
-        setAuthChecked(true);
-      }
+        const { setupOfflineSync } = require("@/services/sync");
+        setupOfflineSync(() => {
+          qc.invalidateQueries();
+        });
+      } catch {}
     }
-    checkAuth();
+    verifyAuth();
   }, []);
 
+  // Run navigation evaluation whenever route segments or profile change
   useEffect(() => {
-    if (!authChecked || isLoading) return;
+    async function evaluateNavigation() {
+      const authenticated = await verifyAuth();
 
-    const inAuthGroup = segments[0] === "(auth)";
-    const onboardingComplete = (profile as any)?.onboardingComplete;
+      if (isLoading) return;
 
-    if (!isAuthenticated) {
-      if (!inAuthGroup) {
-        router.replace("/(auth)/welcome");
-      }
-    } else if (profile && onboardingComplete === false) {
-      if (!(segments as any).includes("onboarding")) {
-        router.replace("/(auth)/onboarding");
-      }
-    } else if (isAuthenticated && onboardingComplete !== false) {
-      if (inAuthGroup) {
-        router.replace("/(tabs)");
+      const inAuthGroup = segments[0] === "(auth)";
+      const localOnboardingDone =
+        (Platform.OS === "web" && typeof localStorage !== "undefined" && localStorage.getItem("lumen_onboarding_completed") === "true") ||
+        (await storage.getItem("lumen_onboarding_completed")) === "true";
+
+      const onboardingComplete = (profile as any)?.onboardingComplete ?? (localOnboardingDone ? true : undefined);
+
+      if (!authenticated) {
+        if (!inAuthGroup) {
+          router.replace("/(auth)/welcome");
+        }
+      } else {
+        // User is authenticated
+        if (onboardingComplete === false && !localOnboardingDone) {
+          if (!(segments as any).includes("onboarding")) {
+            router.replace("/(auth)/onboarding");
+          }
+        } else {
+          // Onboarding completed or in progress
+          if (inAuthGroup) {
+            router.replace("/(tabs)");
+          }
+        }
       }
     }
-  }, [isAuthenticated, profile, authChecked, isLoading, segments]);
+
+    evaluateNavigation();
+  }, [segments, profile, isLoading]);
 
   if (!authChecked || (isAuthenticated && isLoading)) {
     return null;

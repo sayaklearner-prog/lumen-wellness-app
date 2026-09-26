@@ -26,6 +26,7 @@ export default function WelcomeScreen() {
       localStorage.setItem("lumen_authenticated", "true");
     }
     qc.invalidateQueries({ queryKey: getGetMyProfileQueryKey() });
+    router.replace("/(tabs)");
   };
 
   return (
