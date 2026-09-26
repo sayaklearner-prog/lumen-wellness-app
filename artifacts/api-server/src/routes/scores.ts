@@ -1,12 +1,5 @@
 import { Router, type IRouter } from "express";
 import {
-  db,
-  mealsTable,
-  workoutsTable,
-  sleepTable,
-  screenTimeTable,
-} from "@workspace/db";
-import {
   GetWeeklyScoresQueryParams,
   GetWeeklyScoresResponse,
   GetMonthlyScoresQueryParams,
@@ -14,7 +7,13 @@ import {
   GetScoreTrendQueryParams,
   GetScoreTrendResponse,
 } from "@workspace/api-zod";
-import { getOrCreateProfile } from "../lib/store";
+import {
+  getOrCreateProfile,
+  safeGetMeals,
+  safeGetWorkouts,
+  safeGetSleep,
+  safeGetScreenTime,
+} from "../lib/store";
 import {
   ymd,
   addDays,
@@ -42,10 +41,10 @@ router.get("/scores/weekly", async (req, res): Promise<void> => {
     : startOfWeek(new Date());
 
   const [meals, workouts, sleep, screen] = await Promise.all([
-    db.select().from(mealsTable),
-    db.select().from(workoutsTable),
-    db.select().from(sleepTable),
-    db.select().from(screenTimeTable),
+    safeGetMeals(),
+    safeGetWorkouts(),
+    safeGetSleep(),
+    safeGetScreenTime(),
   ]);
 
   const days = [];
@@ -70,33 +69,31 @@ router.get("/scores/weekly", async (req, res): Promise<void> => {
     sums.screen += s.screen;
     sums.overall += s.overall;
   }
-  const avg = (n: number) => round1(n / 7);
-  const averages = [
-    { category: "nutrition" as const, score: avg(sums.nutrition), label: labelFor(avg(sums.nutrition)) },
-    { category: "sleep" as const, score: avg(sums.sleep), label: labelFor(avg(sums.sleep)) },
-    { category: "activity" as const, score: avg(sums.activity), label: labelFor(avg(sums.activity)) },
-    { category: "screen" as const, score: avg(sums.screen), label: labelFor(avg(sums.screen)) },
-  ];
-  const overall = avg(sums.overall);
 
+  const averages = [
+    { category: "nutrition" as const, score: round1(sums.nutrition / 7), label: labelFor(sums.nutrition / 7) },
+    { category: "sleep" as const, score: round1(sums.sleep / 7), label: labelFor(sums.sleep / 7) },
+    { category: "activity" as const, score: round1(sums.activity / 7), label: labelFor(sums.activity / 7) },
+    { category: "screen" as const, score: round1(sums.screen / 7), label: labelFor(sums.screen / 7) },
+  ];
   const sorted = [...averages].sort((a, b) => b.score - a.score);
   const best = sorted[0]!.category;
   const worst = sorted[sorted.length - 1]!.category;
+  const overallAvg = round1(sums.overall / 7);
 
   const narrative =
-    overall >= 8
-      ? `An excellent week overall (${overall}/10). ${best} is your anchor — protect that habit. Smallest gain available is ${worst}.`
-      : overall >= 6
-        ? `A steady week (${overall}/10). ${best} is leading the way. Your highest-leverage move next week is improving ${worst}.`
-        : `A reset week (${overall}/10). One focused habit on ${worst} will lift the others. Don't try to fix everything at once.`;
+    overallAvg >= 8
+      ? `A standout week across the board. Your ${best} was consistently high.`
+      : overallAvg >= 6
+        ? `A solid, balanced week. Focus on ${worst} to unlock the next level.`
+        : `Recovery and routine were challenged this week. Prioritize sleep first.`;
 
   res.json(
     GetWeeklyScoresResponse.parse({
       weekStart: ymd(weekStart),
-      weekEnd: ymd(addDays(weekStart, 6)),
       days,
       averages,
-      overallAverage: overall,
+      overallAverage: overallAvg,
       bestCategory: best,
       worstCategory: worst,
       narrative,
@@ -122,10 +119,10 @@ router.get("/scores/monthly", async (req, res): Promise<void> => {
   const firstOfMonth = new Date(year, monthIdx, 1);
 
   const [meals, workouts, sleep, screen] = await Promise.all([
-    db.select().from(mealsTable),
-    db.select().from(workoutsTable),
-    db.select().from(sleepTable),
-    db.select().from(screenTimeTable),
+    safeGetMeals(),
+    safeGetWorkouts(),
+    safeGetSleep(),
+    safeGetScreenTime(),
   ]);
 
   const weeks = [];
@@ -193,10 +190,10 @@ router.get("/scores/trend", async (req, res): Promise<void> => {
   const days = parsed.data.range === "week" ? 7 : parsed.data.range === "month" ? 30 : 90;
 
   const [meals, workouts, sleep, screen] = await Promise.all([
-    db.select().from(mealsTable),
-    db.select().from(workoutsTable),
-    db.select().from(sleepTable),
-    db.select().from(screenTimeTable),
+    safeGetMeals(),
+    safeGetWorkouts(),
+    safeGetSleep(),
+    safeGetScreenTime(),
   ]);
 
   const today = new Date();
