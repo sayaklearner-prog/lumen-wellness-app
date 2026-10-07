@@ -13,8 +13,12 @@ export default function WelcomeScreen() {
 
   const handleGetStarted = async () => {
     await storage.setItem("lumen_auth_token", "authenticated");
+    await storage.setItem("lumen_in_onboarding", "true");
+    await storage.removeItem("lumen_onboarding_completed");
     if (Platform.OS === "web" && typeof localStorage !== "undefined") {
       localStorage.setItem("lumen_authenticated", "true");
+      localStorage.setItem("lumen_in_onboarding", "true");
+      localStorage.removeItem("lumen_onboarding_completed");
     }
     qc.invalidateQueries({ queryKey: getGetMyProfileQueryKey() });
     router.replace("/(auth)/onboarding");
@@ -22,8 +26,10 @@ export default function WelcomeScreen() {
 
   const handleSignIn = async () => {
     await storage.setItem("lumen_auth_token", "authenticated");
+    await storage.removeItem("lumen_in_onboarding");
     if (Platform.OS === "web" && typeof localStorage !== "undefined") {
       localStorage.setItem("lumen_authenticated", "true");
+      localStorage.removeItem("lumen_in_onboarding");
     }
     qc.invalidateQueries({ queryKey: getGetMyProfileQueryKey() });
     router.replace("/(tabs)");
@@ -44,18 +50,18 @@ export default function WelcomeScreen() {
         <View style={styles.copyArea}>
           <Text style={styles.tagline}>Your AI Health Companion.</Text>
           <Text style={styles.desc}>
-            Understand your body. Track your lifestyle. Get personalized AI-powered health guidance every single day.
+            Understand your body. Track your lifestyle. Get personalized AI-powered health guidance tailored to your bio-profile.
           </Text>
         </View>
 
         {/* Action Buttons */}
         <View style={styles.btnRow}>
           <Pressable style={styles.primaryBtn} onPress={handleGetStarted}>
-            <Text style={styles.primaryBtnText}>Get Started</Text>
+            <Text style={styles.primaryBtnText}>Get Started (Set Up Profile)</Text>
           </Pressable>
 
           <Pressable style={styles.secondaryBtn} onPress={handleSignIn}>
-            <Text style={styles.secondaryBtnText}>Sign In</Text>
+            <Text style={styles.secondaryBtnText}>Sign In / Continue</Text>
           </Pressable>
         </View>
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, Platform } from "react-native";
 import { useRouter } from "expo-router";
 import { useGetProfile, useUpdateProfile, getGetProfileQueryKey } from "@workspace/api-client-react";
@@ -31,6 +31,18 @@ export default function OnboardingScreen() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  useEffect(() => {
+    if (profile) {
+      if (profile.name && !name) setName(profile.name);
+      if (profile.mode) setMode(profile.mode);
+      if (profile.dailyCalorieTarget) setCalories(profile.dailyCalorieTarget);
+      if (profile.dailyProteinTarget) setProtein(profile.dailyProteinTarget);
+      if (profile.dailyStepsTarget) setSteps(profile.dailyStepsTarget);
+      if (profile.dailySleepTargetHours) setSleep(Number(profile.dailySleepTargetHours));
+      if (profile.dailyScreenTimeLimitMinutes) setScreenTime(profile.dailyScreenTimeLimitMinutes);
+    }
+  }, [profile]);
+
   const handleNext = () => {
     if (step === 1 && !name.trim()) {
       alert("Please enter your name");
@@ -60,9 +72,11 @@ export default function OnboardingScreen() {
     // Guarantee local authentication and onboarding flags are saved immediately
     await storage.setItem("lumen_auth_token", "authenticated");
     await storage.setItem("lumen_onboarding_completed", "true");
+    await storage.removeItem("lumen_in_onboarding");
     if (Platform.OS === "web" && typeof localStorage !== "undefined") {
       localStorage.setItem("lumen_authenticated", "true");
       localStorage.setItem("lumen_onboarding_completed", "true");
+      localStorage.removeItem("lumen_in_onboarding");
       localStorage.setItem("lumen_local_profile", JSON.stringify(profilePayload));
     }
 

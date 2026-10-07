@@ -88,27 +88,42 @@ function AuthGate() {
       if (isLoading) return;
 
       const inAuthGroup = segments[0] === "(auth)";
-      const localOnboardingDone =
-        (Platform.OS === "web" && typeof localStorage !== "undefined" && localStorage.getItem("lumen_onboarding_completed") === "true") ||
-        (await storage.getItem("lumen_onboarding_completed")) === "true";
-
-      const onboardingComplete = (profile as any)?.onboardingComplete ?? (localOnboardingDone ? true : undefined);
+      const inOnboarding = (segments as any).includes("onboarding");
 
       if (!authenticated) {
         if (!inAuthGroup) {
           router.replace("/(auth)/welcome");
         }
+        return;
+      }
+
+      // If user is actively inside the onboarding flow to enter personal details, NEVER kick them out!
+      if (inOnboarding) {
+        return;
+      }
+
+      // If user initiated entering personal details from cover page or profile settings
+      const inOnboardingProcess =
+        (Platform.OS === "web" && typeof localStorage !== "undefined" && localStorage.getItem("lumen_in_onboarding") === "true") ||
+        (await storage.getItem("lumen_in_onboarding")) === "true";
+
+      if (inOnboardingProcess) {
+        router.replace("/(auth)/onboarding");
+        return;
+      }
+
+      const localOnboardingDone =
+        (Platform.OS === "web" && typeof localStorage !== "undefined" && localStorage.getItem("lumen_onboarding_completed") === "true") ||
+        (await storage.getItem("lumen_onboarding_completed")) === "true";
+
+      const onboardingComplete = (profile as any)?.onboardingComplete ?? localOnboardingDone;
+
+      if (!onboardingComplete && !localOnboardingDone) {
+        router.replace("/(auth)/onboarding");
       } else {
-        // User is authenticated
-        if (onboardingComplete === false && !localOnboardingDone) {
-          if (!(segments as any).includes("onboarding")) {
-            router.replace("/(auth)/onboarding");
-          }
-        } else {
-          // Onboarding completed or in progress
-          if (inAuthGroup) {
-            router.replace("/(tabs)");
-          }
+        // Only redirect to tabs if user is on the welcome cover page
+        if (inAuthGroup) {
+          router.replace("/(tabs)");
         }
       }
     }

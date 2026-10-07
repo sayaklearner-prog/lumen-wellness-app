@@ -63,10 +63,24 @@ export default function ProfileScreen() {
     alert("Health data synchronized successfully!");
   };
 
+  const handleRerunSetup = async () => {
+    await storage.setItem("lumen_in_onboarding", "true");
+    await storage.removeItem("lumen_onboarding_completed");
+    if (Platform.OS === "web" && typeof localStorage !== "undefined") {
+      localStorage.setItem("lumen_in_onboarding", "true");
+      localStorage.removeItem("lumen_onboarding_completed");
+    }
+    router.replace("/(auth)/onboarding");
+  };
+
   const handleLogout = async () => {
     await storage.removeItem("lumen_auth_token");
+    await storage.removeItem("lumen_in_onboarding");
+    await storage.removeItem("lumen_onboarding_completed");
     if (Platform.OS === "web" && typeof localStorage !== "undefined") {
       localStorage.removeItem("lumen_authenticated");
+      localStorage.removeItem("lumen_in_onboarding");
+      localStorage.removeItem("lumen_onboarding_completed");
     }
     qc.clear();
     router.replace("/(auth)/welcome");
@@ -98,6 +112,9 @@ export default function ProfileScreen() {
           </View>
           <Pressable style={styles.saveBtn} onPress={handleUpdate}>
             <Text style={styles.saveBtnText}>Save Settings</Text>
+          </Pressable>
+          <Pressable style={[styles.saveBtn, { backgroundColor: "#13211b", borderWidth: 1, borderColor: "#1e3a2f", marginTop: 8 }]} onPress={handleRerunSetup}>
+            <Text style={[styles.saveBtnText, { color: "#10b981" }]}>Re-run Full Setup Wizard (4 Steps)</Text>
           </Pressable>
         </View>
 
