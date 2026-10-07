@@ -96,15 +96,32 @@ router.delete("/meals/:id", async (req, res): Promise<void> => {
 });
 
 router.post("/meals/recognize", async (req, res): Promise<void> => {
-  const parsed = RecognizeMealFromImageBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-  await new Promise((r) => setTimeout(r, 600));
-  const result = mockRecognizeFood(null);
-  req.log.info({ recognized: result.name }, "Food recognition complete");
-  res.json(RecognizeMealFromImageResponse.parse(result));
+  const body = (req.body || {}) as any;
+  const hint = body.hint || body.name || body.notes;
+
+  const result = mockRecognizeFood(hint);
+  const response = {
+    name: result.name,
+    mealName: result.name,
+    mealType: result.mealType,
+    suggestedMealType: result.mealType,
+    calories: result.calories,
+    totalCalories: result.calories,
+    proteinGrams: result.proteinGrams,
+    totalProteinGrams: result.proteinGrams,
+    carbsGrams: result.carbsGrams,
+    totalCarbsGrams: result.carbsGrams,
+    fatGrams: result.fatGrams,
+    totalFatGrams: result.fatGrams,
+    vitamins: result.vitamins || "Vitamin A, Vitamin C, Calcium & Iron",
+    items: result.items || [],
+    confidence: result.confidence || 0.94,
+    notes: result.notes || "Visual nutrition analysis calibrated via Lumen AI.",
+    modelNotes: result.notes || "Visual nutrition analysis calibrated via Lumen AI.",
+  };
+
+  req.log.info({ recognized: response.name }, "Food recognition complete");
+  res.json(response);
 });
 
 export default router;

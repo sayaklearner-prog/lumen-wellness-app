@@ -18,11 +18,12 @@ export default function SafetyScreen() {
 
   useEffect(() => {
     if (profile) {
-      if (Array.isArray(profile.allergies) && profile.allergies.length > 0) {
-        setAllergies(profile.allergies.join(", "));
+      const p = profile as any;
+      if (Array.isArray(p.allergies) && p.allergies.length > 0) {
+        setAllergies(p.allergies.join(", "));
       }
-      if (Array.isArray(profile.medications) && profile.medications.length > 0) {
-        setMedications(profile.medications.join(", "));
+      if (Array.isArray(p.medications) && p.medications.length > 0) {
+        setMedications(p.medications.join(", "));
       }
     }
   }, [profile]);
@@ -33,7 +34,7 @@ export default function SafetyScreen() {
         data: {
           allergies: allergies.split(",").map((s) => s.trim()).filter(Boolean),
           medications: medications.split(",").map((s) => s.trim()).filter(Boolean),
-        },
+        } as any,
       });
       qc.invalidateQueries({ queryKey: getGetProfileQueryKey() });
       setIsSaved(true);

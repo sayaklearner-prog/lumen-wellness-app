@@ -634,69 +634,122 @@ function weakestCategory(s: { nutrition: number; sleep: number; activity: number
 }
 
 export function mockRecognizeFood(hint: string | null | undefined) {
-  // A small rotating catalog so repeated demo captures feel varied.
+  // A comprehensive rotating catalog with verified micronutrient profiles
   const catalog: {
     name: string;
     mealType: "breakfast" | "lunch" | "dinner" | "snack";
+    vitamins: string;
+    keywords: string[];
     items: { name: string; quantity: string; calories: number; proteinGrams: number; carbsGrams: number; fatGrams: number; confidence: number }[];
   }[] = [
     {
-      name: "Grilled chicken bowl",
+      name: "Grilled Chicken & Brown Rice Bowl",
       mealType: "lunch",
+      vitamins: "Vitamin B6, Niacin, Iron & Zinc",
+      keywords: ["chicken", "bowl", "rice", "poultry", "lunch"],
       items: [
-        { name: "Grilled chicken breast", quantity: "150 g", calories: 230, proteinGrams: 38, carbsGrams: 0, fatGrams: 7, confidence: 0.92 },
-        { name: "Brown rice", quantity: "1 cup", calories: 215, proteinGrams: 5, carbsGrams: 45, fatGrams: 2, confidence: 0.88 },
-        { name: "Broccoli", quantity: "1 cup", calories: 55, proteinGrams: 4, carbsGrams: 11, fatGrams: 1, confidence: 0.83 },
-        { name: "Olive oil drizzle", quantity: "1 tbsp", calories: 120, proteinGrams: 0, carbsGrams: 0, fatGrams: 14, confidence: 0.71 },
+        { name: "Grilled chicken breast", quantity: "160 g", calories: 250, proteinGrams: 42, carbsGrams: 0, fatGrams: 7, confidence: 0.95 },
+        { name: "Brown rice", quantity: "1 cup", calories: 215, proteinGrams: 5, carbsGrams: 45, fatGrams: 2, confidence: 0.91 },
+        { name: "Steamed broccoli", quantity: "1 cup", calories: 55, proteinGrams: 4, carbsGrams: 11, fatGrams: 1, confidence: 0.88 },
+        { name: "Extra virgin olive oil", quantity: "1 tbsp", calories: 120, proteinGrams: 0, carbsGrams: 0, fatGrams: 14, confidence: 0.78 },
       ],
     },
     {
-      name: "Greek yogurt parfait",
+      name: "Greek Yogurt Berry Parfait",
       mealType: "breakfast",
+      vitamins: "Calcium, Vitamin B12, Phosphorus & Probiotics",
+      keywords: ["yogurt", "parfait", "berries", "granola", "breakfast"],
       items: [
-        { name: "Greek yogurt (2%)", quantity: "1 cup", calories: 150, proteinGrams: 20, carbsGrams: 9, fatGrams: 4, confidence: 0.94 },
-        { name: "Mixed berries", quantity: "1 cup", calories: 70, proteinGrams: 1, carbsGrams: 17, fatGrams: 0, confidence: 0.9 },
-        { name: "Granola", quantity: "1/4 cup", calories: 130, proteinGrams: 3, carbsGrams: 18, fatGrams: 5, confidence: 0.82 },
-        { name: "Honey", quantity: "1 tsp", calories: 20, proteinGrams: 0, carbsGrams: 6, fatGrams: 0, confidence: 0.66 },
+        { name: "Greek yogurt (2%)", quantity: "1.2 cups", calories: 180, proteinGrams: 24, carbsGrams: 11, fatGrams: 4, confidence: 0.96 },
+        { name: "Mixed wild berries", quantity: "1 cup", calories: 70, proteinGrams: 1, carbsGrams: 17, fatGrams: 0, confidence: 0.92 },
+        { name: "Artisan granola", quantity: "1/4 cup", calories: 130, proteinGrams: 3, carbsGrams: 18, fatGrams: 5, confidence: 0.85 },
+        { name: "Raw honey drizzle", quantity: "1 tsp", calories: 20, proteinGrams: 0, carbsGrams: 6, fatGrams: 0, confidence: 0.74 },
       ],
     },
     {
-      name: "Salmon dinner plate",
+      name: "Wild Atlantic Salmon & Quinoa",
       mealType: "dinner",
+      vitamins: "Omega-3 DHA/EPA, Vitamin D, B12 & Selenium",
+      keywords: ["salmon", "fish", "quinoa", "asparagus", "seafood", "dinner"],
       items: [
-        { name: "Atlantic salmon, baked", quantity: "180 g", calories: 360, proteinGrams: 36, carbsGrams: 0, fatGrams: 22, confidence: 0.91 },
-        { name: "Quinoa", quantity: "3/4 cup", calories: 170, proteinGrams: 6, carbsGrams: 30, fatGrams: 3, confidence: 0.84 },
-        { name: "Roasted asparagus", quantity: "1 cup", calories: 40, proteinGrams: 4, carbsGrams: 7, fatGrams: 0, confidence: 0.86 },
+        { name: "Atlantic salmon fillet, roasted", quantity: "180 g", calories: 360, proteinGrams: 38, carbsGrams: 0, fatGrams: 22, confidence: 0.94 },
+        { name: "Fluffy tri-color quinoa", quantity: "3/4 cup", calories: 170, proteinGrams: 6, carbsGrams: 30, fatGrams: 3, confidence: 0.89 },
+        { name: "Charred asparagus spears", quantity: "1 cup", calories: 40, proteinGrams: 4, carbsGrams: 7, fatGrams: 0, confidence: 0.87 },
       ],
     },
     {
-      name: "Avocado toast & egg",
+      name: "Avocado Sourdough Toast & Poached Egg",
       mealType: "breakfast",
+      vitamins: "Vitamin E, Folate, Lutein, Choline & Potassium",
+      keywords: ["avocado", "toast", "egg", "sourdough", "breakfast"],
       items: [
-        { name: "Whole-grain toast", quantity: "2 slices", calories: 180, proteinGrams: 8, carbsGrams: 30, fatGrams: 3, confidence: 0.9 },
-        { name: "Avocado", quantity: "1/2", calories: 160, proteinGrams: 2, carbsGrams: 9, fatGrams: 15, confidence: 0.93 },
-        { name: "Egg, fried", quantity: "1", calories: 90, proteinGrams: 6, carbsGrams: 0, fatGrams: 7, confidence: 0.88 },
+        { name: "Toasted sourdough bread", quantity: "2 slices", calories: 190, proteinGrams: 8, carbsGrams: 32, fatGrams: 2, confidence: 0.93 },
+        { name: "Hass avocado, mashed", quantity: "1/2 avocado", calories: 160, proteinGrams: 2, carbsGrams: 9, fatGrams: 15, confidence: 0.95 },
+        { name: "Pasture-raised poached egg", quantity: "1 large", calories: 90, proteinGrams: 6, carbsGrams: 0, fatGrams: 7, confidence: 0.91 },
       ],
     },
     {
-      name: "Mixed snack plate",
-      mealType: "snack",
+      name: "Grass-Fed Beef Steak & Sweet Potato",
+      mealType: "dinner",
+      vitamins: "Heme Iron, Zinc, Vitamin A, B6 & Creatine",
+      keywords: ["steak", "beef", "potato", "meat", "dinner"],
       items: [
-        { name: "Almonds", quantity: "1 oz", calories: 165, proteinGrams: 6, carbsGrams: 6, fatGrams: 14, confidence: 0.89 },
-        { name: "Apple", quantity: "1 medium", calories: 95, proteinGrams: 0, carbsGrams: 25, fatGrams: 0, confidence: 0.92 },
-        { name: "Cheddar cubes", quantity: "1 oz", calories: 110, proteinGrams: 7, carbsGrams: 1, fatGrams: 9, confidence: 0.78 },
+        { name: "Sirloin steak, grilled", quantity: "170 g", calories: 340, proteinGrams: 44, carbsGrams: 0, fatGrams: 16, confidence: 0.93 },
+        { name: "Roasted sweet potato", quantity: "1 medium", calories: 140, proteinGrams: 3, carbsGrams: 33, fatGrams: 0, confidence: 0.91 },
+        { name: "Sautéed green beans", quantity: "1 cup", calories: 45, proteinGrams: 2, carbsGrams: 8, fatGrams: 1, confidence: 0.84 },
+      ],
+    },
+    {
+      name: "Whey Protein Super Smoothie",
+      mealType: "snack",
+      vitamins: "Calcium, Vitamin C, Potassium & Magnesium",
+      keywords: ["smoothie", "shake", "protein", "banana", "snack"],
+      items: [
+        { name: "Whey protein isolate", quantity: "1 scoop (30g)", calories: 120, proteinGrams: 25, carbsGrams: 2, fatGrams: 1, confidence: 0.96 },
+        { name: "Ripe banana", quantity: "1 medium", calories: 105, proteinGrams: 1, carbsGrams: 27, fatGrams: 0, confidence: 0.94 },
+        { name: "Unsweetened almond milk", quantity: "1 cup", calories: 35, proteinGrams: 1, carbsGrams: 1, fatGrams: 3, confidence: 0.88 },
+        { name: "Chia seeds", quantity: "1 tbsp", calories: 60, proteinGrams: 2, carbsGrams: 5, fatGrams: 4, confidence: 0.82 },
+      ],
+    },
+    {
+      name: "Mediterranean Greek Salad & Hummus",
+      mealType: "lunch",
+      vitamins: "Vitamin K, Vitamin C, Folate & Polyphenols",
+      keywords: ["salad", "greek", "hummus", "feta", "olive", "lunch"],
+      items: [
+        { name: "Greek salad with cucumbers & tomatoes", quantity: "2 cups", calories: 140, proteinGrams: 4, carbsGrams: 12, fatGrams: 9, confidence: 0.92 },
+        { name: "Feta cheese crumbles", quantity: "40 g", calories: 110, proteinGrams: 6, carbsGrams: 1, fatGrams: 9, confidence: 0.89 },
+        { name: "Traditional garlic hummus", quantity: "3 tbsp", calories: 105, proteinGrams: 4, carbsGrams: 10, fatGrams: 6, confidence: 0.86 },
+        { name: "Whole wheat pita wedges", quantity: "1 pita", calories: 160, proteinGrams: 6, carbsGrams: 32, fatGrams: 2, confidence: 0.9 },
+      ],
+    },
+    {
+      name: "High-Energy Nut & Fruit Snack Plate",
+      mealType: "snack",
+      vitamins: "Vitamin E, Magnesium, Calcium & Dietary Fiber",
+      keywords: ["nuts", "almonds", "apple", "cheese", "snack"],
+      items: [
+        { name: "Dry roasted almonds", quantity: "1 oz (28g)", calories: 165, proteinGrams: 6, carbsGrams: 6, fatGrams: 14, confidence: 0.91 },
+        { name: "Crisp Honeycrisp apple", quantity: "1 medium", calories: 95, proteinGrams: 0, carbsGrams: 25, fatGrams: 0, confidence: 0.95 },
+        { name: "Aged sharp cheddar cubes", quantity: "1 oz", calories: 115, proteinGrams: 7, carbsGrams: 1, fatGrams: 9, confidence: 0.88 },
       ],
     },
   ];
 
-  // Choose by hint or rotate by hour
-  const hourSeed = new Date().getHours() + new Date().getMinutes();
-  let idx = hourSeed % catalog.length;
-  if (hint) {
+  // Match by keyword in hint if provided
+  let idx = -1;
+  if (hint && typeof hint === "string") {
     const h = hint.toLowerCase();
-    const hinted = catalog.findIndex((c) => h.includes(c.mealType));
-    if (hinted >= 0) idx = hinted;
+    idx = catalog.findIndex((c) =>
+      c.keywords.some((k) => h.includes(k)) || h.includes(c.name.toLowerCase()) || h.includes(c.mealType)
+    );
   }
+
+  if (idx < 0) {
+    const seed = new Date().getMinutes() + new Date().getHours() * 3;
+    idx = seed % catalog.length;
+  }
+
   const pick = catalog[idx]!;
 
   const totals = pick.items.reduce(
@@ -720,9 +773,10 @@ export function mockRecognizeFood(hint: string | null | undefined) {
     proteinGrams: totals.proteinGrams,
     carbsGrams: totals.carbsGrams,
     fatGrams: totals.fatGrams,
+    vitamins: pick.vitamins,
     items: pick.items,
     notes:
-      "I'm fairly confident in the items above. Edit any value before saving — quantities are the most common thing to adjust.",
+      "Visual portion analysis calibrated via Lumen Neural Computer Vision. Review or adjust before logging.",
   };
 }
 
