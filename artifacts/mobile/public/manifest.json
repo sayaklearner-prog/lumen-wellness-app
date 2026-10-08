@@ -1,0 +1,25 @@
+{
+  "short_name": "Lumen",
+  "name": "Lumen AI Wellness",
+  "description": "Adaptive metabolic intelligence and wellness operating system",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#050b08",
+  "theme_color": "#050b08",
+  "display": "standalone",
+  "orientation": "portrait",
+  "scope": "/"
+}

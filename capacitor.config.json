@@ -1,0 +1,12 @@
+{
+  "appId": "com.meshmind.lumen",
+  "appName": "Lumen OS",
+  "webDir": "artifacts/mobile/dist",
+  "server": {
+    "androidScheme": "https",
+    "cleartext": true
+  },
+  "android": {
+    "allowMixedContent": true
+  }
+}
