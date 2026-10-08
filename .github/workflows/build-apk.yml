@@ -53,8 +53,6 @@ jobs:
 
       - name: Setup Capacitor and Android platform
         run: |
-          npm install -g @capacitor/cli@6
-          npm install @capacitor/core@6 @capacitor/android@6
           npx cap add android || true
           npx cap sync android
 
