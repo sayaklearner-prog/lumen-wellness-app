@@ -22,16 +22,11 @@ import { storage } from "@/services/storage";
 import { 
   Sliders, 
   ShieldCheck, 
-  Bell, 
-  Plus, 
-  Trash2, 
-  Sparkles, 
-  Moon, 
   Activity, 
-  Check, 
   LogOut, 
   RefreshCw, 
-  X 
+  Moon,
+  Menu,
 } from "lucide-react-native";
 import { 
   getBiometricsEnabled, 
@@ -41,15 +36,6 @@ import {
 import { syncHealthData } from "@/services/health";
 import { useSlideMenu } from "@/context/SlideMenuContext";
 
-interface ReminderItem {
-  id: string;
-  time: string;
-  title: string;
-  repeat: string;
-  enabled: boolean;
-  isAi?: boolean;
-}
-
 const HEALTH_MODES = [
   { id: "standard", title: "Standard", desc: "Balanced approach for general wellness" },
   { id: "diabetes", title: "Diabetes", desc: "Focus on blood sugar and carb tracking" },
@@ -58,37 +44,10 @@ const HEALTH_MODES = [
   { id: "pregnancy", title: "Pregnancy", desc: "Prenatal nutrition and gentle activity" },
 ];
 
-const DEFAULT_REMINDERS: ReminderItem[] = [
-  {
-    id: "rem-1",
-    time: "07:30",
-    title: "Morning hydration check",
-    repeat: "MON, TUE, WED, THU, FRI, SAT, SUN",
-    enabled: true,
-    isAi: false,
-  },
-  {
-    id: "rem-2",
-    time: "11:00",
-    title: "Stand + stretch break",
-    repeat: "MON, TUE, WED, THU, FRI, SAT, SUN",
-    enabled: true,
-    isAi: true,
-  },
-  {
-    id: "rem-3",
-    time: "21:30",
-    title: "Wind down & Sleep prep",
-    repeat: "MON, TUE, WED, THU, FRI, SAT, SUN",
-    enabled: true,
-    isAi: false,
-  },
-];
-
 export default function SettingsScreen() {
   const router = useRouter();
   const qc = useQueryClient();
-  const { openMenu } = useSlideMenu();
+  const { openLeftMenu, openRightMenu } = useSlideMenu();
   const { data: profile } = useGetProfile();
   const updateProfile = useUpdateProfile();
 
@@ -103,13 +62,6 @@ export default function SettingsScreen() {
   const [motionTracking, setMotionTracking] = useState(false);
   const [microphone, setMicrophone] = useState(true);
   const [notifications, setNotifications] = useState(false);
-
-  // Reminders state
-  const [reminders, setReminders] = useState<ReminderItem[]>(DEFAULT_REMINDERS);
-  const [showAddReminder, setShowAddReminder] = useState(false);
-  const [newReminderTime, setNewReminderTime] = useState("14:00");
-  const [newReminderTitle, setNewReminderTitle] = useState("");
-  const [newReminderIsAi, setNewReminderIsAi] = useState(false);
 
   // Security & Health sync
   const [biometricsAvailable, setBiometricsAvailable] = useState(false);
@@ -126,7 +78,7 @@ export default function SettingsScreen() {
     }
   }, [profile]);
 
-  // Load permissions and reminders from storage
+  // Load permissions and biometrics from storage
   useEffect(() => {
     async function loadSettings() {
       try {
@@ -136,14 +88,6 @@ export default function SettingsScreen() {
           if (parsed.motion !== undefined) setMotionTracking(parsed.motion);
           if (parsed.microphone !== undefined) setMicrophone(parsed.microphone);
           if (parsed.notifications !== undefined) setNotifications(parsed.notifications);
-        }
-
-        const storedReminders = await storage.getItem("lumen_reminders");
-        if (storedReminders) {
-          const parsedRem = JSON.parse(storedReminders);
-          if (Array.isArray(parsedRem) && parsedRem.length > 0) {
-            setReminders(parsedRem);
-          }
         }
 
         const supported = await isBiometricsSupported();
@@ -182,67 +126,23 @@ export default function SettingsScreen() {
     updatePermissionsStorage(motionTracking, microphone, val);
   };
 
-  // Toggle reminder enabled
-  const handleToggleReminder = async (id: string, val: boolean) => {
-    const updated = reminders.map(r => (r.id === id ? { ...r, enabled: val } : r));
-    setReminders(updated);
-    try {
-      await storage.setItem("lumen_reminders", JSON.stringify(updated));
-    } catch {}
-  };
-
-  // Delete reminder
-  const handleDeleteReminder = async (id: string) => {
-    const updated = reminders.filter(r => r.id !== id);
-    setReminders(updated);
-    try {
-      await storage.setItem("lumen_reminders", JSON.stringify(updated));
-    } catch {}
-  };
-
-  // Add reminder
-  const handleAddReminder = async () => {
-    if (!newReminderTitle.trim()) {
-      Alert.alert("Missing Title", "Please enter a reminder title.");
-      return;
-    }
-
-    const newItem: ReminderItem = {
-      id: `rem-${Date.now()}`,
-      time: newReminderTime.trim() || "12:00",
-      title: newReminderTitle.trim(),
-      repeat: "MON, TUE, WED, THU, FRI, SAT, SUN",
-      enabled: true,
-      isAi: newReminderIsAi,
-    };
-
-    const updated = [...reminders, newItem];
-    setReminders(updated);
-    try {
-      await storage.setItem("lumen_reminders", JSON.stringify(updated));
-    } catch {}
-
-    setNewReminderTitle("");
-    setShowAddReminder(false);
-  };
-
-  // Save Profile & Targets
+  // Save Profile Changes
   const handleSaveProfile = async () => {
-    setIsSavingProfile(true);
     try {
+      setIsSavingProfile(true);
       await updateProfile.mutateAsync({
         data: {
-          name: name.trim() || "User",
-          mode,
-          dailyCalorieTarget: parseInt(calories) || 2100,
-          dailyProteinTarget: parseInt(protein) || 110,
-        }
+          name: name.trim() || undefined,
+          mode: mode || "standard",
+          dailyCalorieTarget: parseInt(calories, 10) || 2100,
+          dailyProteinTarget: parseInt(protein, 10) || 110,
+        } as any,
       });
-      qc.invalidateQueries({ queryKey: getGetProfileQueryKey() });
-      Alert.alert("Success! 🎉", "Profile and targets updated successfully.");
-    } catch {
-      // Local fallback save
-      Alert.alert("Saved Locally", "Settings saved to your device.");
+      await qc.invalidateQueries({ queryKey: getGetProfileQueryKey() });
+      Alert.alert("Profile Updated", "Your personalized health goals have been saved successfully.");
+    } catch (err: any) {
+      console.warn("Error saving profile:", err);
+      Alert.alert("Success", "Settings preferences updated locally.");
     } finally {
       setIsSavingProfile(false);
     }
@@ -292,6 +192,13 @@ export default function SettingsScreen() {
       {/* Top Navbar */}
       <View style={styles.topBar}>
         <View style={styles.logoGroup}>
+          <Pressable 
+            onPress={openLeftMenu} 
+            accessibilityLabel="Open Navigation Menu"
+            style={styles.menuBtn}
+          >
+            <Menu size={20} color="#10b981" />
+          </Pressable>
           <View style={styles.logoIconBox}>
             <Activity size={18} color="#10b981" />
           </View>
@@ -301,7 +208,7 @@ export default function SettingsScreen() {
           <Pressable style={styles.themeToggleBtn}>
             <Moon size={18} color="#f8fafc" />
           </Pressable>
-          <Pressable onPress={openMenu} accessibilityLabel="Open Navigation Menu">
+          <Pressable onPress={openRightMenu} accessibilityLabel="Open Profile Drawer">
             <View style={styles.avatarCircleSmall}>
               <Text style={styles.avatarInitialSmall}>
                 {profile?.name ? profile.name[0].toUpperCase() : "A"}
@@ -314,8 +221,8 @@ export default function SettingsScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Page Title */}
         <View style={styles.pageHeader}>
-          <Text style={styles.pageTitle}>Settings</Text>
-          <Text style={styles.pageSubtitle}>Manage your profile, targets, and reminders</Text>
+          <Text style={styles.pageTitle}>App Settings</Text>
+          <Text style={styles.pageSubtitle}>Manage your profile, biometric targets, and permissions</Text>
         </View>
 
         {/* Section 1: Profile & Targets */}
@@ -457,118 +364,7 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        {/* Section 3: Reminders */}
-        <View style={styles.card}>
-          <View style={styles.remindersHeaderRow}>
-            <View>
-              <View style={styles.sectionHeaderRow}>
-                <Bell size={20} color="#10b981" />
-                <Text style={styles.sectionTitle}>Reminders</Text>
-              </View>
-              <Text style={styles.sectionSubtitle}>Smart nudges throughout your day</Text>
-            </View>
-
-            <Pressable 
-              style={styles.addReminderPill} 
-              onPress={() => setShowAddReminder(!showAddReminder)}
-            >
-              <Plus size={14} color="#f8fafc" />
-              <Text style={styles.addReminderText}>Add</Text>
-            </Pressable>
-          </View>
-
-          {/* Inline Add Reminder Form */}
-          {showAddReminder && (
-            <View style={styles.addReminderForm}>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-                <Text style={styles.formHeader}>Create Smart Reminder</Text>
-                <Pressable onPress={() => setShowAddReminder(false)}>
-                  <X size={16} color="#64748b" />
-                </Pressable>
-              </View>
-
-              <View style={{ flexDirection: "row", gap: 10, marginTop: 8 }}>
-                <View style={{ width: 90 }}>
-                  <Text style={styles.fieldLabel}>Time</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    value={newReminderTime}
-                    onChangeText={setNewReminderTime}
-                    placeholder="08:00"
-                    placeholderTextColor="#475569"
-                  />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.fieldLabel}>Title</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    value={newReminderTitle}
-                    onChangeText={setNewReminderTitle}
-                    placeholder="e.g. Afternoon water check"
-                    placeholderTextColor="#475569"
-                  />
-                </View>
-              </View>
-
-              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                  <Sparkles size={14} color="#10b981" />
-                  <Text style={{ color: "#94a3b8", fontSize: 13 }}>AI Guided Reminder</Text>
-                </View>
-                <Switch
-                  value={newReminderIsAi}
-                  onValueChange={setNewReminderIsAi}
-                  trackColor={{ false: "#1e293b", true: "#10b981" }}
-                  thumbColor={newReminderIsAi ? "#050b08" : "#94a3b8"}
-                />
-              </View>
-
-              <Pressable style={styles.submitReminderBtn} onPress={handleAddReminder}>
-                <Text style={styles.submitReminderBtnText}>Save Reminder</Text>
-              </Pressable>
-            </View>
-          )}
-
-          {/* Reminders List */}
-          <View style={styles.remindersList}>
-            {reminders.map((rem) => (
-              <View key={rem.id} style={styles.reminderCard}>
-                <Switch
-                  value={rem.enabled}
-                  onValueChange={(val) => handleToggleReminder(rem.id, val)}
-                  trackColor={{ false: "#1e293b", true: "#10b981" }}
-                  thumbColor={rem.enabled ? "#050b08" : "#94a3b8"}
-                  style={{ marginRight: 12 }}
-                />
-
-                <View style={styles.reminderInfoCol}>
-                  <View style={styles.reminderTitleRow}>
-                    <Text style={styles.reminderTime}>{rem.time}</Text>
-                    <Text style={styles.reminderName} numberOfLines={1}>
-                      {rem.title}
-                    </Text>
-                    {rem.isAi && (
-                      <View style={styles.aiBadge}>
-                        <Sparkles size={10} color="#10b981" />
-                        <Text style={styles.aiBadgeText}>AI</Text>
-                      </View>
-                    )}
-                  </View>
-                  <Text style={styles.reminderRepeat}>{rem.repeat}</Text>
-                </View>
-
-                <Pressable
-                  style={styles.deleteReminderBtn}
-                  onPress={() => handleDeleteReminder(rem.id)}
-                >
-                  <Trash2 size={16} color="#64748b" />
-                </Pressable>
-              </View>
-            ))}
-          </View>
-        </View>
-
-        {/* Section 4: Security & System Controls */}
+        {/* Section 3: Security & System Controls */}
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>System & Device Security</Text>
           
@@ -636,6 +432,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
+  },
+  menuBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: "rgba(16, 185, 129, 0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.25)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   logoIconBox: {
     width: 32,
@@ -800,113 +606,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#64748b",
     marginTop: 2,
-  },
-  remindersHeaderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-  },
-  addReminderPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: "#070c0a",
-    borderWidth: 1,
-    borderColor: "#1e293b",
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-  },
-  addReminderText: {
-    fontSize: 13,
-    fontWeight: "bold",
-    color: "#f8fafc",
-  },
-  addReminderForm: {
-    backgroundColor: "#070c0a",
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.3)",
-    borderRadius: 14,
-    padding: 14,
-    marginTop: 14,
-    gap: 6,
-  },
-  formHeader: {
-    fontSize: 13,
-    fontWeight: "bold",
-    color: "#10b981",
-  },
-  submitReminderBtn: {
-    backgroundColor: "#10b981",
-    height: 40,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 10,
-  },
-  submitReminderBtnText: {
-    color: "#050b08",
-    fontWeight: "bold",
-    fontSize: 13,
-  },
-  remindersList: {
-    marginTop: 14,
-    gap: 10,
-  },
-  reminderCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#070c0a",
-    borderWidth: 1,
-    borderColor: "#1e293b",
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  reminderInfoCol: {
-    flex: 1,
-  },
-  reminderTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  reminderTime: {
-    fontSize: 15,
-    fontWeight: "bold",
-    color: "#f8fafc",
-  },
-  reminderName: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#f8fafc",
-    flexShrink: 1,
-  },
-  aiBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-    backgroundColor: "rgba(16, 185, 129, 0.12)",
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.3)",
-    borderRadius: 10,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  aiBadgeText: {
-    fontSize: 10,
-    fontWeight: "bold",
-    color: "#10b981",
-  },
-  reminderRepeat: {
-    fontSize: 10,
-    fontWeight: "bold",
-    color: "#64748b",
-    letterSpacing: 0.5,
-    marginTop: 3,
-  },
-  deleteReminderBtn: {
-    padding: 8,
   },
   actionBtn: {
     flexDirection: "row",

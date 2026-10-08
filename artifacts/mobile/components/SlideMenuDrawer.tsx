@@ -29,7 +29,7 @@ import {
   Sliders,
   LogOut,
   Bell,
-  Shield,
+  Clock,
 } from "lucide-react-native";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -38,15 +38,17 @@ const DRAWER_WIDTH = Math.min(340, SCREEN_WIDTH * 0.85);
 interface SlideMenuDrawerProps {
   isOpen: boolean;
   onClose: () => void;
+  side?: "left" | "right";
 }
 
-export function SlideMenuDrawer({ isOpen, onClose }: SlideMenuDrawerProps) {
+export function SlideMenuDrawer({ isOpen, onClose, side = "left" }: SlideMenuDrawerProps) {
   const router = useRouter();
   const pathname = usePathname();
   const qc = useQueryClient();
   const { data: profile } = useGetProfile();
 
-  const translateX = useRef(new Animated.Value(DRAWER_WIDTH)).current;
+  const hiddenOffset = side === "left" ? -DRAWER_WIDTH : DRAWER_WIDTH;
+  const translateX = useRef(new Animated.Value(hiddenOffset)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -67,7 +69,7 @@ export function SlideMenuDrawer({ isOpen, onClose }: SlideMenuDrawerProps) {
     } else {
       Animated.parallel([
         Animated.timing(translateX, {
-          toValue: DRAWER_WIDTH,
+          toValue: hiddenOffset,
           duration: 220,
           useNativeDriver: true,
         }),
@@ -78,7 +80,7 @@ export function SlideMenuDrawer({ isOpen, onClose }: SlideMenuDrawerProps) {
         }),
       ]).start();
     }
-  }, [isOpen]);
+  }, [isOpen, hiddenOffset]);
 
   const handleNavigate = (route: string) => {
     onClose();
@@ -125,12 +127,14 @@ export function SlideMenuDrawer({ isOpen, onClose }: SlideMenuDrawerProps) {
     }, 150);
   };
 
-  const userName = profile?.name || "Alex Rivera";
+  const userName = profile?.name || "Somdutta Kirtaniya";
   const userInitial = userName ? userName[0].toUpperCase() : "A";
 
   if (!isOpen) {
     return null;
   }
+
+  const isLeft = side === "left";
 
   return (
     <View style={StyleSheet.absoluteFillObject} pointerEvents="box-none">
@@ -150,6 +154,7 @@ export function SlideMenuDrawer({ isOpen, onClose }: SlideMenuDrawerProps) {
       <Animated.View
         style={[
           styles.drawer,
+          isLeft ? styles.drawerLeft : styles.drawerRight,
           {
             transform: [{ translateX }],
           },
@@ -182,8 +187,26 @@ export function SlideMenuDrawer({ isOpen, onClose }: SlideMenuDrawerProps) {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* SECTION 1: PRIMARY EXPANDED MODULES (The ones previously removed from bottom) */}
+          {/* SECTION 1: PRIMARY MODULES */}
           <Text style={styles.sectionHeading}>MODULES & TELEMETRY</Text>
+
+          {/* Reminders & Alarms (New Dedicated Alarm Screen) */}
+          <Pressable
+            style={[
+              styles.navItemCard,
+              pathname?.includes("reminders") && styles.navItemCardActive,
+            ]}
+            onPress={() => handleNavigate("/(tabs)/reminders")}
+          >
+            <View style={[styles.navIconBox, { backgroundColor: "rgba(16, 185, 129, 0.15)" }]}>
+              <Bell size={18} color="#10b981" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.navTitle}>Reminders & Alarms</Text>
+              <Text style={styles.navSub}>Ringing chimes, wakeups & smart nudges</Text>
+            </View>
+            <ChevronRight size={16} color="#475569" />
+          </Pressable>
 
           {/* Analytics Item */}
           <Pressable
@@ -234,7 +257,7 @@ export function SlideMenuDrawer({ isOpen, onClose }: SlideMenuDrawerProps) {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.navTitle}>App Settings</Text>
-              <Text style={styles.navSub}>Profile, targets, permissions & reminders</Text>
+              <Text style={styles.navSub}>Profile, targets, permissions & security</Text>
             </View>
             <ChevronRight size={16} color="#475569" />
           </Pressable>
@@ -311,18 +334,26 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 0,
     bottom: 0,
-    right: 0,
     width: DRAWER_WIDTH,
     backgroundColor: "#070c0a",
-    borderLeftWidth: 1,
-    borderLeftColor: "rgba(16, 185, 129, 0.2)",
     zIndex: 9999,
     paddingTop: Platform.OS === "ios" ? 54 : 36,
     elevation: 20,
     shadowColor: "#000",
-    shadowOffset: { width: -4, height: 0 },
     shadowOpacity: 0.5,
     shadowRadius: 10,
+  },
+  drawerLeft: {
+    left: 0,
+    borderRightWidth: 1,
+    borderRightColor: "rgba(16, 185, 129, 0.2)",
+    shadowOffset: { width: 4, height: 0 },
+  },
+  drawerRight: {
+    right: 0,
+    borderLeftWidth: 1,
+    borderLeftColor: "rgba(16, 185, 129, 0.2)",
+    shadowOffset: { width: -4, height: 0 },
   },
   drawerHeader: {
     flexDirection: "row",

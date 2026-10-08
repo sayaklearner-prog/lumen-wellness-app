@@ -10,7 +10,7 @@ import { SlideMenuProvider, useSlideMenu } from "@/context/SlideMenuContext";
 import { SlideMenuDrawer } from "@/components/SlideMenuDrawer";
 
 function TabsContent() {
-  const { isOpen, closeMenu } = useSlideMenu();
+  const { isLeftOpen, closeLeftMenu, isRightOpen, closeRightMenu } = useSlideMenu();
 
   return (
     <>
@@ -63,27 +63,36 @@ function TabsContent() {
           }}
         />
         <Tabs.Screen
+          name="reminders"
+          options={{
+            href: null, // accessed via slide drawer
+          }}
+        />
+        <Tabs.Screen
           name="profile"
           options={{
-            href: null, // removed from bottom bar, accessed via top-right slide drawer
+            href: null, // removed from bottom bar, accessed via slide drawer
           }}
         />
         <Tabs.Screen
           name="analytics"
           options={{
-            href: null, // accessed via top-right slide drawer
+            href: null, // accessed via slide drawer
           }}
         />
         <Tabs.Screen
           name="safety"
           options={{
-            href: null, // accessed via top-right slide drawer
+            href: null, // accessed via slide drawer
           }}
         />
       </Tabs>
 
-      {/* Slide drawer for all modules removed from bottom bar */}
-      <SlideMenuDrawer isOpen={isOpen} onClose={closeMenu} />
+      {/* Primary Left Slide Drawer */}
+      <SlideMenuDrawer side="left" isOpen={isLeftOpen} onClose={closeLeftMenu} />
+
+      {/* Top-Right Slide Drawer (preserved for later use) */}
+      <SlideMenuDrawer side="right" isOpen={isRightOpen} onClose={closeRightMenu} />
     </>
   );
 }
