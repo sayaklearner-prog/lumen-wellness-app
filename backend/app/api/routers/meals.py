@@ -17,7 +17,10 @@ async def list_meals(wellness_repo: WellnessRepository = Depends(get_wellness_re
 
 @router.post("", response_model=MealResponse)
 async def create_meal(meal: MealCreate, wellness_repo: WellnessRepository = Depends(get_wellness_repo)):
-    new_meal = Meal(**meal.dict())
+    meal_dict = meal.dict()
+    if meal_dict.get("items") is None:
+        meal_dict["items"] = []
+    new_meal = Meal(**meal_dict)
     wellness_repo.session.add(new_meal)
     await wellness_repo.session.commit()
     await wellness_repo.session.refresh(new_meal)

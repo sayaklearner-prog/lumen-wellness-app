@@ -5,9 +5,7 @@ import {
   Sparkles, 
   Activity, 
   Utensils, 
-  BarChart2, 
-  ShieldCheck, 
-  User 
+  Settings
 } from "lucide-react-native";
 
 export default function TabsLayout() {
@@ -47,13 +45,6 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="activity"
-        options={{
-          title: "Activity",
-          tabBarIcon: ({ color }) => <Activity size={20} color={color} />,
-        }}
-      />
-      <Tabs.Screen
         name="nutrition"
         options={{
           title: "Nutrition",
@@ -61,24 +52,29 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="analytics"
+        name="activity"
         options={{
-          title: "Analytics",
-          tabBarIcon: ({ color }) => <BarChart2 size={20} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="safety"
-        options={{
-          title: "Safety",
-          tabBarIcon: ({ color }) => <ShieldCheck size={20} color={color} />,
+          title: "Activity",
+          tabBarIcon: ({ color }) => <Activity size={20} color={color} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: "Profile",
-          tabBarIcon: ({ color }) => <User size={20} color={color} />,
+          title: "Settings",
+          tabBarIcon: ({ color }) => <Settings size={20} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="analytics"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="safety"
+        options={{
+          href: null,
         }}
       />
     </Tabs>

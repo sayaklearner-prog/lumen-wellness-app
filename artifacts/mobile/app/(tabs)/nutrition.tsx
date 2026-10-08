@@ -8,11 +8,14 @@ import {
   ChevronRight, Apple, Flame, Award, Image as ImageIcon, RefreshCw, X, Sliders
 } from "lucide-react-native";
 import { queueOfflineLog } from "@/services/db";
+import { storage } from "@/services/storage";
 
 export default function NutritionScreen() {
   const qc = useQueryClient();
   const [showLogForm, setShowLogForm] = useState(false);
   const [mealType, setMealType] = useState("breakfast");
+  const [localMeals, setLocalMeals] = useState<Array<any>>([]);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Form states
   const [foodName, setFoodName] = useState("");
@@ -21,6 +24,22 @@ export default function NutritionScreen() {
   const [carbs, setCarbs] = useState("40");
   const [fat, setFat] = useState("10");
   const [vitamins, setVitamins] = useState("Vitamin C: 12mg");
+
+  // Load locally saved meals from device storage on mount
+  useEffect(() => {
+    async function loadCachedMeals() {
+      try {
+        const raw = await storage.getItem("lumen_local_meals");
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) setLocalMeals(parsed);
+        }
+      } catch (err) {
+        console.warn("Could not load cached meals:", err);
+      }
+    }
+    loadCachedMeals();
+  }, []);
 
   // AI Food Vision Scanner States
   const [showScanModal, setShowScanModal] = useState(false);
@@ -264,56 +283,116 @@ export default function NutritionScreen() {
 
   // Manual meal save
   const handleLogMeal = async () => {
-    if (!foodName.trim()) return;
+    const nameToSave = foodName.trim() || `${mealType.charAt(0).toUpperCase() + mealType.slice(1)} Meal`;
+    setIsSaving(true);
 
+    const newMeal: any = {
+      id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      name: nameToSave,
+      mealType: mealType,
+      meal_type: mealType,
+      calories: parseInt(calories) || 0,
+      proteinGrams: parseInt(protein) || 0,
+      protein_grams: parseInt(protein) || 0,
+      carbsGrams: parseInt(carbs) || 0,
+      carbs_grams: parseInt(carbs) || 0,
+      fatGrams: parseInt(fat) || 0,
+      fat_grams: parseInt(fat) || 0,
+      vitamins: vitamins.trim() || undefined,
+      items: [],
+      source: "manual",
+      loggedAt: new Date().toISOString(),
+      logged_at: new Date().toISOString(),
+    };
+
+    // 1. Immediately persist to device storage
+    const updatedLocal = [newMeal, ...localMeals];
+    setLocalMeals(updatedLocal);
+    try {
+      await storage.setItem("lumen_local_meals", JSON.stringify(updatedLocal));
+    } catch (e) {
+      console.warn("Storage save error:", e);
+    }
+
+    // 2. Optimistically update React Query cache
+    qc.setQueryData(getListMealsQueryKey(), (old: any) => [newMeal, ...(Array.isArray(old) ? old : [])]);
+    qc.setQueryData(getGetTodayDashboardQueryKey(), (old: any) => {
+      if (!old) return old;
+      return {
+        ...old,
+        todayTotals: {
+          ...old.todayTotals,
+          caloriesIn: (old.todayTotals?.caloriesIn || 0) + newMeal.calories,
+          proteinGrams: (old.todayTotals?.proteinGrams || 0) + newMeal.proteinGrams,
+          carbsGrams: (old.todayTotals?.carbsGrams || 0) + newMeal.carbsGrams,
+          fatGrams: (old.todayTotals?.fatGrams || 0) + newMeal.fatGrams,
+        }
+      };
+    });
+
+    // 3. Sync to server
     try {
       await createMealMutation.mutateAsync({
         data: {
-          name: foodName,
-          mealType: mealType,
-          calories: parseInt(calories) || 0,
-          proteinGrams: parseInt(protein) || 0,
-          carbsGrams: parseInt(carbs) || 0,
-          fatGrams: parseInt(fat) || 0,
-          vitamins: vitamins,
+          name: newMeal.name,
+          mealType: newMeal.mealType,
+          calories: newMeal.calories,
+          proteinGrams: newMeal.proteinGrams,
+          carbsGrams: newMeal.carbsGrams,
+          fatGrams: newMeal.fatGrams,
+          vitamins: newMeal.vitamins,
+          items: [],
           source: "manual",
         } as any,
       });
       qc.invalidateQueries({ queryKey: getListMealsQueryKey() });
       qc.invalidateQueries({ queryKey: getGetTodayDashboardQueryKey() });
+    } catch (err) {
+      console.warn("Server sync error (saved locally):", err);
+      await queueOfflineLog("meal", "/api/meals", newMeal);
+    } finally {
+      setIsSaving(false);
       setFoodName("");
       setShowLogForm(false);
-    } catch {
-      await queueOfflineLog("meal", "/api/meals", {
-        name: foodName,
-        mealType: mealType,
-        calories: parseInt(calories) || 0,
-        proteinGrams: parseInt(protein) || 0,
-        carbsGrams: parseInt(carbs) || 0,
-        fatGrams: parseInt(fat) || 0,
-        vitamins: vitamins,
-        source: "manual",
-      });
-      Alert.alert("Device offline", "Meal queued to local database.");
-      setFoodName("");
-      setShowLogForm(false);
+      Alert.alert("Meal Saved! 🎉", `"${newMeal.name}" (${newMeal.calories} kcal) saved to ${newMeal.mealType}.`);
     }
   };
 
   const handleDeleteMeal = async (id: string) => {
+    const remainingLocal = localMeals.filter(m => String(m.id) !== String(id));
+    setLocalMeals(remainingLocal);
     try {
-      await deleteMealMutation.mutateAsync({ mealId: id });
-      qc.invalidateQueries({ queryKey: getListMealsQueryKey() });
-      qc.invalidateQueries({ queryKey: getGetTodayDashboardQueryKey() });
-    } catch {
-      Alert.alert("Error", "Failed to delete meal");
+      await storage.setItem("lumen_local_meals", JSON.stringify(remainingLocal));
+    } catch {}
+
+    qc.setQueryData(getListMealsQueryKey(), (old: any) => 
+      Array.isArray(old) ? old.filter((m: any) => String(m.id) !== String(id)) : []
+    );
+
+    if (!String(id).startsWith("local-")) {
+      try {
+        await deleteMealMutation.mutateAsync({ mealId: id });
+        qc.invalidateQueries({ queryKey: getListMealsQueryKey() });
+        qc.invalidateQueries({ queryKey: getGetTodayDashboardQueryKey() });
+      } catch (err) {
+        console.warn("Delete server error:", err);
+      }
     }
   };
 
-  const totalCalories = meals?.reduce((acc: number, m: any) => acc + (m.calories || 0), 0) || 0;
-  const totalProtein = meals?.reduce((acc: number, m: any) => acc + (m.proteinGrams || 0), 0) || 0;
-  const totalCarbs = meals?.reduce((acc: number, m: any) => acc + (m.carbsGrams || 0), 0) || 0;
-  const totalFat = meals?.reduce((acc: number, m: any) => acc + (m.fatGrams || 0), 0) || 0;
+  // Merge server meals with local meals for total continuity
+  const serverMeals = Array.isArray(meals) ? meals : [];
+  const allMeals: Array<any> = [...serverMeals];
+  for (const lm of localMeals) {
+    if (!allMeals.some(m => String(m.id) === String(lm.id) || (m.name === lm.name && (m.mealType || m.meal_type) === (lm.mealType || lm.meal_type)))) {
+      allMeals.push(lm);
+    }
+  }
+
+  const totalCalories = allMeals.reduce((acc: number, m: any) => acc + (m.calories || 0), 0);
+  const totalProtein = allMeals.reduce((acc: number, m: any) => acc + (m.proteinGrams ?? m.protein_grams ?? 0), 0);
+  const totalCarbs = allMeals.reduce((acc: number, m: any) => acc + (m.carbsGrams ?? m.carbs_grams ?? 0), 0);
+  const totalFat = allMeals.reduce((acc: number, m: any) => acc + (m.fatGrams ?? m.fat_grams ?? 0), 0);
 
   const mealTypes = ["breakfast", "lunch", "dinner", "snack"];
 
@@ -582,8 +661,16 @@ export default function NutritionScreen() {
               <Pressable style={styles.cancelBtn} onPress={() => setShowLogForm(false)}>
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </Pressable>
-              <Pressable style={styles.saveBtn} onPress={handleLogMeal}>
-                <Text style={styles.saveBtnText}>Save Meal</Text>
+              <Pressable 
+                style={[styles.saveBtn, isSaving && { opacity: 0.7 }]} 
+                onPress={handleLogMeal}
+                disabled={isSaving}
+              >
+                {isSaving ? (
+                  <ActivityIndicator size="small" color="#050b08" />
+                ) : (
+                  <Text style={styles.saveBtnText}>Save Meal</Text>
+                )}
               </Pressable>
             </View>
           </View>
@@ -596,7 +683,7 @@ export default function NutritionScreen() {
 
         <View style={styles.scheduleContainer}>
           {mealTypes.map(type => {
-            const typeMeals = meals?.filter((m: any) => m.mealType === type) || [];
+            const typeMeals = allMeals.filter((m: any) => (m.mealType || m.meal_type) === type);
             return (
               <View key={type} style={styles.scheduleSection}>
                 <Text style={styles.sectionHeader}>{type}</Text>
@@ -608,7 +695,7 @@ export default function NutritionScreen() {
                         <View style={{ flex: 1 }}>
                           <Text style={styles.mealName}>{m.name}</Text>
                           <Text style={styles.mealMacros}>
-                            {m.calories} kcal • P: {m.proteinGrams}g • C: {m.carbsGrams}g • F: {m.fatGrams}g
+                            {m.calories} kcal • P: {m.proteinGrams ?? m.protein_grams ?? 0}g • C: {m.carbsGrams ?? m.carbs_grams ?? 0}g • F: {m.fatGrams ?? m.fat_grams ?? 0}g
                           </Text>
                           {m.vitamins && <Text style={styles.mealVitamins}>{m.vitamins}</Text>}
                         </View>
