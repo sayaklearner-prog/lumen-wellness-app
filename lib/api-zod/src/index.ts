@@ -125,6 +125,19 @@ export {
   DeleteWorkoutsParams as DeleteWorkoutParams,
 } from './generated/api';
 
+export const GetWorkoutReadinessResponse = zod.object({
+  readinessScore: zod.number(),
+  explanation: zod.string(),
+  acuteLoadScore: zod.number().optional(),
+  loadStatus: zod.string().optional(),
+  cardioStrain: zod.number().optional(),
+  stepsCount: zod.number().optional(),
+  stepsBurn: zod.number().optional(),
+  workoutBurn: zod.number().optional(),
+  totalActiveBurn: zod.number().optional(),
+  activeMinutes: zod.number().optional(),
+}).passthrough();
+
 // AI route schemas (not generated — define inline for ai.ts route)
 export const GetAiRecommendationsResponse = zod.array(zod.any());
 export const GetAiInsightsResponse = zod.array(zod.any());

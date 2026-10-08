@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, Platform, RefreshControl } from "react-native";
-import { useGetTodayDashboard, useGetProfile, useGetTimeline, getGetTimelineQueryKey, getGetTodayDashboardQueryKey } from "@workspace/api-client-react";
+import { useGetTodayDashboard, useGetProfile, useGetTimeline, useListWorkouts, getGetTimelineQueryKey, getGetTodayDashboardQueryKey, getListWorkoutsQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { 
   Activity, Flame, Trophy, Moon, Brain, ClipboardList, 
-  Sparkles, CheckCircle2, ChevronRight, Zap, Volume2, VolumeX, ShieldCheck 
+  Sparkles, CheckCircle2, ChevronRight, Zap, Volume2, VolumeX, ShieldCheck, Footprints
 } from "lucide-react-native";
 // Haptics: native only, lazy-loaded
 const triggerHaptic = (style?: string) => {
@@ -38,6 +38,7 @@ export default function DashboardScreen() {
   const { data: profile } = useGetProfile();
   const { data: dashboard, refetch } = useGetTodayDashboard();
   const { data: timelineEvents, refetch: refetchTimeline } = useGetTimeline();
+  const { data: workouts, refetch: refetchWorkouts } = useListWorkouts();
 
   // Load last sync status
   useEffect(() => {
@@ -55,8 +56,13 @@ export default function DashboardScreen() {
     setRefreshing(true);
     await refetch();
     await refetchTimeline();
+    await refetchWorkouts();
     setRefreshing(false);
   };
+
+  const workoutCaloriesBurned = workouts?.reduce((acc: number, w: any) => acc + (Number(w.caloriesBurned) || 0), 0) || 0;
+  const stepsCaloriesBurned = Math.round(((dashboard?.steps || 0)) * 0.045);
+  const totalActiveCaloriesBurned = workoutCaloriesBurned + stepsCaloriesBurned;
 
   const handleSyncHealth = async () => {
     try {
@@ -177,6 +183,25 @@ export default function DashboardScreen() {
             <Text style={styles.readinessVal}>{readinessScore}</Text>
             <Text style={styles.readinessDesc}>
               HRV is optimal. Rest days suggested: 0. Exertion budget: High.
+            </Text>
+          </View>
+        </View>
+
+        {/* Unified Active Calorie Burn Banner (Steps + Workouts) */}
+        <View style={styles.activeBurnBanner}>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Flame size={18} color="#f59e0b" />
+              <Text style={styles.activeBurnTitle}>Total Active Burn (Steps + Workouts)</Text>
+            </View>
+            <Text style={styles.activeBurnTotalVal}>{totalActiveCaloriesBurned} kcal</Text>
+          </View>
+          <View style={styles.activeBurnSubRow}>
+            <Text style={styles.activeBurnSubText}>
+              🚶 Steps: <Text style={{ color: "#3b82f6", fontWeight: "bold" }}>{stepsCaloriesBurned} kcal</Text> ({stepsCount.toLocaleString()} steps)
+            </Text>
+            <Text style={styles.activeBurnSubText}>
+              ⚡ Workouts: <Text style={{ color: "#10b981", fontWeight: "bold" }}>{workoutCaloriesBurned} kcal</Text>
             </Text>
           </View>
         </View>
@@ -516,5 +541,35 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: "center",
     lineHeight: 18,
+  },
+  activeBurnBanner: {
+    backgroundColor: "#0b1612",
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.2)",
+    borderRadius: 20,
+    padding: 16,
+    gap: 10,
+    marginBottom: 20,
+  },
+  activeBurnTitle: {
+    color: "#f8fafc",
+    fontSize: 13,
+    fontWeight: "bold",
+  },
+  activeBurnTotalVal: {
+    color: "#10b981",
+    fontSize: 18,
+    fontWeight: "900",
+  },
+  activeBurnSubRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    borderTopWidth: 1,
+    borderTopColor: "rgba(30, 41, 59, 0.6)",
+    paddingTop: 8,
+  },
+  activeBurnSubText: {
+    color: "#94a3b8",
+    fontSize: 11,
   },
 });
