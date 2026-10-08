@@ -13,6 +13,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { Brain, Send, Mic, Image, Sparkles, User, Volume2, VolumeX } from "lucide-react-native";
 import { speakText, stopSpeaking, parseVoiceCommand } from "@/services/voice";
+import { useSlideMenu } from "@/context/SlideMenuContext";
 
 function FormattedMessage({ content, isUser }: { content: string; isUser: boolean }) {
   if (isUser) {
@@ -57,6 +58,7 @@ function FormattedMessage({ content, isUser }: { content: string; isUser: boolea
 
 export default function CoachScreen() {
   const qc = useQueryClient();
+  const { openMenu } = useSlideMenu();
   const scrollViewRef = useRef<ScrollView>(null);
   
   const [inputText, setInputText] = useState("");
@@ -191,13 +193,25 @@ export default function CoachScreen() {
     >
       {/* Header */}
       <View style={styles.header}>
-        <View style={styles.logoRow}>
-          <View style={styles.logoBox}>
-            <Brain size={18} color="#10b981" />
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+          <View>
+            <View style={styles.logoRow}>
+              <View style={styles.logoBox}>
+                <Brain size={18} color="#10b981" />
+              </View>
+              <Text style={styles.logoText}>Lumen Coach</Text>
+            </View>
+            <Text style={styles.logoSub}>Grounded in biometric context</Text>
           </View>
-          <Text style={styles.logoText}>Lumen Coach</Text>
+
+          <Pressable onPress={openMenu} accessibilityLabel="Open Navigation Menu">
+            <View style={styles.avatarCircleSmall}>
+              <Text style={styles.avatarInitialSmall}>
+                {profile?.name ? profile.name[0].toUpperCase() : "A"}
+              </Text>
+            </View>
+          </Pressable>
         </View>
-        <Text style={styles.logoSub}>Grounded in biometric context</Text>
       </View>
 
       {/* Main chat window */}
@@ -552,5 +566,20 @@ const styles = StyleSheet.create({
     backgroundColor: "#10b981",
     alignItems: "center",
     justifyContent: "center",
+  },
+  avatarCircleSmall: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#13231c",
+    borderWidth: 1.5,
+    borderColor: "#10b981",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarInitialSmall: {
+    color: "#10b981",
+    fontSize: 13,
+    fontWeight: "bold",
   },
 });

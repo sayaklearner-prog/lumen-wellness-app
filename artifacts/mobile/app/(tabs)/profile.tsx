@@ -39,6 +39,7 @@ import {
   isBiometricsSupported 
 } from "@/services/security";
 import { syncHealthData } from "@/services/health";
+import { useSlideMenu } from "@/context/SlideMenuContext";
 
 interface ReminderItem {
   id: string;
@@ -87,6 +88,7 @@ const DEFAULT_REMINDERS: ReminderItem[] = [
 export default function SettingsScreen() {
   const router = useRouter();
   const qc = useQueryClient();
+  const { openMenu } = useSlideMenu();
   const { data: profile } = useGetProfile();
   const updateProfile = useUpdateProfile();
 
@@ -295,9 +297,18 @@ export default function SettingsScreen() {
           </View>
           <Text style={styles.logoTitle}>Lumen</Text>
         </View>
-        <Pressable style={styles.themeToggleBtn}>
-          <Moon size={18} color="#f8fafc" />
-        </Pressable>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+          <Pressable style={styles.themeToggleBtn}>
+            <Moon size={18} color="#f8fafc" />
+          </Pressable>
+          <Pressable onPress={openMenu} accessibilityLabel="Open Navigation Menu">
+            <View style={styles.avatarCircleSmall}>
+              <Text style={styles.avatarInitialSmall}>
+                {profile?.name ? profile.name[0].toUpperCase() : "A"}
+              </Text>
+            </View>
+          </Pressable>
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -928,5 +939,20 @@ const styles = StyleSheet.create({
     color: "#ef4444",
     fontWeight: "bold",
     fontSize: 14,
+  },
+  avatarCircleSmall: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#13231c",
+    borderWidth: 1.5,
+    borderColor: "#10b981",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarInitialSmall: {
+    color: "#10b981",
+    fontSize: 13,
+    fontWeight: "bold",
   },
 });

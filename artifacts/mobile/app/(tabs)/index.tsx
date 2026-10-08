@@ -52,6 +52,7 @@ import Svg, {
 import { GlassCard } from "@/components/GlassCard";
 import { speakText, stopSpeaking } from "@/services/voice";
 import { syncHealthData, getLastSyncStatus, HealthSyncStatus } from "@/services/health";
+import { useSlideMenu } from "@/context/SlideMenuContext";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -204,6 +205,7 @@ function Trend7DayChart({ overallScore }: { overallScore: number }) {
 export default function DashboardScreen() {
   const router = useRouter();
   const qc = useQueryClient();
+  const { openMenu } = useSlideMenu();
   const [refreshing, setRefreshing] = useState(false);
   const [isSpeakingBriefing, setIsSpeakingBriefing] = useState(false);
   const [waterCups, setWaterCups] = useState(6);
@@ -380,11 +382,15 @@ export default function DashboardScreen() {
             </Text>
           </Pressable>
 
-          {/* Profile Avatar */}
-          <Pressable onPress={() => router.push("/(tabs)/profile")}>
+          {/* Top-Right Slide Menu Button */}
+          <Pressable 
+            onPress={openMenu}
+            accessibilityLabel="Open Slide Navigation Menu"
+            style={{ flexDirection: "row", alignItems: "center" }}
+          >
             <View style={styles.avatarCircle}>
               <Text style={styles.avatarInitial}>
-                {userName ? userName[0].toUpperCase() : "S"}
+                {userName ? userName[0].toUpperCase() : "A"}
               </Text>
             </View>
           </Pressable>

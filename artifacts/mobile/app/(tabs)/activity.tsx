@@ -12,6 +12,7 @@ import {
   Dumbbell, Bike, TrendingUp, Award, ChevronRight, X, Sliders
 } from "lucide-react-native";
 import { queueOfflineLog } from "@/services/db";
+import { useSlideMenu } from "@/context/SlideMenuContext";
 
 // Standard MET table for accurate physiological calorie detection
 interface WorkoutPreset {
@@ -82,6 +83,7 @@ const WORKOUT_SECTIONS: { title: string; category: "cardio" | "strength" | "hiit
 
 export default function ActivityScreen() {
   const qc = useQueryClient();
+  const { openMenu } = useSlideMenu();
   const [showLogModal, setShowLogModal] = useState(false);
   const [activeCategoryTab, setActiveCategoryTab] = useState<"all" | "cardio" | "strength" | "hiit" | "recovery" | "sports">("all");
 
@@ -233,8 +235,19 @@ export default function ActivityScreen() {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerSub}>Biometrics & Performance</Text>
-        <Text style={styles.headerTitle}>Activity & Load</Text>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+          <View>
+            <Text style={styles.headerSub}>Biometrics & Performance</Text>
+            <Text style={styles.headerTitle}>Activity & Load</Text>
+          </View>
+          <Pressable onPress={openMenu} accessibilityLabel="Open Navigation Menu">
+            <View style={styles.avatarCircleSmall}>
+              <Text style={styles.avatarInitialSmall}>
+                {profile?.name ? profile.name[0].toUpperCase() : "A"}
+              </Text>
+            </View>
+          </Pressable>
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -1266,5 +1279,20 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: "center",
     lineHeight: 18,
+  },
+  avatarCircleSmall: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#13231c",
+    borderWidth: 1.5,
+    borderColor: "#10b981",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarInitialSmall: {
+    color: "#10b981",
+    fontSize: 13,
+    fontWeight: "bold",
   },
 });

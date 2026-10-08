@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, Platform, TextInput, Image, ActivityIndicator, Alert } from "react-native";
 import * as ImagePicker from "expo-image-picker";
-import { useListMeals, useCreateMeal, useDeleteMeal, useRecognizeFood, getListMealsQueryKey, getGetTodayDashboardQueryKey } from "@workspace/api-client-react";
+import { useListMeals, useCreateMeal, useDeleteMeal, useRecognizeFood, useGetProfile, getListMealsQueryKey, getGetTodayDashboardQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { 
   Utensils, Plus, Trash2, Camera, Sparkles, Check, 
@@ -9,9 +9,12 @@ import {
 } from "lucide-react-native";
 import { queueOfflineLog } from "@/services/db";
 import { storage } from "@/services/storage";
+import { useSlideMenu } from "@/context/SlideMenuContext";
 
 export default function NutritionScreen() {
   const qc = useQueryClient();
+  const { openMenu } = useSlideMenu();
+  const { data: profile } = useGetProfile();
   const [showLogForm, setShowLogForm] = useState(false);
   const [mealType, setMealType] = useState("breakfast");
   const [localMeals, setLocalMeals] = useState<Array<any>>([]);
@@ -400,8 +403,19 @@ export default function NutritionScreen() {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerSub}>Nutrition Tracker</Text>
-        <Text style={styles.headerTitle}>Meals & Macros</Text>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+          <View>
+            <Text style={styles.headerSub}>Nutrition Tracker</Text>
+            <Text style={styles.headerTitle}>Meals & Macros</Text>
+          </View>
+          <Pressable onPress={openMenu} accessibilityLabel="Open Navigation Menu">
+            <View style={styles.avatarCircleSmall}>
+              <Text style={styles.avatarInitialSmall}>
+                {profile?.name ? profile.name[0].toUpperCase() : "A"}
+              </Text>
+            </View>
+          </Pressable>
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -1184,6 +1198,21 @@ const styles = StyleSheet.create({
   emptySessionText: {
     color: "#64748b",
     fontSize: 11,
+    fontWeight: "bold",
+  },
+  avatarCircleSmall: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#13231c",
+    borderWidth: 1.5,
+    borderColor: "#10b981",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarInitialSmall: {
+    color: "#10b981",
+    fontSize: 13,
     fontWeight: "bold",
   },
 });
