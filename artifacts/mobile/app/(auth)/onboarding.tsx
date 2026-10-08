@@ -4,7 +4,7 @@ import { useRouter } from "expo-router";
 import { useGetProfile, useUpdateProfile, getGetProfileQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { storage } from "@/services/storage";
-import { User, Flame, Sparkles, Moon, Clock, Trophy, ChevronRight, Check } from "lucide-react-native";
+import { User, Flame, Sparkles, Moon, Clock, Trophy, ChevronRight, Check, Plus, Minus } from "lucide-react-native";
 
 const healthModes = [
   { id: "standard", label: "Standard Health", icon: "🌱", desc: "Energy & wellbeing." },
@@ -13,6 +13,94 @@ const healthModes = [
   { id: "weight_loss", label: "Weight Loss", icon: "⚖️", desc: "Deficits & macros." },
   { id: "pregnancy", label: "Pregnancy Focus", icon: "🤰", desc: "Prenatal nutrition." },
 ];
+
+interface AdjustmentBarCardProps {
+  title: string;
+  value: number;
+  unit: string;
+  min: number;
+  max: number;
+  step: number;
+  presets?: number[];
+  onChange: (val: number) => void;
+}
+
+function AdjustmentBarCard({
+  title,
+  value,
+  unit,
+  min,
+  max,
+  step,
+  presets = [],
+  onChange,
+}: AdjustmentBarCardProps) {
+  const percentage = Math.min(100, Math.max(0, ((value - min) / (max - min)) * 100));
+
+  const handleDecrement = () => {
+    onChange(Math.max(min, Number((value - step).toFixed(1))));
+  };
+
+  const handleIncrement = () => {
+    onChange(Math.min(max, Number((value + step).toFixed(1))));
+  };
+
+  return (
+    <View style={styles.sliderCard}>
+      <View style={styles.sliderHeader}>
+        <Text style={styles.sliderTitle}>{title}</Text>
+        <Text style={styles.sliderVal}>
+          {value.toLocaleString()} {unit}
+        </Text>
+      </View>
+
+      {/* Visual Adjustment Stepper Track */}
+      <View style={styles.sliderInputGroup}>
+        <Pressable onPress={handleDecrement} style={styles.stepBtn}>
+          <Minus size={18} color="#f8fafc" />
+        </Pressable>
+
+        <View style={styles.trackContainer}>
+          <View style={styles.trackBg}>
+            <View style={[styles.trackFill, { width: `${percentage}%` }]} />
+            <View style={[styles.trackKnob, { left: `${Math.max(0, Math.min(94, percentage))}%` }]} />
+          </View>
+        </View>
+
+        <Pressable onPress={handleIncrement} style={styles.stepBtn}>
+          <Plus size={18} color="#10b981" />
+        </Pressable>
+      </View>
+
+      {/* Min / Max bounds */}
+      <View style={styles.boundsRow}>
+        <Text style={styles.boundsText}>{min.toLocaleString()} {unit}</Text>
+        <Text style={styles.boundsText}>{max.toLocaleString()} {unit}</Text>
+      </View>
+
+      {/* Quick Preset Pills */}
+      {presets.length > 0 && (
+        <View style={styles.presetPillsRow}>
+          {presets.map((p, idx) => {
+            const isSelected = value === p;
+            return (
+              <Pressable
+                key={idx}
+                onPress={() => onChange(p)}
+                style={[styles.presetPill, isSelected && styles.presetPillSelected]}
+              >
+                <Text style={[styles.presetPillText, isSelected && styles.presetPillTextSelected]}>
+                  {p.toLocaleString()}
+                  {unit === "kcal" ? "" : unit === "min" ? "m" : unit === "hrs" ? "h" : unit === "g" ? "g" : ""}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
+    </View>
+  );
+}
 
 export default function OnboardingScreen() {
   const router = useRouter();
@@ -152,37 +240,27 @@ export default function OnboardingScreen() {
             <Text style={styles.stepTitle}>Nutritional parameters.</Text>
             <Text style={styles.stepDesc}>These values configure your nutrition target bars and coaches guidelines.</Text>
 
-            <View style={styles.sliderCard}>
-              <View style={styles.sliderHeader}>
-                <Text style={styles.sliderTitle}>Daily Calories Target</Text>
-                <Text style={styles.sliderVal}>{calories} kcal</Text>
-              </View>
-              <View style={styles.sliderInputGroup}>
-                <Pressable onPress={() => setCalories(prev => Math.max(1200, prev - 100))} style={styles.stepBtn}>
-                  <Text style={styles.stepBtnText}>-</Text>
-                </Pressable>
-                <Text style={styles.stepLabel}>Adjustment</Text>
-                <Pressable onPress={() => setCalories(prev => Math.min(4000, prev + 100))} style={styles.stepBtn}>
-                  <Text style={styles.stepBtnText}>+</Text>
-                </Pressable>
-              </View>
-            </View>
+            <AdjustmentBarCard
+              title="Daily Calories Target"
+              value={calories}
+              unit="kcal"
+              min={1200}
+              max={4000}
+              step={100}
+              presets={[1800, 2100, 2500, 3000]}
+              onChange={setCalories}
+            />
 
-            <View style={styles.sliderCard}>
-              <View style={styles.sliderHeader}>
-                <Text style={styles.sliderTitle}>Daily Protein Target</Text>
-                <Text style={styles.sliderVal}>{protein}g</Text>
-              </View>
-              <View style={styles.sliderInputGroup}>
-                <Pressable onPress={() => setProtein(prev => Math.max(40, prev - 10))} style={styles.stepBtn}>
-                  <Text style={styles.stepBtnText}>-</Text>
-                </Pressable>
-                <Text style={styles.stepLabel}>Adjustment</Text>
-                <Pressable onPress={() => setProtein(prev => Math.min(250, prev + 10))} style={styles.stepBtn}>
-                  <Text style={styles.stepBtnText}>+</Text>
-                </Pressable>
-              </View>
-            </View>
+            <AdjustmentBarCard
+              title="Daily Protein Target"
+              value={protein}
+              unit="g"
+              min={40}
+              max={250}
+              step={10}
+              presets={[80, 110, 140, 180]}
+              onChange={setProtein}
+            />
           </View>
         )}
 
@@ -191,53 +269,38 @@ export default function OnboardingScreen() {
             <Text style={styles.stepTitle}>Daily Active Targets.</Text>
             <Text style={styles.stepDesc}>Define targets for physical movements and screen limits.</Text>
 
-            <View style={styles.sliderCard}>
-              <View style={styles.sliderHeader}>
-                <Text style={styles.sliderTitle}>Daily Steps Target</Text>
-                <Text style={styles.sliderVal}>{steps.toLocaleString()}</Text>
-              </View>
-              <View style={styles.sliderInputGroup}>
-                <Pressable onPress={() => setSteps(prev => Math.max(3000, prev - 1000))} style={styles.stepBtn}>
-                  <Text style={styles.stepBtnText}>-</Text>
-                </Pressable>
-                <Text style={styles.stepLabel}>Adjustment</Text>
-                <Pressable onPress={() => setSteps(prev => Math.min(25000, prev + 1000))} style={styles.stepBtn}>
-                  <Text style={styles.stepBtnText}>+</Text>
-                </Pressable>
-              </View>
-            </View>
+            <AdjustmentBarCard
+              title="Daily Steps Target"
+              value={steps}
+              unit="steps"
+              min={3000}
+              max={25000}
+              step={1000}
+              presets={[6000, 8000, 10000, 12000]}
+              onChange={setSteps}
+            />
 
-            <View style={styles.sliderCard}>
-              <View style={styles.sliderHeader}>
-                <Text style={styles.sliderTitle}>Sleep Hours Target</Text>
-                <Text style={styles.sliderVal}>{sleep} hrs</Text>
-              </View>
-              <View style={styles.sliderInputGroup}>
-                <Pressable onPress={() => setSleep(prev => Math.max(5, prev - 1))} style={styles.stepBtn}>
-                  <Text style={styles.stepBtnText}>-</Text>
-                </Pressable>
-                <Text style={styles.stepLabel}>Adjustment</Text>
-                <Pressable onPress={() => setSleep(prev => Math.min(12, prev + 1))} style={styles.stepBtn}>
-                  <Text style={styles.stepBtnText}>+</Text>
-                </Pressable>
-              </View>
-            </View>
+            <AdjustmentBarCard
+              title="Sleep Hours Target"
+              value={sleep}
+              unit="hrs"
+              min={5}
+              max={12}
+              step={0.5}
+              presets={[7, 7.5, 8, 8.5]}
+              onChange={setSleep}
+            />
 
-            <View style={styles.sliderCard}>
-              <View style={styles.sliderHeader}>
-                <Text style={styles.sliderTitle}>Screen Time Limit</Text>
-                <Text style={styles.sliderVal}>{screenTime} min</Text>
-              </View>
-              <View style={styles.sliderInputGroup}>
-                <Pressable onPress={() => setScreenTime(prev => Math.max(30, prev - 30))} style={styles.stepBtn}>
-                  <Text style={styles.stepBtnText}>-</Text>
-                </Pressable>
-                <Text style={styles.stepLabel}>Adjustment</Text>
-                <Pressable onPress={() => setScreenTime(prev => Math.min(480, prev + 30))} style={styles.stepBtn}>
-                  <Text style={styles.stepBtnText}>+</Text>
-                </Pressable>
-              </View>
-            </View>
+            <AdjustmentBarCard
+              title="Screen Time Limit"
+              value={screenTime}
+              unit="min"
+              min={30}
+              max={480}
+              step={30}
+              presets={[60, 90, 120, 180]}
+              onChange={setScreenTime}
+            />
           </View>
         )}
 
@@ -454,6 +517,74 @@ const styles = StyleSheet.create({
   stepLabel: {
     color: "#64748b",
     fontSize: 12,
+  },
+  trackContainer: {
+    flex: 1,
+    marginHorizontal: 10,
+    height: 24,
+    justifyContent: "center",
+  },
+  trackBg: {
+    height: 8,
+    backgroundColor: "#1e293b",
+    borderRadius: 4,
+    position: "relative",
+    justifyContent: "center",
+  },
+  trackFill: {
+    height: 8,
+    backgroundColor: "#10b981",
+    borderRadius: 4,
+  },
+  trackKnob: {
+    position: "absolute",
+    top: -4,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: "#10b981",
+    borderWidth: 2,
+    borderColor: "#ffffff",
+    elevation: 4,
+  },
+  boundsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 54,
+    marginTop: -4,
+  },
+  boundsText: {
+    color: "#475569",
+    fontSize: 11,
+    fontWeight: "500",
+  },
+  presetPillsRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 6,
+    justifyContent: "center",
+    flexWrap: "wrap",
+  },
+  presetPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    backgroundColor: "#0f172a",
+    borderWidth: 1,
+    borderColor: "#1e293b",
+  },
+  presetPillSelected: {
+    borderColor: "#10b981",
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+  },
+  presetPillText: {
+    color: "#64748b",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  presetPillTextSelected: {
+    color: "#10b981",
+    fontWeight: "bold",
   },
   summaryCard: {
     backgroundColor: "#0b1310",

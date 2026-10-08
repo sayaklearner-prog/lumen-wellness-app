@@ -3,7 +3,6 @@ import { useRouter } from "expo-router";
 import { storage } from "@/services/storage";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetMyProfileQueryKey } from "@workspace/api-client-react";
-import { Ionicons } from "@expo/vector-icons";
 
 const { width } = Dimensions.get("window");
 

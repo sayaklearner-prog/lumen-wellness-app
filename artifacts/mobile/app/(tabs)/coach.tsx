@@ -14,6 +14,47 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Brain, Send, Mic, Image, Sparkles, User, Volume2, VolumeX } from "lucide-react-native";
 import { speakText, stopSpeaking, parseVoiceCommand } from "@/services/voice";
 
+function FormattedMessage({ content, isUser }: { content: string; isUser: boolean }) {
+  if (isUser) {
+    return <Text style={[styles.bubbleText, styles.userBubbleText]}>{content}</Text>;
+  }
+
+  const lines = content.split("\n");
+
+  return (
+    <View style={styles.formattedContainer}>
+      {lines.map((line, lIdx) => {
+        const trimmed = line.trim();
+        if (!trimmed) {
+          return <View key={lIdx} style={{ height: 6 }} />;
+        }
+
+        const isBullet = trimmed.startsWith("•") || trimmed.startsWith("- ") || trimmed.startsWith("* ");
+        const cleanLine = isBullet ? trimmed.replace(/^(\u2022|\-|\*)\s*/, "") : trimmed;
+        const parts = cleanLine.split(/(\*\*[^*]+\*\*)/g);
+
+        return (
+          <View key={lIdx} style={isBullet ? styles.bulletRow : styles.lineBlock}>
+            {isBullet && <View style={styles.bulletDot} />}
+            <Text style={[styles.bubbleText, styles.coachBubbleText, isBullet && styles.bulletText]}>
+              {parts.map((part, pIdx) => {
+                if (part.startsWith("**") && part.endsWith("**")) {
+                  return (
+                    <Text key={pIdx} style={styles.boldCoachText}>
+                      {part.slice(2, -2)}
+                    </Text>
+                  );
+                }
+                return <Text key={pIdx}>{part}</Text>;
+              })}
+            </Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
 export default function CoachScreen() {
   const qc = useQueryClient();
   const scrollViewRef = useRef<ScrollView>(null);
@@ -188,14 +229,7 @@ export default function CoachScreen() {
                     isUser ? styles.userBubble : styles.coachBubble
                   ]}
                 >
-                  <Text 
-                    style={[
-                      styles.bubbleText, 
-                      isUser ? styles.userBubbleText : styles.coachBubbleText
-                    ]}
-                  >
-                    {m.content}
-                  </Text>
+                  <FormattedMessage content={m.content} isUser={isUser} />
                   
                   {!isUser && (
                     <Pressable 
@@ -223,7 +257,7 @@ export default function CoachScreen() {
               <View style={styles.coachAvatar}>
                 <Brain size={12} color="#10b981" />
               </View>
-              <View style={[styles.bubble, styles.coachBubble, { flexDirection: "row", alignItems: "center", gap: 8 }]}>
+              <View style={[styles.bubble, styles.coachBubble, { flexDirection: "row", alignItems: "center", gap: 8, paddingBottom: 12 }]}>
                 <Sparkles size={14} color="#10b981" />
                 <Text style={[styles.bubbleText, styles.coachBubbleText, { fontStyle: "italic", color: "#94a3b8" }]}>
                   Lumen Coach is synthesizing your biometrics...
@@ -380,15 +414,19 @@ const styles = StyleSheet.create({
   },
   bubbleContainer: {
     flexDirection: "row",
-    alignItems: "flex-end",
+    alignItems: "flex-start",
     gap: 10,
-    maxWidth: "85%",
+    width: "100%",
   },
   userBubbleContainer: {
     alignSelf: "flex-end",
+    justifyContent: "flex-end",
+    maxWidth: "85%",
   },
   coachBubbleContainer: {
     alignSelf: "flex-start",
+    width: "100%",
+    maxWidth: "100%",
   },
   coachAvatar: {
     width: 24,
@@ -399,6 +437,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(16, 185, 129, 0.2)",
     alignItems: "center",
     justifyContent: "center",
+    marginTop: 6,
   },
   userAvatar: {
     width: 24,
@@ -407,6 +446,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#e2e8f0",
     alignItems: "center",
     justifyContent: "center",
+    marginTop: 6,
   },
   bubble: {
     borderRadius: 18,
@@ -417,6 +457,7 @@ const styles = StyleSheet.create({
   userBubble: {
     backgroundColor: "#10b981",
     borderBottomRightRadius: 4,
+    flexShrink: 1,
   },
   coachBubble: {
     backgroundColor: "#0b1310",
@@ -424,10 +465,13 @@ const styles = StyleSheet.create({
     borderColor: "#1e293b",
     borderBottomLeftRadius: 4,
     paddingBottom: 24, // spacing for speech indicator
+    flex: 1,
+    flexShrink: 1,
   },
   bubbleText: {
     fontSize: 14,
-    lineHeight: 20,
+    lineHeight: 21,
+    flexWrap: "wrap",
   },
   userBubbleText: {
     color: "#050b08",
@@ -435,6 +479,35 @@ const styles = StyleSheet.create({
   },
   coachBubbleText: {
     color: "#f8fafc",
+  },
+  formattedContainer: {
+    gap: 4,
+    width: "100%",
+  },
+  lineBlock: {
+    width: "100%",
+  },
+  bulletRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    width: "100%",
+    paddingLeft: 2,
+  },
+  bulletDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: "#10b981",
+    marginTop: 8,
+  },
+  bulletText: {
+    flex: 1,
+    flexShrink: 1,
+  },
+  boldCoachText: {
+    fontWeight: "700",
+    color: "#ffffff",
   },
   voiceIndicator: {
     position: "absolute",
