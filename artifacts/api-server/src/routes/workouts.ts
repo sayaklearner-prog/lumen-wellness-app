@@ -253,7 +253,7 @@ router.get("/workouts/insights", async (_req, res): Promise<void> => {
   const todayWorkouts = workouts.filter((w) => ymd(new Date(w.loggedAt)) === todayKey);
   const workoutBurn = todayWorkouts.reduce((acc, w) => acc + (Number(w.caloriesBurned) || 0), 0);
   const totalMins = workouts.reduce((acc, w) => acc + (Number(w.durationMinutes) || 0), 0);
-  const stepsCount = todayWorkouts.reduce((acc, w) => acc + (Number(w.steps) || 0), 0) || 5400;
+  const stepsCount = todayWorkouts.reduce((acc, w) => acc + (Number(w.steps) || 0), 0);
   const stepsBurn = Math.round(stepsCount * 0.045);
   const totalActiveBurn = workoutBurn + stepsBurn;
 
@@ -261,16 +261,16 @@ router.get("/workouts/insights", async (_req, res): Promise<void> => {
     `Total active burn today: ${totalActiveBurn} kcal (${workoutBurn} kcal from exercises + ${stepsBurn} kcal from ${stepsCount.toLocaleString()} steps).`,
     `Weekly cumulative volume: ${totalMins} active minutes recorded.`,
     "Aerobic-to-strength stimulus is calibrated for steady metabolic adaptation.",
-    "Post-workout recovery heart rate falls within the optimal 85th percentile.",
+    "Exertion and recovery load calibrated to optimize physical stamina.",
   ];
   res.json(GetWorkoutInsightsResponse.parse({ insights }));
 });
 
 router.get("/workouts/challenges", async (_req, res): Promise<void> => {
   const challenges = [
-    "7-Day 10k Steps Streak: 5 days completed",
-    "Weekend 5K Endurance Run: Ready to start",
-    "Burn 2,500 Active kcal: 1,840 kcal logged",
+    "Daily 10k Steps Target: Walk 10,000 steps daily",
+    "Weekend Endurance Session: Ready to begin",
+    "Active Calorie Target: Aim for 500 active kcal burned",
   ];
   res.json(GetWorkoutChallengesResponse.parse({ challenges }));
 });

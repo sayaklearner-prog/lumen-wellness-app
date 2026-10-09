@@ -64,74 +64,14 @@ export const inMemoryMessages: Array<{ id: number; conversationId: number; role:
   },
 ];
 
-export const inMemoryMeals: Array<any> = [
-  {
-    id: "m-001",
-    name: "Avocado Toast & Poached Eggs",
-    mealType: "breakfast",
-    calories: 420,
-    proteinGrams: 18,
-    carbsGrams: 35,
-    fatGrams: 22,
-    items: [
-      { name: "Sourdough Toast", calories: 150, proteinGrams: 4, carbsGrams: 28, fatGrams: 2 },
-      { name: "Avocado Mash", calories: 140, proteinGrams: 2, carbsGrams: 7, fatGrams: 12 },
-      { name: "Poached Eggs", calories: 130, proteinGrams: 12, carbsGrams: 0, fatGrams: 8 },
-    ],
-    photoUrl: null,
-    loggedAt: new Date(),
-    source: "manual",
-  },
-  {
-    id: "m-002",
-    name: "Grilled Chicken & Quinoa Salad",
-    mealType: "lunch",
-    calories: 650,
-    proteinGrams: 48,
-    carbsGrams: 45,
-    fatGrams: 20,
-    items: [
-      { name: "Grilled Chicken Breast", calories: 280, proteinGrams: 40, carbsGrams: 0, fatGrams: 5 },
-      { name: "Tri-Color Quinoa", calories: 220, proteinGrams: 6, carbsGrams: 38, fatGrams: 4 },
-      { name: "Olive Oil & Lemon Dressing", calories: 150, proteinGrams: 2, carbsGrams: 7, fatGrams: 11 },
-    ],
-    photoUrl: null,
-    loggedAt: new Date(),
-    source: "ai_camera",
-  },
-];
+export const inMemoryMeals: Array<any> = [];
 
-export const inMemoryWorkouts: Array<any> = [
-  {
-    id: "w-001",
-    type: "run",
-    durationMinutes: 30,
-    caloriesBurned: 310,
-    steps: 4200,
-    intensity: "moderate",
-    loggedAt: new Date(),
-    source: "sensor",
-  },
-];
+export const inMemoryWorkouts: Array<any> = [];
 
-export const inMemorySleep: Array<any> = [
-  {
-    id: "s-001",
-    date: new Date().toISOString().split("T")[0],
-    durationHours: "7.75",
-    quality: "good",
-    bedtime: "23:00",
-    wakeTime: "06:45",
-  },
-];
+export const inMemorySleep: Array<any> = [];
 
-export const inMemoryScreenTime: Array<any> = [
-  {
-    id: "sc-001",
-    date: new Date().toISOString().split("T")[0],
-    totalMinutes: 145,
-  },
-];
+export const inMemoryScreenTime: Array<any> = [];
+
 
 // Profile Accessors
 export async function getOrCreateProfile(): Promise<Profile> {

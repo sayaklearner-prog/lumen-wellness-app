@@ -10,7 +10,7 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { 
-  Activity, Heart, Timer, Zap, Trash2, Plus, 
+  Activity, Timer, Zap, Trash2, Plus, 
   Sparkles, CheckCircle2, Trophy, Flame, Footprints, 
   Dumbbell, Bike, TrendingUp, Award, ChevronRight, X, Sliders,
   Play, Pause, Square, RotateCcw, Compass, Gauge, Shield, Watch
@@ -113,7 +113,6 @@ export default function ActivityScreen() {
   const [duration, setDuration] = useState("30");
   const [intensity, setIntensity] = useState<"light" | "moderate" | "vigorous" | "peak">("moderate");
   const [distance, setDistance] = useState("");
-  const [avgHeartRate, setAvgHeartRate] = useState("");
   const [notes, setNotes] = useState("");
   const [localWorkouts, setLocalWorkouts] = useState<WorkoutRecord[]>([]);
 
@@ -166,14 +165,16 @@ export default function ActivityScreen() {
           caloriesBurned: Number(sw.caloriesBurned),
           steps: sw.steps ?? undefined,
           distanceKm: sw.distanceKm ?? undefined,
-          avgHeartRate: sw.avgHeartRate ?? undefined,
           intensity: (sw.intensity as any) ?? undefined,
           notes: sw.notes ?? undefined,
           loggedAt: sw.loggedAt || new Date().toISOString(),
         });
       }
     }
-    return list;
+    // Filter out mock data (w-001) and phantom test records
+    return list.filter(
+      (w) => w.id !== "w-001" && !(w.durationMinutes <= 1 && w.caloriesBurned <= 12)
+    );
   }, [workouts, localWorkouts]);
 
   // Physiological real-time calorie detection for manual form
@@ -187,16 +188,9 @@ export default function ActivityScreen() {
     else if (intensity === "vigorous") intensityMultiplier = 1.25;
     else if (intensity === "peak") intensityMultiplier = 1.5;
 
-    let base = met * userWeightKg * (mins / 60) * intensityMultiplier;
-
-    const hr = parseInt(avgHeartRate) || 0;
-    if (hr > 100) {
-      const hrMultiplier = Math.min(1.35, Math.max(0.85, (hr - 60) / 90));
-      base = base * 0.75 + (base * hrMultiplier) * 0.25;
-    }
-
+    const base = met * userWeightKg * (mins / 60) * intensityMultiplier;
     return Math.max(15, Math.round(base));
-  }, [selectedWorkout, duration, intensity, avgHeartRate]);
+  }, [selectedWorkout, duration, intensity]);
 
   // Aggregated unified daily active calorie computation
   const workoutCaloriesBurned = useMemo(() => {
@@ -254,10 +248,9 @@ export default function ActivityScreen() {
       id: `wo-watch-${Date.now()}`,
       type: modeMeta.name,
       durationMinutes: mins,
-      caloriesBurned: Math.max(12, finalData.activeCalories),
+      caloriesBurned: Math.round(finalData.activeCalories),
       steps: finalData.steps > 0 ? finalData.steps : undefined,
       distanceKm: finalData.distanceKm > 0 ? finalData.distanceKm : undefined,
-      avgHeartRate: finalData.estimatedHeartRate,
       intensity: finalData.currentIntensity,
       notes: `Tracked with Phone Sensors (Accel + Gyro) • Peak G-Force: ${finalData.peakGForce}G • ${extraNotes}`,
       loggedAt: new Date().toISOString(),
@@ -272,9 +265,8 @@ export default function ActivityScreen() {
         data: {
           type: modeMeta.name,
           durationMinutes: mins,
-          caloriesBurned: Math.max(12, finalData.activeCalories),
+          caloriesBurned: Math.round(finalData.activeCalories),
           distanceKm: finalData.distanceKm > 0 ? finalData.distanceKm : null,
-          avgHeartRate: finalData.estimatedHeartRate,
           intensity: finalData.currentIntensity,
           notes: newRecord.notes,
         } as any,
@@ -294,7 +286,6 @@ export default function ActivityScreen() {
     setDuration(String(preset.defaultDuration));
     setIntensity(preset.defaultIntensity);
     setDistance("");
-    setAvgHeartRate("");
     setShowLogModal(true);
   };
 
@@ -308,7 +299,6 @@ export default function ActivityScreen() {
       caloriesBurned: detectedManualCalories,
       steps: distance ? Math.round(parseFloat(distance) * 1250) : undefined,
       distanceKm: distance ? parseFloat(distance) : undefined,
-      avgHeartRate: avgHeartRate ? parseInt(avgHeartRate) : undefined,
       intensity: intensity,
       notes: notes.trim() || `${selectedWorkout.name} logged manually`,
       loggedAt: new Date().toISOString(),
@@ -324,7 +314,6 @@ export default function ActivityScreen() {
           durationMinutes: parseInt(duration) || 30,
           caloriesBurned: detectedManualCalories,
           distanceKm: distance ? parseFloat(distance) : null,
-          avgHeartRate: avgHeartRate ? parseInt(avgHeartRate) : null,
           intensity: intensity,
           notes: notes.trim() || `${selectedWorkout.name} logged manually`,
         } as any,
@@ -569,27 +558,27 @@ export default function ActivityScreen() {
 
               {/* 4-Tile Secondary Biometric Telemetry Matrix */}
               <View style={styles.telemetryGrid}>
-                {/* 1. Heart Rate & Zone */}
+                {/* 1. Exertion Load & Intensity */}
                 <View style={styles.telemetryCell}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-                    <Heart size={14} color="#f43f5e" />
-                    <Text style={styles.telemetryLabel}>Heart Rate</Text>
+                    <Zap size={14} color="#10b981" />
+                    <Text style={styles.telemetryLabel}>Exertion Load</Text>
                   </View>
                   <Text style={styles.telemetryValue}>
                     {watchMetrics.cadenceSpm > 0 ? (
                       <>
-                        {watchMetrics.estimatedHeartRate} <Text style={styles.telemetryUnit}>BPM</Text>
+                        {watchMetrics.currentIntensity.toUpperCase()}
                       </>
                     ) : (
                       <>
-                        -- <Text style={styles.telemetryUnit}>BPM</Text>
+                        REST
                       </>
                     )}
                   </Text>
                   <View style={[styles.zoneBadge, { backgroundColor: getZoneColor(watchMetrics.heartRateZone) + "20" }]}>
                     <Text style={[styles.zoneBadgeText, { color: getZoneColor(watchMetrics.heartRateZone) }]}>
                       {watchMetrics.cadenceSpm > 0
-                        ? `Z${watchMetrics.heartRateZone} • ${watchMetrics.currentIntensity.toUpperCase()}`
+                        ? `ZONE ${watchMetrics.heartRateZone} INTENSITY`
                         : "STATIONARY • AT REST"}
                     </Text>
                   </View>
@@ -944,12 +933,14 @@ export default function ActivityScreen() {
                   <Sparkles size={16} color="#10b981" />
                   <Text style={styles.insightsHeader}>AI Biometric Insights & Training Guidance</Text>
                 </View>
-                {insights.insights.map((ins: any, idx: number) => (
-                  <View key={idx} style={styles.insightRow}>
-                    <View style={styles.insightDot} />
-                    <Text style={styles.insightText}>{ins}</Text>
-                  </View>
-                ))}
+                {insights.insights
+                  .filter((ins: any) => !String(ins).toLowerCase().includes("heart"))
+                  .map((ins: any, idx: number) => (
+                    <View key={idx} style={styles.insightRow}>
+                      <View style={styles.insightDot} />
+                      <Text style={styles.insightText}>{ins}</Text>
+                    </View>
+                  ))}
               </View>
             )}
           </View>
@@ -984,12 +975,6 @@ export default function ActivityScreen() {
                   </View>
                 </View>
                 <View style={styles.workoutRight}>
-                  {w.avgHeartRate && (
-                    <View style={styles.badge}>
-                      <Heart size={10} color="#ef4444" style={{ marginRight: 4 }} />
-                      <Text style={styles.badgeText}>{w.avgHeartRate} bpm</Text>
-                    </View>
-                  )}
                   <Pressable onPress={() => handleDeleteWorkout(w.id)} style={{ padding: 6 }}>
                     <Trash2 size={16} color="#64748b" />
                   </Pressable>
@@ -1044,8 +1029,8 @@ export default function ActivityScreen() {
                   </Text>
                 </View>
                 <View style={styles.summaryCell}>
-                  <Text style={styles.summaryCellLabel}>Avg Heart Rate</Text>
-                  <Text style={[styles.summaryCellVal, { color: "#f43f5e" }]}>{completedWorkoutSummary.estimatedHeartRate} BPM</Text>
+                  <Text style={styles.summaryCellLabel}>Intensity</Text>
+                  <Text style={[styles.summaryCellVal, { color: "#10b981" }]}>{completedWorkoutSummary.currentIntensity.toUpperCase()}</Text>
                 </View>
               </View>
 
@@ -1145,31 +1130,17 @@ export default function ActivityScreen() {
               </View>
             </View>
 
-            {/* Biometrics: Heart Rate & Distance */}
-            <View style={styles.formGridTwo}>
-              <View style={{ flex: 1, gap: 6 }}>
-                <Text style={styles.inputLabel}>Avg Heart Rate (bpm)</Text>
-                <TextInput
-                  style={styles.textInput}
-                  keyboardType="numeric"
-                  value={avgHeartRate}
-                  onChangeText={setAvgHeartRate}
-                  placeholder="e.g. 145"
-                  placeholderTextColor="#475569"
-                />
-              </View>
-
-              <View style={{ flex: 1, gap: 6 }}>
-                <Text style={styles.inputLabel}>Distance (km, optional)</Text>
-                <TextInput
-                  style={styles.textInput}
-                  keyboardType="numeric"
-                  value={distance}
-                  onChangeText={setDistance}
-                  placeholder="e.g. 5.2"
-                  placeholderTextColor="#475569"
-                />
-              </View>
+            {/* Distance */}
+            <View style={styles.formGroup}>
+              <Text style={styles.inputLabel}>Distance (km, optional)</Text>
+              <TextInput
+                style={styles.textInput}
+                keyboardType="numeric"
+                value={distance}
+                onChangeText={setDistance}
+                placeholder="e.g. 5.2"
+                placeholderTextColor="#475569"
+              />
             </View>
 
             {/* Notes */}
@@ -1208,7 +1179,7 @@ export default function ActivityScreen() {
   );
 }
 
-// Heart rate zone color helper
+// Intensity zone color helper
 function getZoneColor(zone: number): string {
   switch (zone) {
     case 1: return "#38bdf8"; // Blue

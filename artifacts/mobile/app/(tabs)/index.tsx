@@ -607,21 +607,85 @@ export default function DashboardScreen() {
     Alert.alert("Sleep Logged", `Recorded ${sleepHoursLogged}h of ${sleepQuality.toLowerCase()} sleep.`);
   };
 
-  // Request Accessibility & Usage Access permission for Screen Time
-  const requestAccessibilityAndUsagePermission = async () => {
+  // Dedicated helpers to open Android intent or settings
+  const openAndroidSetting = async (action: string) => {
+    try {
+      if (Platform.OS === "android") {
+        await Linking.sendIntent(action);
+        return true;
+      }
+    } catch (e) {
+      console.warn(`sendIntent ${action} failed:`, e);
+    }
+    return false;
+  };
+
+  const openAccessibilitySettings = async () => {
     triggerHaptic();
     if (Platform.OS === "android") {
-      try {
-        await Linking.sendIntent("android.settings.USAGE_ACCESS_SETTINGS");
-      } catch {
+      const ok = await openAndroidSetting("android.settings.ACCESSIBILITY_SETTINGS");
+      if (!ok) {
         try {
-          await Linking.sendIntent("android.settings.ACCESSIBILITY_SETTINGS");
+          await Linking.openURL("intent:#Intent;action=android.settings.ACCESSIBILITY_SETTINGS;end");
         } catch {
           await Linking.openSettings();
         }
       }
     } else {
       await Linking.openSettings();
+    }
+  };
+
+  const openUsageAccessSettings = async () => {
+    triggerHaptic();
+    if (Platform.OS === "android") {
+      const ok = await openAndroidSetting("android.settings.USAGE_ACCESS_SETTINGS");
+      if (!ok) {
+        try {
+          await Linking.openURL("intent:#Intent;action=android.settings.USAGE_ACCESS_SETTINGS;end");
+        } catch {
+          await Linking.openSettings();
+        }
+      }
+    } else {
+      await Linking.openSettings();
+    }
+  };
+
+  // Request Accessibility & Usage Access permission for Screen Time
+  const requestAccessibilityAndUsagePermission = async () => {
+    triggerHaptic();
+    if (Platform.OS === "android") {
+      Alert.alert(
+        "Screen Time & Wellbeing Access",
+        "To track your daily screen time automatically like a native digital wellbeing app, Lumen requires Accessibility and Usage Access permissions.\n\nChoose which settings screen to open:",
+        [
+          {
+            text: "Accessibility Settings",
+            onPress: openAccessibilitySettings,
+          },
+          {
+            text: "Usage Access Settings",
+            onPress: openUsageAccessSettings,
+          },
+          {
+            text: "Open App Settings",
+            onPress: () => Linking.openSettings(),
+          },
+          { text: "Cancel", style: "cancel" },
+        ]
+      );
+    } else if (Platform.OS === "ios") {
+      Alert.alert(
+        "Screen Time Access",
+        "On iOS, screen time is managed via Apple Screen Time in Settings.",
+        [
+          { text: "Open Settings", onPress: () => Linking.openSettings() },
+          { text: "Dismiss", style: "cancel" },
+        ]
+      );
+    } else {
+      Alert.alert("Permission", "Screen time tracking is active on mobile devices.");
     }
   };
 
@@ -1282,9 +1346,31 @@ export default function DashboardScreen() {
                 <Text style={styles.screenTimeLarge}>
                   {Math.floor(screenMinutesToday / 60)}h {screenMinutesToday % 60}m
                 </Text>
-                <View style={styles.screenStatusBadge}>
-                  <Text style={styles.screenStatusBadgeText}>
-                    {dynamicScreenScore >= 8.5 ? "Balanced" : "Screen Heavy"}
+                <View
+                  style={[
+                    styles.screenStatusBadge,
+                    screenMinutesToday === 0
+                      ? { backgroundColor: "rgba(16, 185, 129, 0.15)", borderColor: "rgba(16, 185, 129, 0.3)" }
+                      : dynamicScreenScore >= 8.5
+                      ? { backgroundColor: "rgba(16, 185, 129, 0.15)", borderColor: "rgba(16, 185, 129, 0.3)" }
+                      : { backgroundColor: "rgba(239, 68, 68, 0.15)", borderColor: "rgba(239, 68, 68, 0.3)" },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.screenStatusBadgeText,
+                      screenMinutesToday === 0
+                        ? { color: "#10b981" }
+                        : dynamicScreenScore >= 8.5
+                        ? { color: "#10b981" }
+                        : { color: "#ef4444" },
+                    ]}
+                  >
+                    {screenMinutesToday === 0
+                      ? "Standby • Ready"
+                      : dynamicScreenScore >= 8.5
+                      ? "Balanced"
+                      : "Screen Heavy"}
                   </Text>
                 </View>
               </View>
@@ -1309,17 +1395,33 @@ export default function DashboardScreen() {
             <View style={styles.permissionCard}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                 <ShieldCheck size={18} color="#a855f7" />
-                <Text style={styles.permissionTitle}>Phone Usage Access</Text>
+                <Text style={styles.permissionTitle}>Phone Usage & Accessibility Access</Text>
               </View>
               <Text style={styles.permissionDesc}>
-                Allow Lumen access to Android Usage Stats & Accessibility settings to accurately measure app screen time directly from your device.
+                Allow Lumen access to Android Accessibility & Usage Stats to automatically track screen time directly from your device.
               </Text>
-              <Pressable
-                style={styles.permissionBtn}
-                onPress={requestAccessibilityAndUsagePermission}
-              >
-                <Text style={styles.permissionBtnText}>Grant Phone Access</Text>
-              </Pressable>
+              <View style={{ gap: 8 }}>
+                <Pressable
+                  style={styles.permissionBtn}
+                  onPress={requestAccessibilityAndUsagePermission}
+                >
+                  <Text style={styles.permissionBtnText}>🛡️ Grant Phone Access (Guided)</Text>
+                </Pressable>
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  <Pressable
+                    style={[styles.permissionBtnSecondary, { flex: 1 }]}
+                    onPress={openAccessibilitySettings}
+                  >
+                    <Text style={styles.permissionBtnSecondaryText}>Accessibility Settings</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.permissionBtnSecondary, { flex: 1 }]}
+                    onPress={openUsageAccessSettings}
+                  >
+                    <Text style={styles.permissionBtnSecondaryText}>Usage Access</Text>
+                  </Pressable>
+                </View>
+              </View>
             </View>
 
             {/* App Category Breakdown */}
@@ -2295,6 +2397,20 @@ const styles = StyleSheet.create({
     color: "#050b08",
     fontSize: 12,
     fontWeight: "800",
+  },
+  permissionBtnSecondary: {
+    backgroundColor: "rgba(168, 85, 247, 0.15)",
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(168, 85, 247, 0.3)",
+  },
+  permissionBtnSecondaryText: {
+    color: "#d8b4fe",
+    fontSize: 11,
+    fontWeight: "700",
   },
   emptyCategoryCard: {
     backgroundColor: "#0d1612",

@@ -256,6 +256,8 @@ export async function getDb() {
         payload TEXT NOT NULL,
         queued_at TEXT DEFAULT CURRENT_TIMESTAMP
       );
+
+      DELETE FROM workouts WHERE id = 'w-001' OR (duration_minutes <= 1 AND calories_burned <= 12);
     `);
 
     isDbInitialized = true;
@@ -471,17 +473,20 @@ export async function deleteMeal(id: string): Promise<void> {
 // ============================================================================
 
 export async function getWorkouts(): Promise<WorkoutRecord[]> {
+  const filterValid = (list: WorkoutRecord[]) =>
+    list.filter((w) => w.id !== "w-001" && !(w.durationMinutes <= 1 && w.caloriesBurned <= 12));
+
   const db = await getDb();
   if (!db) {
     const store = getWebStore();
-    return Array.isArray(store.workouts_table) ? store.workouts_table : [];
+    return filterValid(Array.isArray(store.workouts_table) ? store.workouts_table : []);
   }
 
   try {
     const rows: any[] = await db.getAllAsync(
       `SELECT * FROM workouts ORDER BY logged_at DESC`
     );
-    return rows.map((r) => ({
+    const parsed = rows.map((r) => ({
       id: r.id,
       type: r.type,
       durationMinutes: Number(r.duration_minutes),
@@ -493,10 +498,11 @@ export async function getWorkouts(): Promise<WorkoutRecord[]> {
       notes: r.notes,
       loggedAt: r.logged_at,
     }));
+    return filterValid(parsed);
   } catch (err) {
     console.warn("getWorkouts error:", err);
     const store = getWebStore();
-    return Array.isArray(store.workouts_table) ? store.workouts_table : [];
+    return filterValid(Array.isArray(store.workouts_table) ? store.workouts_table : []);
   }
 }
 
