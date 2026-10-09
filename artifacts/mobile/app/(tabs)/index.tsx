@@ -13,6 +13,7 @@ import {
   AppState,
   AppStateStatus,
   Switch,
+  Linking,
 } from "react-native";
 import { useRouter } from "expo-router";
 import {
@@ -140,7 +141,7 @@ function CircularScoreRing({ score, maxScore = 10 }: { score: number; maxScore?:
 // 7-Day Trend Chart Component matching the reference
 function Trend7DayChart({ overallScore }: { overallScore: number }) {
   const days = ["Fri", "Sat", "Sun", "Mon", "Tue", "Wed", "Thu"];
-  const dataPoints = [4.2, 5.8, 6.5, 4.0, 7.2, 5.0, overallScore];
+  const dataPoints = [0, 0, 0, 0, 0, 0, overallScore];
   const chartHeight = 110;
   const chartWidth = SCREEN_WIDTH - 64;
   const maxVal = 10;
@@ -219,7 +220,7 @@ export default function DashboardScreen() {
 
   const [refreshing, setRefreshing] = useState(false);
   const [isSpeakingBriefing, setIsSpeakingBriefing] = useState(false);
-  const [waterCups, setWaterCups] = useState(6);
+  const [waterCups, setWaterCups] = useState(0);
 
   // Wearable Health sync states
   const [syncStatus, setSyncStatus] = useState<HealthSyncStatus>({
@@ -234,13 +235,13 @@ export default function DashboardScreen() {
 
   // Sleep Modal & interactive state
   const [showSleepModal, setShowSleepModal] = useState(false);
-  const [sleepHoursLogged, setSleepHoursLogged] = useState(7.5);
+  const [sleepHoursLogged, setSleepHoursLogged] = useState(0);
   const [sleepQuality, setSleepQuality] = useState("Restorative");
   const [hasLoggedSleepToday, setHasLoggedSleepToday] = useState(false);
 
   // Screen Time & Digital Wellbeing interactive state
   const [showScreenTimeModal, setShowScreenTimeModal] = useState(false);
-  const [screenMinutesToday, setScreenMinutesToday] = useState(165); // 2h 45m
+  const [screenMinutesToday, setScreenMinutesToday] = useState(0);
   const [screenLimitMinutes, setScreenLimitMinutes] = useState(240); // 4h 00m
   const [focusModeActive, setFocusModeActive] = useState(false);
   const [windDownActive, setWindDownActive] = useState(false);
@@ -384,7 +385,7 @@ export default function DashboardScreen() {
   // Base metrics
   const workoutCaloriesBurned =
     workouts?.reduce((acc: number, w: any) => acc + (Number(w.caloriesBurned) || 0), 0) || 0;
-  const stepsCount = dashboard?.steps || 7420;
+  const stepsCount = dashboard?.steps || 0;
   const stepsCaloriesBurned = Math.round(stepsCount * 0.045);
   const totalActiveCaloriesBurned = workoutCaloriesBurned + stepsCaloriesBurned;
 
@@ -403,15 +404,15 @@ export default function DashboardScreen() {
   const fatGrams = Math.max(Number(dashboard?.fatGrams || 0), localMealsCount * 14);
 
   // =========================================================================
-  // DYNAMIC 4 PILLAR CALCULATIONS (Nutrition, Sleep, Activity, Screen Time)
+  // DYNAMIC 5 PILLAR CALCULATIONS (Nutrition, Hydration, Sleep, Activity, Screen Time)
   // =========================================================================
 
   // 1. Dynamic Nutrition Score & Label
   const dynamicNutritionScore = useMemo(() => {
     if (caloriesConsumed === 0) return 0.0;
     const ratio = caloriesConsumed / caloriesTarget;
-    if (ratio >= 0.8 && ratio <= 1.15) return 8.9;
-    if (ratio >= 0.5 && ratio < 0.8) return 7.4;
+    if (ratio >= 0.8 && ratio <= 1.15) return 9.5;
+    if (ratio >= 0.5 && ratio < 0.8) return 7.5;
     if (ratio > 1.15) return 6.8;
     return 5.2;
   }, [caloriesConsumed, caloriesTarget]);
@@ -420,20 +421,20 @@ export default function DashboardScreen() {
     if (caloriesConsumed === 0) return "Not logged • Tap to log";
     if (dynamicNutritionScore >= 8.5) return `${caloriesConsumed} kcal • Optimal`;
     if (dynamicNutritionScore >= 7.0) return `${caloriesConsumed} kcal • On Target`;
-    return `${caloriesConsumed} kcal • Calorie Deficit`;
+    return `${caloriesConsumed} kcal • Deficit`;
   }, [caloriesConsumed, dynamicNutritionScore]);
 
   // 2. Dynamic Sleep Score & Label
   const effectiveSleepHours = hasLoggedSleepToday
     ? sleepHoursLogged
-    : Number(dashboard?.sleepHours || (hasLoggedSleepToday ? 7.5 : 0));
+    : Number(dashboard?.sleepHours || 0);
 
   const dynamicSleepScore = useMemo(() => {
     if (effectiveSleepHours === 0) return 0.0;
-    if (effectiveSleepHours >= 7.5 && effectiveSleepHours <= 8.5) return 9.2;
-    if (effectiveSleepHours >= 7.0) return 8.6;
-    if (effectiveSleepHours >= 6.0) return 7.5;
-    return 5.8;
+    if (effectiveSleepHours >= 7.5 && effectiveSleepHours <= 8.5) return 9.5;
+    if (effectiveSleepHours >= 7.0) return 8.5;
+    if (effectiveSleepHours >= 6.0) return 7.2;
+    return Math.max(1.0, Number((effectiveSleepHours * 1.1).toFixed(1)));
   }, [effectiveSleepHours]);
 
   const dynamicSleepLabel = useMemo(() => {
@@ -444,12 +445,12 @@ export default function DashboardScreen() {
   // 3. Dynamic Activity Score & Label
   const dynamicActivityScore = useMemo(() => {
     const workoutsCount = workouts?.length || 0;
-    if (stepsCount === 0 && workoutsCount === 0) return 0.0;
-    const stepRatio = Math.min(1.2, stepsCount / stepsTarget);
-    const base = stepRatio * 7.5;
-    const workoutBonus = workoutsCount > 0 ? 1.8 : 0.8;
-    return Number(Math.min(9.8, Math.max(1, base + workoutBonus)).toFixed(1));
-  }, [stepsCount, stepsTarget, workouts]);
+    if (stepsCount === 0 && workoutsCount === 0 && totalActiveCaloriesBurned === 0) return 0.0;
+    const stepRatio = Math.min(1.0, stepsCount / stepsTarget);
+    const stepPart = stepRatio * 7.5;
+    const workoutPart = Math.min(2.5, (totalActiveCaloriesBurned / 400) * 2.5);
+    return Number(Math.min(10.0, Math.max(1.0, stepPart + workoutPart)).toFixed(1));
+  }, [stepsCount, stepsTarget, workouts, totalActiveCaloriesBurned]);
 
   const dynamicActivityLabel = useMemo(() => {
     if (stepsCount === 0 && (!workouts || workouts.length === 0)) return "Not logged • Tap to track";
@@ -460,14 +461,16 @@ export default function DashboardScreen() {
 
   // 4. Dynamic Screen Time (Digital Wellbeing) Score & Label
   const dynamicScreenScore = useMemo(() => {
+    if (screenMinutesToday === 0) return 0.0;
     const ratio = screenMinutesToday / screenLimitMinutes;
-    if (ratio <= 0.7) return 9.4;
-    if (ratio <= 0.9) return 8.8;
-    if (ratio <= 1.05) return 7.4;
-    return 5.2;
+    if (ratio <= 0.7) return 9.5;
+    if (ratio <= 0.9) return 8.5;
+    if (ratio <= 1.05) return 7.2;
+    return Math.max(1.0, Number((6.0 - (ratio - 1.05) * 8).toFixed(1)));
   }, [screenMinutesToday, screenLimitMinutes]);
 
   const dynamicScreenLabel = useMemo(() => {
+    if (screenMinutesToday === 0) return "Not logged • Tap to connect";
     const hours = Math.floor(screenMinutesToday / 60);
     const mins = screenMinutesToday % 60;
     const timeStr = `${hours}h ${mins}m`;
@@ -476,19 +479,47 @@ export default function DashboardScreen() {
     return `${timeStr} • Screen Strain`;
   }, [screenMinutesToday, dynamicScreenScore]);
 
-  // Overall Score (incorporating live pillar scores)
-  const dynamicOverallScore = useMemo(() => {
-    const activeScores = [
-      dynamicNutritionScore > 0 ? dynamicNutritionScore : null,
-      dynamicSleepScore > 0 ? dynamicSleepScore : null,
-      dynamicActivityScore > 0 ? dynamicActivityScore : null,
-      dynamicScreenScore,
-    ].filter((s): s is number => s !== null);
+  // 5. Dynamic Hydration Score & Label
+  const dynamicHydrationScore = useMemo(() => {
+    if (waterCups === 0) return 0.0;
+    const ratio = Math.min(1.25, waterCups / 8);
+    return Number(Math.min(10.0, ratio * 8.5 + (waterCups >= 8 ? 1.5 : 0)).toFixed(1));
+  }, [waterCups]);
 
-    if (activeScores.length === 0) return 2.3;
-    const avg = activeScores.reduce((a, b) => a + b, 0) / activeScores.length;
-    return Number(avg.toFixed(1));
-  }, [dynamicNutritionScore, dynamicSleepScore, dynamicActivityScore, dynamicScreenScore]);
+  const dynamicHydrationLabel = useMemo(() => {
+    if (waterCups === 0) return "Not logged • Tap to log";
+    if (waterCups >= 8) return `${waterCups} cups • Fully Hydrated`;
+    if (waterCups >= 5) return `${waterCups} cups • Good Pace`;
+    return `${waterCups} cups • Needs Water`;
+  }, [waterCups]);
+
+  // Composite Health Score: True average across all evaluated pillars (Nutrition, Hydration, Sleep, Activity, Screen Time)
+  const dynamicOverallScore = useMemo(() => {
+    const evaluatedPillars = [
+      { name: "Nutrition", score: dynamicNutritionScore, hasData: caloriesConsumed > 0 },
+      { name: "Hydration", score: dynamicHydrationScore, hasData: waterCups > 0 },
+      { name: "Sleep", score: dynamicSleepScore, hasData: effectiveSleepHours > 0 },
+      { name: "Activity", score: dynamicActivityScore, hasData: stepsCount > 0 || totalActiveCaloriesBurned > 0 },
+      { name: "Screen Time", score: dynamicScreenScore, hasData: screenMinutesToday > 0 },
+    ];
+
+    const activePillars = evaluatedPillars.filter((p) => p.hasData);
+    if (activePillars.length === 0) return 0.0;
+    const sum = activePillars.reduce((acc, p) => acc + p.score, 0);
+    return Number((sum / activePillars.length).toFixed(1));
+  }, [
+    dynamicNutritionScore,
+    dynamicHydrationScore,
+    dynamicSleepScore,
+    dynamicActivityScore,
+    dynamicScreenScore,
+    caloriesConsumed,
+    waterCups,
+    effectiveSleepHours,
+    stepsCount,
+    totalActiveCaloriesBurned,
+    screenMinutesToday,
+  ]);
 
   // Greeting
   const greetingTime = useMemo(() => {
@@ -498,7 +529,7 @@ export default function DashboardScreen() {
     return "Good evening";
   }, []);
 
-  const userName = profile?.name || "Somdutta Kirtaniya";
+  const userName = profile?.name || "User";
 
   // Energy message
   const energySubtext =
@@ -506,13 +537,15 @@ export default function DashboardScreen() {
       ? "Today is looking like an energized, peak-performance day."
       : dynamicOverallScore >= 5.0
         ? "Today is looking like a balanced, steady momentum day."
-        : "Today is looking like a low energy recovery day.";
+        : dynamicOverallScore > 0
+          ? "Today is looking like a low energy recovery day."
+          : "Log your nutrition, hydration, sleep, or activity to calculate your overall health score.";
 
   const aiInsightTitle =
-    dashboard?.topRecommendation?.title || "Bump protein by 110g today";
+    dashboard?.topRecommendation?.title || "Daily Bio-Intelligence Guidance";
   const aiInsightDesc =
     dashboard?.topRecommendation?.body ||
-    "Yesterday you came in 110g under your protein target. Add a Greek yogurt at lunch to keep muscle synthesis optimal.";
+    "Log your nutrition, hydration, sleep, and activity to receive personalized daily recommendations.";
 
   const streaksList = useMemo(() => {
     return Array.isArray(streaksData) ? (streaksData as any[]) : [];
@@ -520,9 +553,9 @@ export default function DashboardScreen() {
 
   // Briefing speech
   const briefingText =
-    stepsCount > 5000
-      ? `Movement is steady today with ${stepsCount.toLocaleString()} steps. Keep hydration continuous to finish strong.`
-      : `Welcome, ${userName}. Active calorie burn is currently ${totalActiveCaloriesBurned} kcal. Let's hit a brisk walk before dinner.`;
+    stepsCount > 0
+      ? `Movement is tracked today with ${stepsCount.toLocaleString()} steps. Keep hydration continuous to finish strong.`
+      : `Welcome, ${userName}. Active calorie burn is currently ${totalActiveCaloriesBurned} kcal. Start an activity or log your meals to track your day.`;
 
   const toggleBriefingVoice = () => {
     if (isSpeakingBriefing) {
@@ -572,6 +605,24 @@ export default function DashboardScreen() {
     );
     setShowSleepModal(false);
     Alert.alert("Sleep Logged", `Recorded ${sleepHoursLogged}h of ${sleepQuality.toLowerCase()} sleep.`);
+  };
+
+  // Request Accessibility & Usage Access permission for Screen Time
+  const requestAccessibilityAndUsagePermission = async () => {
+    triggerHaptic();
+    if (Platform.OS === "android") {
+      try {
+        await Linking.sendIntent("android.settings.USAGE_ACCESS_SETTINGS");
+      } catch {
+        try {
+          await Linking.sendIntent("android.settings.ACCESSIBILITY_SETTINGS");
+        } catch {
+          await Linking.openSettings();
+        }
+      }
+    } else {
+      await Linking.openSettings();
+    }
   };
 
   // Digital Wellbeing save handler
@@ -885,6 +936,49 @@ export default function DashboardScreen() {
         </View>
 
         {/* ========================================================= */}
+        {/* HYDRATION WIDGET (Positioned below Nutrient, Sleep, Activity, Screen) */}
+        {/* ========================================================= */}
+        <View style={styles.hydrationCardWide}>
+          <View style={styles.hydrationTopRow}>
+            <View style={styles.dropCircle}>
+              <Droplet size={18} color="#06b6d4" />
+            </View>
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                <Text style={styles.bioCardLabel}>Hydration</Text>
+                <Text style={[styles.pillarScore, { color: "#06b6d4" }]}>
+                  {dynamicHydrationScore > 0 ? dynamicHydrationScore.toFixed(1) : "0.0"}
+                </Text>
+              </View>
+              <Text style={styles.bioCardValue}>{waterCups} / 8 cups ({waterCups * 250} ml)</Text>
+              <Text style={styles.pillarSubtitle}>{dynamicHydrationLabel}</Text>
+            </View>
+          </View>
+
+          {/* Quick Increment/Decrement Buttons & Progress Bar */}
+          <View style={styles.waterControlsRowWide}>
+            <View style={styles.waterBarTrack}>
+              <View
+                style={[
+                  styles.waterBarFill,
+                  { width: `${Math.min(100, (waterCups / 8) * 100)}%` },
+                ]}
+              />
+            </View>
+
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <Pressable style={styles.waterBtn} onPress={decrementWater}>
+                <Minus size={14} color="#94a3b8" />
+              </Pressable>
+              <Text style={styles.waterTargetText}>Target: 8 cups</Text>
+              <Pressable style={styles.waterBtn} onPress={incrementWater}>
+                <Plus size={14} color="#06b6d4" />
+              </Pressable>
+            </View>
+          </View>
+        </View>
+
+        {/* ========================================================= */}
         {/* ACTIVE STREAKS (Horizontal Carousel)                      */}
         {/* ========================================================= */}
         <View style={styles.sectionTitleRow}>
@@ -961,67 +1055,42 @@ export default function DashboardScreen() {
         </View>
 
         {/* ========================================================= */}
-        {/* HYDRATION & MACRONUTRIENTS ROW                            */}
+        {/* CALORIES & MACRONUTRIENTS CARD                           */}
         {/* ========================================================= */}
-        <View style={styles.biometricsSplitRow}>
-          {/* Hydration Card */}
-          <View style={styles.hydrationCard}>
-            <View style={styles.hydrationTopRow}>
-              <View style={styles.dropCircle}>
-                <Droplet size={16} color="#06b6d4" />
-              </View>
-              <View style={{ flex: 1, marginLeft: 10 }}>
-                <Text style={styles.bioCardLabel}>Hydration</Text>
-                <Text style={styles.bioCardValue}>{waterCups} cups</Text>
-              </View>
-              <ChevronRight size={16} color="#64748b" />
+        <View style={styles.caloriesMacroCardWide}>
+          <View style={styles.calTopRow}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Utensils size={14} color="#f59e0b" />
+              <Text style={styles.bioCardLabel}>Calories & Macronutrients</Text>
             </View>
-
-            {/* Quick Increment/Decrement Buttons */}
-            <View style={styles.waterControlsRow}>
-              <Pressable style={styles.waterBtn} onPress={decrementWater}>
-                <Minus size={14} color="#94a3b8" />
-              </Pressable>
-              <Text style={styles.waterTargetText}>Target: 8 cups</Text>
-              <Pressable style={styles.waterBtn} onPress={incrementWater}>
-                <Plus size={14} color="#06b6d4" />
-              </Pressable>
-            </View>
+            <Text style={styles.calValue}>
+              {caloriesConsumed} / {caloriesTarget} kcal
+            </Text>
           </View>
 
-          {/* Calories & Macros Card */}
-          <View style={styles.caloriesMacroCard}>
-            <View style={styles.calTopRow}>
-              <Text style={styles.bioCardLabel}>Calories</Text>
-              <Text style={styles.calValue}>
-                {caloriesConsumed} / {caloriesTarget} kcal
-              </Text>
-            </View>
+          {/* Calorie bar */}
+          <View style={styles.calBarTrack}>
+            <View
+              style={[
+                styles.calBarFill,
+                { width: `${Math.min(100, caloriesPercent)}%`, backgroundColor: "#f59e0b" },
+              ]}
+            />
+          </View>
 
-            {/* Calorie bar */}
-            <View style={styles.calBarTrack}>
-              <View
-                style={[
-                  styles.calBarFill,
-                  { width: `${Math.min(100, caloriesPercent)}%`, backgroundColor: "#f59e0b" },
-                ]}
-              />
+          {/* Macro split breakdown */}
+          <View style={styles.macrosRow}>
+            <View style={styles.macroItem}>
+              <Text style={styles.macroLabel}>Protein</Text>
+              <Text style={styles.macroVal}>{proteinGrams}g</Text>
             </View>
-
-            {/* Macro split breakdown */}
-            <View style={styles.macrosRow}>
-              <View style={styles.macroItem}>
-                <Text style={styles.macroLabel}>Protein</Text>
-                <Text style={styles.macroVal}>{proteinGrams}g</Text>
-              </View>
-              <View style={styles.macroItem}>
-                <Text style={styles.macroLabel}>Carbs</Text>
-                <Text style={styles.macroVal}>{carbsGrams}g</Text>
-              </View>
-              <View style={styles.macroItem}>
-                <Text style={styles.macroLabel}>Fat</Text>
-                <Text style={styles.macroVal}>{fatGrams}g</Text>
-              </View>
+            <View style={styles.macroItem}>
+              <Text style={styles.macroLabel}>Carbs</Text>
+              <Text style={styles.macroVal}>{carbsGrams}g</Text>
+            </View>
+            <View style={styles.macroItem}>
+              <Text style={styles.macroLabel}>Fat</Text>
+              <Text style={styles.macroVal}>{fatGrams}g</Text>
             </View>
           </View>
         </View>
@@ -1236,26 +1305,59 @@ export default function DashboardScreen() {
               </Text>
             </View>
 
+            {/* Phone Accessibility & Usage Permission Card */}
+            <View style={styles.permissionCard}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <ShieldCheck size={18} color="#a855f7" />
+                <Text style={styles.permissionTitle}>Phone Usage Access</Text>
+              </View>
+              <Text style={styles.permissionDesc}>
+                Allow Lumen access to Android Usage Stats & Accessibility settings to accurately measure app screen time directly from your device.
+              </Text>
+              <Pressable
+                style={styles.permissionBtn}
+                onPress={requestAccessibilityAndUsagePermission}
+              >
+                <Text style={styles.permissionBtnText}>Grant Phone Access</Text>
+              </Pressable>
+            </View>
+
             {/* App Category Breakdown */}
             <Text style={styles.modalSectionLabel}>CATEGORY TELEMETRY</Text>
-            <View style={styles.categoryList}>
-              <View style={styles.categoryRow}>
-                <Text style={styles.categoryName}>💼 Productivity & Work</Text>
-                <Text style={styles.categoryMins}>1h 15m (45%)</Text>
+            {screenMinutesToday === 0 ? (
+              <View style={styles.emptyCategoryCard}>
+                <Text style={styles.emptyCategoryText}>
+                  No screen time recorded yet today. Tap "Grant Phone Access" above or use apps on your phone to start tracking.
+                </Text>
               </View>
-              <View style={styles.categoryRow}>
-                <Text style={styles.categoryName}>💬 Social & Messages</Text>
-                <Text style={styles.categoryMins}>45m (27%)</Text>
+            ) : (
+              <View style={styles.categoryList}>
+                <View style={styles.categoryRow}>
+                  <Text style={styles.categoryName}>💼 Productivity & Work</Text>
+                  <Text style={styles.categoryMins}>
+                    {Math.floor((screenMinutesToday * 0.45) / 60)}h {Math.round((screenMinutesToday * 0.45) % 60)}m (45%)
+                  </Text>
+                </View>
+                <View style={styles.categoryRow}>
+                  <Text style={styles.categoryName}>💬 Social & Messages</Text>
+                  <Text style={styles.categoryMins}>
+                    {Math.floor((screenMinutesToday * 0.3) / 60)}h {Math.round((screenMinutesToday * 0.3) % 60)}m (30%)
+                  </Text>
+                </View>
+                <View style={styles.categoryRow}>
+                  <Text style={styles.categoryName}>🎬 Video & Media</Text>
+                  <Text style={styles.categoryMins}>
+                    {Math.floor((screenMinutesToday * 0.2) / 60)}h {Math.round((screenMinutesToday * 0.2) % 60)}m (20%)
+                  </Text>
+                </View>
+                <View style={styles.categoryRow}>
+                  <Text style={styles.categoryName}>⚡ Lumen Health</Text>
+                  <Text style={styles.categoryMins}>
+                    {Math.floor((screenMinutesToday * 0.05) / 60)}h {Math.round((screenMinutesToday * 0.05) % 60)}m (5%)
+                  </Text>
+                </View>
               </View>
-              <View style={styles.categoryRow}>
-                <Text style={styles.categoryName}>🎬 Video & Media</Text>
-                <Text style={styles.categoryMins}>35m (21%)</Text>
-              </View>
-              <View style={styles.categoryRow}>
-                <Text style={styles.categoryName}>⚡ Lumen Health</Text>
-                <Text style={styles.categoryMins}>10m (7%)</Text>
-              </View>
-            </View>
+            )}
 
             {/* Daily Target Limit Selector */}
             <Text style={[styles.modalSectionLabel, { marginTop: 14 }]}>DAILY SCREEN LIMIT</Text>
@@ -2126,5 +2228,87 @@ const styles = StyleSheet.create({
     color: "#64748b",
     fontSize: 11,
     marginTop: 2,
+  },
+  hydrationCardWide: {
+    backgroundColor: "#0c1511",
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "rgba(6, 182, 212, 0.2)",
+    marginBottom: 20,
+  },
+  waterControlsRowWide: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 14,
+    gap: 12,
+  },
+  waterBarTrack: {
+    flex: 1,
+    height: 6,
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    borderRadius: 3,
+    overflow: "hidden",
+  },
+  waterBarFill: {
+    height: 6,
+    backgroundColor: "#06b6d4",
+    borderRadius: 3,
+  },
+  caloriesMacroCardWide: {
+    backgroundColor: "#0c1511",
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "rgba(245, 158, 11, 0.2)",
+    marginBottom: 20,
+  },
+  permissionCard: {
+    backgroundColor: "rgba(168, 85, 247, 0.1)",
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "rgba(168, 85, 247, 0.25)",
+    marginBottom: 14,
+  },
+  permissionTitle: {
+    color: "#f8fafc",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  permissionDesc: {
+    color: "#cbd5e1",
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 6,
+    marginBottom: 10,
+  },
+  permissionBtn: {
+    backgroundColor: "#a855f7",
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  permissionBtnText: {
+    color: "#050b08",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  emptyCategoryCard: {
+    backgroundColor: "#0d1612",
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    marginBottom: 10,
+    alignItems: "center",
+  },
+  emptyCategoryText: {
+    color: "#94a3b8",
+    fontSize: 12,
+    textAlign: "center",
+    lineHeight: 18,
   },
 });

@@ -99,7 +99,7 @@ export async function buildFullHealthContextModel(): Promise<HealthContextModel>
 
   // 1. Profile
   const profile = {
-    name: profileState?.name || "Somdutta Kirtaniya",
+    name: profileState?.name || "User",
     mode: profileState?.mode || "standard",
     calorieTarget: profileState?.dailyCalorieTarget || 2100,
     proteinTarget: profileState?.dailyProteinTarget || 110,
@@ -116,54 +116,57 @@ export async function buildFullHealthContextModel(): Promise<HealthContextModel>
   const totalFat = todayMeals.reduce((acc, m) => acc + (m.fatGrams || 0), 0);
 
   const nutrition = {
-    totalCalories: totalCalories || 1840, // realistic baseline if none logged yet
+    totalCalories: totalCalories,
     calorieTarget: profile.calorieTarget,
-    calorieRemaining: Math.max(0, profile.calorieTarget - (totalCalories || 1840)),
-    totalProtein: totalProtein || 68,
+    calorieRemaining: Math.max(0, profile.calorieTarget - totalCalories),
+    totalProtein: totalProtein,
     proteinTarget: profile.proteinTarget,
-    totalCarbs: totalCarbs || 195,
-    totalFat: totalFat || 58,
-    mealsCount: todayMeals.length || 2,
-    mealsList: todayMeals.length > 0
-      ? todayMeals.map((m) => ({ name: m.name, calories: m.calories, mealType: m.mealType, protein: m.proteinGrams }))
-      : [
-          { name: "Avocado Sourdough Toast & Poached Egg", calories: 440, mealType: "breakfast", protein: 16 },
-          { name: "Mediterranean Quinoa Chicken Bowl", calories: 620, mealType: "lunch", protein: 42 },
-        ],
+    totalCarbs: totalCarbs,
+    totalFat: totalFat,
+    mealsCount: todayMeals.length,
+    mealsList: todayMeals.map((m) => ({
+      name: m.name,
+      calories: m.calories,
+      mealType: m.mealType,
+      protein: m.proteinGrams,
+    })),
   };
 
   // 3. Activity
   const todayWorkouts = workouts.filter((w) => w.loggedAt.startsWith(todayStr));
   const workoutBurn = todayWorkouts.reduce((acc, w) => acc + (w.caloriesBurned || 0), 0);
-  const steps = 7420; // live steps baseline
+  const steps = 0; // Live sensor / dashboard steps
   const stepsBurn = Math.round(steps * 0.045);
-  const totalActiveBurn = (workoutBurn || 280) + stepsBurn;
+  const totalActiveBurn = workoutBurn + stepsBurn;
 
   const activity = {
     steps,
     stepsTarget: profile.stepsTarget,
     stepsPercent: Math.min(100, Math.round((steps / profile.stepsTarget) * 100)),
     activeCaloriesBurned: totalActiveBurn,
-    workoutsCount: todayWorkouts.length || 1,
-    workoutsList: todayWorkouts.length > 0
-      ? todayWorkouts.map((w) => ({ type: w.type, duration: w.durationMinutes, calories: w.caloriesBurned, intensity: w.intensity }))
-      : [{ type: "Outdoor Morning Run", duration: 30, calories: 280, intensity: "moderate" }],
+    workoutsCount: todayWorkouts.length,
+    workoutsList: todayWorkouts.map((w) => ({
+      type: w.type,
+      duration: w.durationMinutes,
+      calories: w.caloriesBurned,
+      intensity: w.intensity,
+    })),
   };
 
   // 4. Sleep
-  const sleepHours = latestSleep?.durationHours || 7.5;
-  const sleepQuality = latestSleep?.quality || "Restorative";
+  const sleepHours = latestSleep?.durationHours || 0;
+  const sleepQuality = latestSleep?.quality || "Not logged";
   const sleep = {
     durationHours: sleepHours,
     targetHours: profile.sleepTarget,
     quality: sleepQuality,
-    deepSleepStr: `${Math.round(sleepHours * 0.22 * 10) / 10}h (22%)`,
-    remSleepStr: `${Math.round(sleepHours * 0.25 * 10) / 10}h (25%)`,
-    status: sleepHours >= 7.5 ? "Optimal Rest" : "Sleep Deficit",
+    deepSleepStr: sleepHours > 0 ? `${Math.round(sleepHours * 0.22 * 10) / 10}h (22%)` : "0h",
+    remSleepStr: sleepHours > 0 ? `${Math.round(sleepHours * 0.25 * 10) / 10}h (25%)` : "0h",
+    status: sleepHours >= 7.5 ? "Optimal Rest" : sleepHours > 0 ? "Sleep Deficit" : "Not logged",
   };
 
   // 5. Screen Time & Digital Wellbeing
-  const screenMins = screenTime?.screenMinutes || 165;
+  const screenMins = screenTime?.screenMinutes || 0;
   const limitMins = screenTime?.limitMinutes || 240;
   const screenHours = Math.floor(screenMins / 60);
   const screenRemMins = screenMins % 60;
@@ -176,18 +179,18 @@ export async function buildFullHealthContextModel(): Promise<HealthContextModel>
     status: screenMins <= limitMins ? "Balanced Usage" : "High Screen Strain",
     focusMode: screenTime?.focusMode || false,
     categories: {
-      productivity: screenTime?.productivityMinutes || 75,
-      social: screenTime?.socialMinutes || 45,
-      media: screenTime?.mediaMinutes || 32,
-      wellbeing: screenTime?.wellbeingMinutes || 13,
+      productivity: screenTime?.productivityMinutes || 0,
+      social: screenTime?.socialMinutes || 0,
+      media: screenTime?.mediaMinutes || 0,
+      wellbeing: screenTime?.wellbeingMinutes || 0,
     },
   };
 
   // 6. Hydration
   const hydration = {
-    cups: hydrationCups || 6,
+    cups: hydrationCups || 0,
     targetCups: 8,
-    ml: (hydrationCups || 6) * 250,
+    ml: (hydrationCups || 0) * 250,
   };
 
   // 7. Compile Human-Readable & Prompt Telemetry Snapshot

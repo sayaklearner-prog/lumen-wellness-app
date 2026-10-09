@@ -274,7 +274,7 @@ async function seedDefaultDataIfNeeded() {
   if (!profile) {
     await saveProfileState({
       id: "primary",
-      name: "Somdutta Kirtaniya",
+      name: "User",
       mode: "standard",
       dailyCalorieTarget: 2100,
       dailyProteinTarget: 110,
@@ -284,49 +284,7 @@ async function seedDefaultDataIfNeeded() {
     });
   }
 
-  // Seed baseline memories if empty
-  const memories = await getCoachMemories();
-  if (memories.length === 0) {
-    const defaultMems: CoachMemoryRecord[] = [
-      {
-        id: "mem-seed-1",
-        category: "nutrition",
-        keyFact: "User targets 110g protein daily with balanced whole-food meals.",
-        source: "profile",
-        confidence: 0.95,
-        createdAt: new Date().toISOString(),
-      },
-      {
-        id: "mem-seed-2",
-        category: "fitness",
-        keyFact: "Prefers morning aerobic cardio and consistent 9,000 steps daily baseline.",
-        source: "profile",
-        confidence: 0.9,
-        createdAt: new Date().toISOString(),
-      },
-      {
-        id: "mem-seed-3",
-        category: "sleep",
-        keyFact: "Bedtime anchor set to 22:30 for 7.5 to 8.0 hours restorative circadian recovery.",
-        source: "profile",
-        confidence: 0.92,
-        createdAt: new Date().toISOString(),
-      },
-      {
-        id: "mem-seed-4",
-        category: "screentime",
-        keyFact: "Maintains a 4-hour daily phone screen time limit to reduce evening blue-light strain.",
-        source: "profile",
-        confidence: 0.88,
-        createdAt: new Date().toISOString(),
-      },
-    ];
-    for (const m of defaultMems) {
-      await saveCoachMemory(m);
-    }
-  }
-
-  // Seed initial coach welcome message if chat empty
+  // Initial coach welcome message if chat empty
   const msgs = await getCoachMessages();
   if (msgs.length === 0) {
     await saveCoachMessage({
@@ -334,7 +292,7 @@ async function seedDefaultDataIfNeeded() {
       conversationId: "1",
       role: "assistant",
       content:
-        "Hello Somdutta! I am Lumen Coach, your personalized bio-intelligence advisor. My Memory Engine is actively synchronized with your Nutrition, Sleep, Activity, and Screen Time telemetry. How can I optimize your performance today?",
+        "Hello! I am Lumen Coach, your personalized bio-intelligence advisor. My Memory Engine is actively synchronized with your Nutrition, Sleep, Activity, and Screen Time telemetry. How can I assist you today?",
       timestamp: new Date().toISOString(),
     });
   }
@@ -683,7 +641,7 @@ export async function getHydrationToday(): Promise<number> {
 
   if (!db) {
     const store = getWebStore();
-    return Number(store[`hydration_${todayStr}`] || 6);
+    return Number(store[`hydration_${todayStr}`] || 0);
   }
 
   try {
@@ -691,10 +649,10 @@ export async function getHydrationToday(): Promise<number> {
       `SELECT cups FROM hydration_logs WHERE id = ?`,
       `hyd-${todayStr}`
     );
-    return row ? Number(row.cups) : 6;
+    return row ? Number(row.cups) : 0;
   } catch {
     const store = getWebStore();
-    return Number(store[`hydration_${todayStr}`] || 6);
+    return Number(store[`hydration_${todayStr}`] || 0);
   }
 }
 
@@ -729,12 +687,12 @@ export async function getScreenTimeToday(): Promise<ScreenTimeRecord> {
   const todayStr = new Date().toISOString().slice(0, 10);
   const defaultRecord: ScreenTimeRecord = {
     id: `screen-${todayStr}`,
-    screenMinutes: 165,
+    screenMinutes: 0,
     limitMinutes: 240,
-    productivityMinutes: 75,
-    socialMinutes: 45,
-    mediaMinutes: 32,
-    wellbeingMinutes: 13,
+    productivityMinutes: 0,
+    socialMinutes: 0,
+    mediaMinutes: 0,
+    wellbeingMinutes: 0,
     focusMode: false,
     windDown: false,
     loggedAt: new Date().toISOString(),

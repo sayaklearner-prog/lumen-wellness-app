@@ -22,11 +22,11 @@ export default function NutritionScreen() {
 
   // Form states
   const [foodName, setFoodName] = useState("");
-  const [calories, setCalories] = useState("350");
-  const [protein, setProtein] = useState("20");
-  const [carbs, setCarbs] = useState("40");
-  const [fat, setFat] = useState("10");
-  const [vitamins, setVitamins] = useState("Vitamin C: 12mg");
+  const [calories, setCalories] = useState("");
+  const [protein, setProtein] = useState("");
+  const [carbs, setCarbs] = useState("");
+  const [fat, setFat] = useState("");
+  const [vitamins, setVitamins] = useState("");
 
   // Load locally saved meals from master SQLite database & device storage on mount
   useEffect(() => {

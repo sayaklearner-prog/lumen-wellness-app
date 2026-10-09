@@ -113,7 +113,7 @@ export default function ActivityScreen() {
   const [duration, setDuration] = useState("30");
   const [intensity, setIntensity] = useState<"light" | "moderate" | "vigorous" | "peak">("moderate");
   const [distance, setDistance] = useState("");
-  const [avgHeartRate, setAvgHeartRate] = useState("142");
+  const [avgHeartRate, setAvgHeartRate] = useState("");
   const [notes, setNotes] = useState("");
   const [localWorkouts, setLocalWorkouts] = useState<WorkoutRecord[]>([]);
 
@@ -208,7 +208,7 @@ export default function ActivityScreen() {
 
   // Hardware accelerometer steps (live + ambient) integrated with dashboard baseline
   const sensorTodaySteps = getDailySteps();
-  const stepsToday = Math.max(sensorTodaySteps, dashboard?.steps ?? (readinessData as any)?.stepsCount ?? 7420);
+  const stepsToday = Math.max(sensorTodaySteps, dashboard?.steps ?? (readinessData as any)?.stepsCount ?? 0);
   const stepsCaloriesBurned = Math.round(stepsToday * 0.045);
   const totalActiveCaloriesBurned = workoutCaloriesBurned + stepsCaloriesBurned;
 
@@ -223,10 +223,10 @@ export default function ActivityScreen() {
       return Number((readinessData as any).acuteLoadScore);
     }
     const val = Math.log10(1 + (totalActiveCaloriesBurned / 60)) * 6.8 + (totalActiveMinutes / 30) * 1.8;
-    return Math.min(21, Math.max(2.1, Math.round(val * 10) / 10));
+    return Math.min(21, Math.max(0, Math.round(val * 10) / 10));
   }, [readinessData, totalActiveCaloriesBurned, totalActiveMinutes]);
 
-  const readinessScore = (readinessData as any)?.readinessScore ?? 86;
+  const readinessScore = (readinessData as any)?.readinessScore ?? (acuteStrainScore > 0 ? 80 : 0);
   const strainStatus = (readinessData as any)?.loadStatus ?? (
     acuteStrainScore >= 16 ? "Peak Exertion Reached" :
     acuteStrainScore >= 10 ? "Optimal Training Stimulus" :
@@ -294,19 +294,8 @@ export default function ActivityScreen() {
     setSelectedWorkout(preset);
     setDuration(String(preset.defaultDuration));
     setIntensity(preset.defaultIntensity);
-    if (preset.category === "cardio") {
-      setDistance(preset.id.includes("run") ? "5.2" : preset.id.includes("cycle") ? "14.5" : "3.0");
-      setAvgHeartRate("148");
-    } else if (preset.category === "hiit") {
-      setDistance("");
-      setAvgHeartRate("162");
-    } else if (preset.category === "strength") {
-      setDistance("");
-      setAvgHeartRate("128");
-    } else {
-      setDistance("");
-      setAvgHeartRate("110");
-    }
+    setDistance("");
+    setAvgHeartRate("");
     setShowLogModal(true);
   };
 

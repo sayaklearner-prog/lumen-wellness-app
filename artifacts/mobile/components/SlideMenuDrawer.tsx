@@ -127,8 +127,8 @@ export function SlideMenuDrawer({ isOpen, onClose, side = "left" }: SlideMenuDra
     }, 150);
   };
 
-  const userName = profile?.name || "Somdutta Kirtaniya";
-  const userInitial = userName ? userName[0].toUpperCase() : "A";
+  const userName = profile?.name || "User";
+  const userInitial = userName ? userName[0].toUpperCase() : "U";
 
   if (!isOpen) {
     return null;
