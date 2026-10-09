@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
+  Image,
   StyleSheet,
   Pressable,
   Dimensions,
@@ -238,9 +239,11 @@ export default function WelcomeScreen() {
         {/* Brand Header */}
         <View style={styles.header}>
           <View style={styles.logoRow}>
-            <View style={styles.logoBox}>
-              <Sparkles size={18} color="#10b981" />
-            </View>
+            <Image
+              source={require("../../assets/icon.png")}
+              style={{ width: 44, height: 44, borderRadius: 12 }}
+              resizeMode="cover"
+            />
             <View>
               <Text style={styles.logoText}>Lumen OS</Text>
               <Text style={styles.logoSub}>Bio-Intelligence Platform</Text>

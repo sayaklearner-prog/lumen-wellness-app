@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { 
   View, 
   Text, 
+  Image,
   StyleSheet, 
   Pressable, 
   TextInput, 
@@ -199,10 +200,12 @@ export default function SettingsScreen() {
           >
             <Menu size={20} color="#10b981" />
           </Pressable>
-          <View style={styles.logoIconBox}>
-            <Activity size={18} color="#10b981" />
-          </View>
-          <Text style={styles.logoTitle}>Lumen</Text>
+          <Image
+            source={require("../../assets/icon.png")}
+            style={{ width: 26, height: 26, borderRadius: 7, marginRight: 8 }}
+            resizeMode="cover"
+          />
+          <Text style={styles.logoTitle}>Lumen OS</Text>
         </View>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
           <Pressable style={styles.themeToggleBtn}>

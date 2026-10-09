@@ -2,7 +2,7 @@
   "expo": {
     "name": "Lumen OS",
     "slug": "lumen-wellness-app",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -15,6 +15,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.meshmind.lumen",
+      "buildNumber": "2",
       "infoPlist": {
         "NSCameraUsageDescription": "Lumen OS requires access to the camera to scan food nutrition and photograph meals.",
         "NSMicrophoneUsageDescription": "Lumen OS requires access to the microphone for AI voice coach interactions.",
@@ -27,6 +28,7 @@
         "backgroundColor": "#0b120f"
       },
       "package": "com.meshmind.lumen",
+      "versionCode": 2,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",

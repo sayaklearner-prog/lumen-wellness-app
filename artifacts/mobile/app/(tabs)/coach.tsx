@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
+  Image,
   StyleSheet,
   ScrollView,
   TextInput,
@@ -318,9 +319,11 @@ export default function CoachScreen() {
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
           <View>
             <View style={styles.logoRow}>
-              <View style={styles.logoBox}>
-                <Brain size={18} color="#10b981" />
-              </View>
+              <Image
+                source={require("../../assets/icon.png")}
+                style={{ width: 28, height: 28, borderRadius: 8, marginRight: 8 }}
+                resizeMode="cover"
+              />
               <Text style={styles.logoText}>Lumen Coach</Text>
             </View>
             <Text style={styles.logoSub}>Ground-Truth Memory Engine & Context Model</Text>

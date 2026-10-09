@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
+  Image,
   StyleSheet,
   Pressable,
   ScrollView,
@@ -340,7 +341,17 @@ export function SlideMenuDrawer({ isOpen, onClose, side = "left" }: SlideMenuDra
             <Text style={[styles.actionText, { color: "#ef4444" }]}>Logout Session</Text>
           </Pressable>
 
-          <View style={{ height: 40 }} />
+          <View style={{ alignItems: "center", marginTop: 24, marginBottom: 12 }}>
+            <Image
+              source={require("../assets/icon.png")}
+              style={{ width: 36, height: 36, borderRadius: 10, marginBottom: 6 }}
+              resizeMode="cover"
+            />
+            <Text style={{ color: "#94a3b8", fontSize: 12, fontWeight: "700" }}>Lumen OS</Text>
+            <Text style={{ color: "#475569", fontSize: 10, marginTop: 2 }}>v1.0.1 • Bio-Intelligence Platform</Text>
+          </View>
+
+          <View style={{ height: 30 }} />
         </ScrollView>
       </Animated.View>
     </View>

@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo, useRef } from "react";
 import {
   View,
   Text,
+  Image,
   StyleSheet,
   ScrollView,
   Pressable,
@@ -732,8 +733,12 @@ export default function DashboardScreen() {
           >
             <Menu size={20} color="#10b981" />
           </Pressable>
-          <View style={styles.brandDot} />
-          <Text style={styles.brandTitle}>Lumen</Text>
+          <Image
+            source={require("../../assets/icon.png")}
+            style={{ width: 26, height: 26, borderRadius: 7, marginRight: 8 }}
+            resizeMode="cover"
+          />
+          <Text style={styles.brandTitle}>Lumen OS</Text>
         </View>
 
         <View style={styles.topRightActions}>
