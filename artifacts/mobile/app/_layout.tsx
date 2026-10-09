@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Platform, View, Text, ActivityIndicator } from "react-native";
+import { Platform, View, Text, Image, ActivityIndicator } from "react-native";
 import { Stack, Slot, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -138,11 +138,23 @@ function AuthGate() {
     return () => clearTimeout(timer);
   }, []);
 
-  if (!authChecked || (isAuthenticated && isLoading && !loadingTimedOut)) {
+  if (
+    !authChecked ||
+    (!isAuthenticated && segments[0] === "(tabs)") ||
+    (isAuthenticated && isLoading && !loadingTimedOut)
+  ) {
     return (
       <View style={{ flex: 1, backgroundColor: "#050b08", alignItems: "center", justifyContent: "center" }}>
-        <Text style={{ color: "#10b981", fontSize: 26, fontWeight: "900", letterSpacing: 1.5, marginBottom: 12 }}>
+        <Image
+          source={require("../assets/icon.png")}
+          style={{ width: 68, height: 68, borderRadius: 18, marginBottom: 14 }}
+          resizeMode="cover"
+        />
+        <Text style={{ color: "#f8fafc", fontSize: 22, fontWeight: "900", letterSpacing: 1.5, marginBottom: 4 }}>
           LUMEN OS
+        </Text>
+        <Text style={{ color: "#10b981", fontSize: 11, fontWeight: "600", marginBottom: 20 }}>
+          Bio-Intelligence Platform
         </Text>
         <ActivityIndicator size="small" color="#10b981" />
       </View>
