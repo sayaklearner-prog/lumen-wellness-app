@@ -4,6 +4,7 @@ import { useRouter } from "expo-router";
 import { useGetProfile, useUpdateProfile, getGetProfileQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { storage } from "@/services/storage";
+import { getStoredGoogleUser } from "@/services/googleAuth";
 import { User, Flame, Sparkles, Moon, Clock, Trophy, ChevronRight, Check, Plus, Minus } from "lucide-react-native";
 
 const healthModes = [
@@ -130,6 +131,18 @@ export default function OnboardingScreen() {
       if (profile.dailyScreenTimeLimitMinutes) setScreenTime(profile.dailyScreenTimeLimitMinutes);
     }
   }, [profile]);
+
+  useEffect(() => {
+    async function loadGoogleName() {
+      try {
+        const gUser = await getStoredGoogleUser();
+        if (gUser?.name && !name) {
+          setName(gUser.name);
+        }
+      } catch {}
+    }
+    loadGoogleName();
+  }, []);
 
   const handleNext = () => {
     if (step === 1 && !name.trim()) {

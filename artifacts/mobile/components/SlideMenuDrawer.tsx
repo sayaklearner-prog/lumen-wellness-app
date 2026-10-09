@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -15,6 +15,8 @@ import { useGetProfile } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { storage } from "@/services/storage";
 import { syncHealthData } from "@/services/health";
+import { getStoredGoogleUser, GoogleUser } from "@/services/googleAuth";
+import { GoogleIcon } from "@/components/GoogleIcon";
 import {
   LayoutGrid,
   Sparkles,
@@ -111,15 +113,27 @@ export function SlideMenuDrawer({ isOpen, onClose, side = "left" }: SlideMenuDra
     }, 150);
   };
 
+  const [googleUser, setGoogleUser] = useState<GoogleUser | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      getStoredGoogleUser().then((u) => setGoogleUser(u));
+    }
+  }, [isOpen]);
+
   const handleLogout = async () => {
     onClose();
     await storage.removeItem("lumen_auth_token");
     await storage.removeItem("lumen_in_onboarding");
     await storage.removeItem("lumen_onboarding_completed");
+    await storage.removeItem("lumen_google_user");
+    await storage.removeItem("lumen_auth_provider");
     if (Platform.OS === "web" && typeof localStorage !== "undefined") {
       localStorage.removeItem("lumen_authenticated");
       localStorage.removeItem("lumen_in_onboarding");
       localStorage.removeItem("lumen_onboarding_completed");
+      localStorage.removeItem("lumen_google_user");
+      localStorage.removeItem("lumen_auth_provider");
     }
     qc.clear();
     setTimeout(() => {
@@ -127,7 +141,7 @@ export function SlideMenuDrawer({ isOpen, onClose, side = "left" }: SlideMenuDra
     }, 150);
   };
 
-  const userName = profile?.name || "User";
+  const userName = profile?.name || googleUser?.name || "User";
   const userInitial = userName ? userName[0].toUpperCase() : "U";
 
   if (!isOpen) {
@@ -170,10 +184,19 @@ export function SlideMenuDrawer({ isOpen, onClose, side = "left" }: SlideMenuDra
               <Text style={styles.userName} numberOfLines={1}>
                 {userName}
               </Text>
-              <View style={styles.statusRow}>
-                <View style={styles.activeDot} />
-                <Text style={styles.statusText}>Lumen Health OS • Pro</Text>
-              </View>
+              {googleUser?.email ? (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginTop: 2 }}>
+                  <GoogleIcon size={12} />
+                  <Text style={styles.statusText} numberOfLines={1}>
+                    {googleUser.email}
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.statusRow}>
+                  <View style={styles.activeDot} />
+                  <Text style={styles.statusText}>Lumen Health OS • Pro</Text>
+                </View>
+              )}
             </View>
           </View>
 
