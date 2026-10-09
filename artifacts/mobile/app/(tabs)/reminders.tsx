@@ -30,6 +30,8 @@ import {
 } from "lucide-react-native";
 import { useSlideMenu } from "@/context/SlideMenuContext";
 
+import { getAlarms, saveAlarm, deleteAlarm as deleteAlarmDb } from "@/services/db";
+
 export interface AlarmReminder {
   id: string;
   time: string; // HH:mm format
@@ -96,10 +98,15 @@ export default function RemindersScreen() {
   const activeAlarmController = useRef<{ stop: () => void } | null>(null);
   const lastTriggeredMinute = useRef<string>("");
 
-  // Load saved reminders
+  // Load saved reminders from SQLite master DB & storage
   useEffect(() => {
     async function loadAlarms() {
       try {
+        const dbAlarms = await getAlarms();
+        if (dbAlarms && dbAlarms.length > 0) {
+          setReminders(dbAlarms);
+          return;
+        }
         const stored = await storage.getItem("lumen_reminders_alarms");
         if (stored) {
           const parsed = JSON.parse(stored);
@@ -119,6 +126,18 @@ export default function RemindersScreen() {
     setReminders(list);
     try {
       await storage.setItem("lumen_reminders_alarms", JSON.stringify(list));
+      for (const a of list) {
+        await saveAlarm({
+          id: a.id,
+          time: a.time,
+          title: a.title,
+          repeat: a.repeat,
+          enabled: a.enabled,
+          isAi: a.isAi,
+          soundEnabled: a.soundEnabled,
+          createdAt: new Date().toISOString(),
+        });
+      }
     } catch {}
   };
 

@@ -11,7 +11,7 @@ import {
   Sparkles, CheckCircle2, Trophy, Flame, Footprints, 
   Dumbbell, Bike, TrendingUp, Award, ChevronRight, X, Sliders
 } from "lucide-react-native";
-import { queueOfflineLog } from "@/services/db";
+import { queueOfflineLog, getWorkouts, saveWorkout, deleteWorkout, WorkoutRecord } from "@/services/db";
 import { useSlideMenu } from "@/context/SlideMenuContext";
 
 // Standard MET table for accurate physiological calorie detection
@@ -83,7 +83,7 @@ const WORKOUT_SECTIONS: { title: string; category: "cardio" | "strength" | "hiit
 
 export default function ActivityScreen() {
   const qc = useQueryClient();
-  const { openMenu } = useSlideMenu();
+  const { openLeftMenu, openMenu } = useSlideMenu();
   const [showLogModal, setShowLogModal] = useState(false);
   const [activeCategoryTab, setActiveCategoryTab] = useState<"all" | "cardio" | "strength" | "hiit" | "recovery" | "sports">("all");
 
@@ -94,7 +94,22 @@ export default function ActivityScreen() {
   const [distance, setDistance] = useState("");
   const [avgHeartRate, setAvgHeartRate] = useState("142");
   const [notes, setNotes] = useState("");
-  const [isDetectingCalories, setIsDetectingCalories] = useState(false);
+  const [localWorkouts, setLocalWorkouts] = useState<WorkoutRecord[]>([]);
+
+  // Load workouts from master SQLite database on mount
+  useEffect(() => {
+    async function loadDbWorkouts() {
+      try {
+        const stored = await getWorkouts();
+        if (stored && stored.length > 0) {
+          setLocalWorkouts(stored);
+        }
+      } catch (err) {
+        console.warn("Could not load workouts from DB:", err);
+      }
+    }
+    loadDbWorkouts();
+  }, []);
 
   // Queries
   const { data: workouts } = useListWorkouts();
@@ -106,8 +121,31 @@ export default function ActivityScreen() {
   const createWorkoutMutation = useCreateWorkout();
   const deleteWorkoutMutation = useDeleteWorkouts();
 
+  // Combine server workouts with persistent SQLite workouts
+  const combinedWorkouts = useMemo(() => {
+    const serverList = Array.isArray(workouts) ? workouts : [];
+    const list: WorkoutRecord[] = [...localWorkouts];
+    for (const sw of serverList) {
+      if (!list.some((lw) => String(lw.id) === String(sw.id))) {
+        list.push({
+          id: String(sw.id),
+          type: sw.type,
+          durationMinutes: Number(sw.durationMinutes),
+          caloriesBurned: Number(sw.caloriesBurned),
+          steps: sw.steps ?? undefined,
+          distanceKm: sw.distanceKm ?? undefined,
+          avgHeartRate: sw.avgHeartRate ?? undefined,
+          intensity: (sw.intensity as any) ?? undefined,
+          notes: sw.notes ?? undefined,
+          loggedAt: sw.loggedAt || new Date().toISOString(),
+        });
+      }
+    }
+    return list;
+  }, [workouts, localWorkouts]);
+
   // Physiological real-time calorie detection engine
-  const userWeightKg = 72; // baseline profile body mass
+  const userWeightKg = 72;
   const detectedCalories = useMemo(() => {
     const mins = Math.max(1, parseInt(duration) || 30);
     const met = selectedWorkout?.met || 6.0;
@@ -130,16 +168,16 @@ export default function ActivityScreen() {
 
   // Aggregated unified daily active calorie computation
   const workoutCaloriesBurned = useMemo(() => {
-    return workouts?.reduce((acc: number, w: any) => acc + (Number(w.caloriesBurned) || 0), 0) || 0;
-  }, [workouts]);
+    return combinedWorkouts.reduce((acc: number, w: WorkoutRecord) => acc + (Number(w.caloriesBurned) || 0), 0);
+  }, [combinedWorkouts]);
 
-  const stepsToday = dashboard?.steps ?? (readinessData as any)?.stepsCount ?? 6240;
+  const stepsToday = dashboard?.steps ?? (readinessData as any)?.stepsCount ?? 7420;
   const stepsCaloriesBurned = Math.round(stepsToday * 0.045);
   const totalActiveCaloriesBurned = workoutCaloriesBurned + stepsCaloriesBurned;
 
   const totalActiveMinutes = useMemo(() => {
-    return workouts?.reduce((acc: number, w: any) => acc + (Number(w.durationMinutes) || 0), 0) || 0;
-  }, [workouts]);
+    return combinedWorkouts.reduce((acc: number, w: WorkoutRecord) => acc + (Number(w.durationMinutes) || 0), 0);
+  }, [combinedWorkouts]);
 
   // Training strain score (0.0 - 21.0 scale)
   const acuteStrainScore = useMemo(() => {
@@ -180,6 +218,23 @@ export default function ActivityScreen() {
   const handleLogWorkout = async () => {
     if (!selectedWorkout) return;
 
+    const newWorkoutRecord: WorkoutRecord = {
+      id: `wo-${Date.now()}`,
+      type: selectedWorkout.name,
+      durationMinutes: parseInt(duration) || 30,
+      caloriesBurned: detectedCalories,
+      steps: distance ? Math.round(parseFloat(distance) * 1250) : undefined,
+      distanceKm: distance ? parseFloat(distance) : undefined,
+      avgHeartRate: avgHeartRate ? parseInt(avgHeartRate) : undefined,
+      intensity: intensity,
+      notes: notes.trim() || `${selectedWorkout.name} logged via Lumen Activity Engine`,
+      loggedAt: new Date().toISOString(),
+    };
+
+    // Immediately persist to SQLite master database & local list
+    await saveWorkout(newWorkoutRecord);
+    setLocalWorkouts((prev) => [newWorkoutRecord, ...prev]);
+
     try {
       await createWorkoutMutation.mutateAsync({
         data: {
@@ -189,8 +244,8 @@ export default function ActivityScreen() {
           distanceKm: distance ? parseFloat(distance) : null,
           avgHeartRate: avgHeartRate ? parseInt(avgHeartRate) : null,
           intensity: intensity,
-          notes: notes.trim() || `${selectedWorkout.name} logged via Lumen Activity Engine`
-        } as any
+          notes: notes.trim() || `${selectedWorkout.name} logged via Lumen Activity Engine`,
+        } as any,
       });
 
       qc.invalidateQueries({ queryKey: getListWorkoutsQueryKey() });
@@ -200,21 +255,16 @@ export default function ActivityScreen() {
       setShowLogModal(false);
       Alert.alert("Workout Saved! 🔥", `Logged ${selectedWorkout.name} (${detectedCalories} kcal burned). Your active totals have updated.`);
     } catch {
-      await queueOfflineLog("workout", "/api/workouts", {
-        type: selectedWorkout.name,
-        durationMinutes: parseInt(duration) || 30,
-        caloriesBurned: detectedCalories,
-        distanceKm: distance ? parseFloat(distance) : null,
-        avgHeartRate: avgHeartRate ? parseInt(avgHeartRate) : null,
-        intensity: intensity,
-        notes: notes.trim() || "Logged offline"
-      });
+      await queueOfflineLog("workout", "/api/workouts", newWorkoutRecord);
       setShowLogModal(false);
-      Alert.alert("Saved Offline", `Workout saved to on-device queue: ${selectedWorkout.name} (${detectedCalories} kcal).`);
+      Alert.alert("Saved to Database", `Workout saved to on-device database: ${selectedWorkout.name} (${detectedCalories} kcal).`);
     }
   };
 
   const handleDeleteWorkout = async (id: string) => {
+    await deleteWorkout(id);
+    setLocalWorkouts((prev) => prev.filter((w) => String(w.id) !== String(id)));
+
     try {
       await deleteWorkoutMutation.mutateAsync({ id });
       qc.invalidateQueries({ queryKey: getListWorkoutsQueryKey() });
@@ -222,7 +272,7 @@ export default function ActivityScreen() {
       qc.invalidateQueries({ queryKey: getGetWorkoutInsightsQueryKey() });
       qc.invalidateQueries({ queryKey: getGetTodayDashboardQueryKey() });
     } catch {
-      Alert.alert("Error", "Failed to delete workout");
+      // Handled locally in SQLite
     }
   };
 
@@ -581,12 +631,12 @@ export default function ActivityScreen() {
         {/* Workout History Timeline */}
         <View style={styles.historyHeader}>
           <Text style={styles.historyTitle}>Today's Completed Workouts</Text>
-          <Text style={styles.historyCount}>{workouts?.length || 0} logged</Text>
+          <Text style={styles.historyCount}>{combinedWorkouts.length} logged</Text>
         </View>
 
         <View style={styles.workoutsList}>
-          {workouts && workouts.length > 0 ? (
-            workouts.map((w: any, idx: number) => (
+          {combinedWorkouts.length > 0 ? (
+            combinedWorkouts.map((w: any, idx: number) => (
               <View key={idx} style={styles.workoutRow}>
                 <View style={styles.workoutLeft}>
                   <View style={styles.activityIcon}>

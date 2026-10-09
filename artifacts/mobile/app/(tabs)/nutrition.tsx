@@ -7,13 +7,13 @@ import {
   Utensils, Plus, Trash2, Camera, Sparkles, Check, 
   ChevronRight, Apple, Flame, Award, Image as ImageIcon, RefreshCw, X, Sliders
 } from "lucide-react-native";
-import { queueOfflineLog } from "@/services/db";
+import { queueOfflineLog, getMeals, saveMeal, deleteMeal, MealRecord } from "@/services/db";
 import { storage } from "@/services/storage";
 import { useSlideMenu } from "@/context/SlideMenuContext";
 
 export default function NutritionScreen() {
   const qc = useQueryClient();
-  const { openMenu } = useSlideMenu();
+  const { openLeftMenu, openMenu } = useSlideMenu();
   const { data: profile } = useGetProfile();
   const [showLogForm, setShowLogForm] = useState(false);
   const [mealType, setMealType] = useState("breakfast");
@@ -28,14 +28,19 @@ export default function NutritionScreen() {
   const [fat, setFat] = useState("10");
   const [vitamins, setVitamins] = useState("Vitamin C: 12mg");
 
-  // Load locally saved meals from device storage on mount
+  // Load locally saved meals from master SQLite database & device storage on mount
   useEffect(() => {
     async function loadCachedMeals() {
       try {
+        const dbMeals = await getMeals();
+        if (dbMeals && dbMeals.length > 0) {
+          setLocalMeals(dbMeals);
+          return;
+        }
         const raw = await storage.getItem("lumen_local_meals");
         if (raw) {
           const parsed = JSON.parse(raw);
-          if (Array.isArray(parsed)) setLocalMeals(parsed);
+          if (Array.isArray(parsed) && parsed.length > 0) setLocalMeals(parsed);
         }
       } catch (err) {
         console.warn("Could not load cached meals:", err);
@@ -219,6 +224,27 @@ export default function NutritionScreen() {
   // 1-Tap Log Meal
   const handleCommitScannedMeal = async () => {
     if (!scanResult) return;
+    const scannedMeal: MealRecord = {
+      id: `meal-scan-${Date.now()}`,
+      name: scanResult.name,
+      mealType: scanResult.mealType,
+      calories: scanResult.calories,
+      proteinGrams: scanResult.proteinGrams,
+      carbsGrams: scanResult.carbsGrams,
+      fatGrams: scanResult.fatGrams,
+      vitamins: scanResult.vitamins,
+      items: scanResult.items || [],
+      photoUrl: selectedImageUri || undefined,
+      source: "ai_camera",
+      loggedAt: new Date().toISOString(),
+    };
+
+    // Immediately persist to SQLite master DB and local state
+    await saveMeal(scannedMeal);
+    const updated = [scannedMeal, ...localMeals];
+    setLocalMeals(updated);
+    await storage.setItem("lumen_local_meals", JSON.stringify(updated));
+
     try {
       await createMealMutation.mutateAsync({
         data: {
@@ -240,20 +266,11 @@ export default function NutritionScreen() {
       setScanResult(null);
       Alert.alert("Meal Added! 🎉", `"${scanResult.name}" (${scanResult.calories} kcal) logged to ${scanResult.mealType}.`);
     } catch {
-      await queueOfflineLog("meal", "/api/meals", {
-        name: scanResult.name,
-        mealType: scanResult.mealType,
-        calories: scanResult.calories,
-        proteinGrams: scanResult.proteinGrams,
-        carbsGrams: scanResult.carbsGrams,
-        fatGrams: scanResult.fatGrams,
-        vitamins: scanResult.vitamins,
-        source: "ai_camera",
-      });
+      await queueOfflineLog("meal", "/api/meals", scannedMeal);
       setShowScanModal(false);
       setSelectedImageUri(null);
       setScanResult(null);
-      Alert.alert("Saved Offline", `Meal queued to local database: ${scanResult.name}`);
+      Alert.alert("Saved to Database", `"${scanResult.name}" saved to offline health database.`);
     }
   };
 
@@ -289,26 +306,22 @@ export default function NutritionScreen() {
     const nameToSave = foodName.trim() || `${mealType.charAt(0).toUpperCase() + mealType.slice(1)} Meal`;
     setIsSaving(true);
 
-    const newMeal: any = {
+    const newMeal: MealRecord = {
       id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       name: nameToSave,
       mealType: mealType,
-      meal_type: mealType,
       calories: parseInt(calories) || 0,
       proteinGrams: parseInt(protein) || 0,
-      protein_grams: parseInt(protein) || 0,
       carbsGrams: parseInt(carbs) || 0,
-      carbs_grams: parseInt(carbs) || 0,
       fatGrams: parseInt(fat) || 0,
-      fat_grams: parseInt(fat) || 0,
       vitamins: vitamins.trim() || undefined,
       items: [],
       source: "manual",
       loggedAt: new Date().toISOString(),
-      logged_at: new Date().toISOString(),
     };
 
-    // 1. Immediately persist to device storage
+    // 1. Immediately persist to SQLite master database & device storage
+    await saveMeal(newMeal);
     const updatedLocal = [newMeal, ...localMeals];
     setLocalMeals(updatedLocal);
     try {
@@ -351,7 +364,7 @@ export default function NutritionScreen() {
       qc.invalidateQueries({ queryKey: getListMealsQueryKey() });
       qc.invalidateQueries({ queryKey: getGetTodayDashboardQueryKey() });
     } catch (err) {
-      console.warn("Server sync error (saved locally):", err);
+      console.warn("Server sync error (saved locally in SQLite):", err);
       await queueOfflineLog("meal", "/api/meals", newMeal);
     } finally {
       setIsSaving(false);
@@ -362,6 +375,7 @@ export default function NutritionScreen() {
   };
 
   const handleDeleteMeal = async (id: string) => {
+    await deleteMeal(id);
     const remainingLocal = localMeals.filter(m => String(m.id) !== String(id));
     setLocalMeals(remainingLocal);
     try {
@@ -372,7 +386,7 @@ export default function NutritionScreen() {
       Array.isArray(old) ? old.filter((m: any) => String(m.id) !== String(id)) : []
     );
 
-    if (!String(id).startsWith("local-")) {
+    if (!String(id).startsWith("local-") && !String(id).startsWith("meal-")) {
       try {
         await deleteMealMutation.mutateAsync({ mealId: id });
         qc.invalidateQueries({ queryKey: getListMealsQueryKey() });

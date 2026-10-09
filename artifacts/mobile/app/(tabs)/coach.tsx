@@ -1,19 +1,57 @@
 import { useState, useRef, useEffect } from "react";
-import { View, Text, StyleSheet, ScrollView, TextInput, Pressable, Platform, KeyboardAvoidingView } from "react-native";
-import { 
-  useGetProfile, 
-  useListConversations, 
-  useCreateConversation, 
-  useListMessages, 
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TextInput,
+  Pressable,
+  Platform,
+  KeyboardAvoidingView,
+  Alert,
+} from "react-native";
+import {
+  useGetProfile,
+  useListConversations,
+  useCreateConversation,
   useSendAnthropicMessage,
   getListConversationsQueryKey,
-  getListMessagesQueryKey, 
-  getGetTodayDashboardQueryKey 
+  getGetTodayDashboardQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Brain, Send, Mic, Image, Sparkles, User, Volume2, VolumeX } from "lucide-react-native";
+import {
+  Brain,
+  Send,
+  Mic,
+  Sparkles,
+  User,
+  Volume2,
+  VolumeX,
+  ChevronDown,
+  ChevronUp,
+  Utensils,
+  Moon,
+  Activity,
+  Smartphone,
+  ShieldCheck,
+  Plus,
+  RefreshCw,
+  Check,
+} from "lucide-react-native";
 import { speakText, stopSpeaking, parseVoiceCommand } from "@/services/voice";
 import { useSlideMenu } from "@/context/SlideMenuContext";
+import {
+  getCoachMessages,
+  saveCoachMessage,
+  clearCoachMessages,
+  CoachMessageRecord,
+} from "@/services/db";
+import {
+  buildFullHealthContextModel,
+  extractAndStoreMemories,
+  generateLocalCoachResponse,
+  HealthContextModel,
+} from "@/services/coachMemory";
 
 function FormattedMessage({ content, isUser }: { content: string; isUser: boolean }) {
   if (isUser) {
@@ -58,9 +96,9 @@ function FormattedMessage({ content, isUser }: { content: string; isUser: boolea
 
 export default function CoachScreen() {
   const qc = useQueryClient();
-  const { openMenu } = useSlideMenu();
+  const { openLeftMenu } = useSlideMenu();
   const scrollViewRef = useRef<ScrollView>(null);
-  
+
   const [inputText, setInputText] = useState("");
   const { data: profile } = useGetProfile();
   const { data: conversations } = useListConversations();
@@ -70,8 +108,40 @@ export default function CoachScreen() {
   const [activeConvoId, setActiveConvoId] = useState<number | null>(null);
   const [isListening, setIsListening] = useState(false);
   const [spokenMessageId, setSpokenMessageId] = useState<string | null>(null);
-  const [localMessages, setLocalMessages] = useState<Array<{ id: string; role: string; content: string }>>([]);
+  const [localMessages, setLocalMessages] = useState<Array<CoachMessageRecord>>([]);
   const [isThinking, setIsThinking] = useState(false);
+
+  // Health Context Model & Memory Engine state
+  const [healthContext, setHealthContext] = useState<HealthContextModel | null>(null);
+  const [showContextRadar, setShowContextRadar] = useState(false);
+
+  // Initialize master SQLite chat history & telemetry context
+  useEffect(() => {
+    async function initChatAndContext() {
+      try {
+        const ctx = await buildFullHealthContextModel();
+        setHealthContext(ctx);
+
+        const storedMsgs = await getCoachMessages("1");
+        if (storedMsgs && storedMsgs.length > 0) {
+          setLocalMessages(storedMsgs);
+        } else {
+          const welcomeMsg: CoachMessageRecord = {
+            id: `msg-${Date.now()}`,
+            conversationId: "1",
+            role: "assistant",
+            content: `Hello ${ctx.profile.name}! I am Lumen Coach, your personalized bio-intelligence advisor.\n\nMy Memory Engine is connected to your **Nutrition** (${ctx.nutrition.totalCalories} kcal), **Sleep** (${ctx.sleep.durationHours}h), **Activity** (${ctx.activity.steps.toLocaleString()} steps), and **Screen Time** (${ctx.screenTime.hoursStr}).\n\nHow can I help optimize your recovery and performance today?`,
+            timestamp: new Date().toISOString(),
+          };
+          await saveCoachMessage(welcomeMsg);
+          setLocalMessages([welcomeMsg]);
+        }
+      } catch (err) {
+        console.warn("Failed to load coach context / messages:", err);
+      }
+    }
+    initChatAndContext();
+  }, []);
 
   // Auto-select or create conversation
   useEffect(() => {
@@ -80,53 +150,97 @@ export default function CoachScreen() {
     }
   }, [conversations, activeConvoId]);
 
-  const { data: messages } = useListMessages(activeConvoId ?? 0, {
-    query: {
-      enabled: !!activeConvoId,
-      queryKey: getListMessagesQueryKey(activeConvoId ?? 0),
-    }
-  });
-
   const handleSend = async (text: string) => {
     if (!text.trim()) return;
     setInputText("");
 
+    // 1. Build and refresh live health context model
+    const currentContext = healthContext || (await buildFullHealthContextModel());
+    setHealthContext(currentContext);
+
+    // 2. Extract and store any new long-term health memories
+    try {
+      const extracted = await extractAndStoreMemories(text, currentContext);
+      if (extracted) {
+        const updatedCtx = await buildFullHealthContextModel();
+        setHealthContext(updatedCtx);
+      }
+    } catch {}
+
+    // 3. Persist User Message to SQLite Master Database
     const userMsgId = `u-${Date.now()}`;
-    setLocalMessages(prev => [...prev, { id: userMsgId, role: "user", content: text }]);
+    const userMsg: CoachMessageRecord = {
+      id: userMsgId,
+      conversationId: "1",
+      role: "user",
+      content: text,
+      timestamp: new Date().toISOString(),
+    };
+    await saveCoachMessage(userMsg);
+    setLocalMessages((prev) => [...prev, userMsg]);
     setIsThinking(true);
+
     setTimeout(() => {
       scrollViewRef.current?.scrollToEnd({ animated: true });
     }, 100);
 
-    let targetConvoId = activeConvoId;
-    if (!targetConvoId) {
-      if (Array.isArray(conversations) && conversations.length > 0) {
-        targetConvoId = conversations[0].id;
-        setActiveConvoId(conversations[0].id);
-      } else {
+    let assistantResponseText = "";
+
+    // 4. Try online streaming from backend, fallback to Local Neural-Heuristic Context Model
+    try {
+      let targetConvoId = activeConvoId;
+      if (!targetConvoId) {
         try {
-          const res = await createConversation.mutateAsync({ data: { title: "Health Consultation" } });
-          qc.invalidateQueries({ queryKey: getListConversationsQueryKey() });
+          const res = await createConversation.mutateAsync({
+            data: { title: "Health Consultation" },
+          });
           targetConvoId = (res as any).id;
-          setActiveConvoId((res as any).id);
+          setActiveConvoId(targetConvoId);
         } catch {
           targetConvoId = 1;
-          setActiveConvoId(1);
         }
       }
-    }
 
-    try {
-      await sendMessageMutation.mutateAsync({
+      // Format prompt with compiled bio-intelligence telemetry snapshot
+      const augmentedPrompt = `${text}\n\n[CURRENT USER BIO-METRICS CONTEXT]:\n${currentContext.compiledTelemetrySnapshot}`;
+
+      const res = await sendMessageMutation.mutateAsync({
         conversationId: String(targetConvoId),
-        data: { content: text }
+        data: { content: augmentedPrompt },
       });
-      await qc.invalidateQueries({ queryKey: getListMessagesQueryKey(targetConvoId!) });
-      qc.invalidateQueries({ queryKey: getGetTodayDashboardQueryKey() });
-    } catch {
-      await qc.invalidateQueries({ queryKey: getListMessagesQueryKey(targetConvoId!) });
+
+      if (res && (res as any).content) {
+        assistantResponseText = (res as any).content;
+      } else {
+        // Use local heuristic engine if stream body isn't plain text
+        assistantResponseText = generateLocalCoachResponse(
+          text,
+          currentContext,
+          localMessages.map((m) => ({ role: m.role, content: m.content }))
+        );
+      }
+    } catch (err) {
+      // Offline / standalone APK fallback: Instant Context Engine Response
+      console.log("Using Local Context Memory Model for coach answer:", err);
+      assistantResponseText = generateLocalCoachResponse(
+        text,
+        currentContext,
+        localMessages.map((m) => ({ role: m.role, content: m.content }))
+      );
     } finally {
+      // 5. Persist Assistant Response to SQLite Master Database
+      const assistantMsgId = `a-${Date.now()}`;
+      const assistantMsg: CoachMessageRecord = {
+        id: assistantMsgId,
+        conversationId: "1",
+        role: "assistant",
+        content: assistantResponseText,
+        timestamp: new Date().toISOString(),
+      };
+      await saveCoachMessage(assistantMsg);
+      setLocalMessages((prev) => [...prev, assistantMsg]);
       setIsThinking(false);
+
       setTimeout(() => {
         scrollViewRef.current?.scrollToEnd({ animated: true });
       }, 150);
@@ -136,22 +250,16 @@ export default function CoachScreen() {
   const handleMicPress = () => {
     if (isListening) {
       setIsListening(false);
-      // Simulate speech input transcript trigger
-      const mockSpeech = "Log 500ml water";
+      const mockSpeech = "How is my nutrition and calories today?";
       const result = parseVoiceCommand(mockSpeech);
-      alert(`Voice recognized: "${mockSpeech}"\n${result.explanation}`);
-      if (result.action === "log_water") {
-        handleSend(mockSpeech);
-      }
+      handleSend(mockSpeech);
     } else {
       setIsListening(true);
       setTimeout(() => {
         setIsListening(false);
-        const mockSpeech = "Suggest today's workout";
-        const result = parseVoiceCommand(mockSpeech);
-        alert(`Voice recognized: "${mockSpeech}"\n${result.explanation}`);
+        const mockSpeech = "Give me an AI summary of my progress today.";
         handleSend(mockSpeech);
-      }, 2500);
+      }, 2000);
     }
   };
 
@@ -165,28 +273,42 @@ export default function CoachScreen() {
     }
   };
 
-  useEffect(() => {
-    setTimeout(() => {
-      scrollViewRef.current?.scrollToEnd({ animated: true });
-    }, 200);
-  }, [messages]);
+  const handleClearHistory = () => {
+    Alert.alert(
+      "Clear Chat History",
+      "Reset consultation history? (Your health data and memories remain intact in the database).",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Clear",
+          style: "destructive",
+          onPress: async () => {
+            await clearCoachMessages("1");
+            const ctx = healthContext || (await buildFullHealthContextModel());
+            const welcomeMsg: CoachMessageRecord = {
+              id: `msg-${Date.now()}`,
+              conversationId: "1",
+              role: "assistant",
+              content: `Chat history cleared. I'm ready to assist you based on your live health telemetry (${ctx.nutrition.totalCalories} kcal, ${ctx.activity.steps.toLocaleString()} steps, ${ctx.sleep.durationHours}h sleep).`,
+              timestamp: new Date().toISOString(),
+            };
+            await saveCoachMessage(welcomeMsg);
+            setLocalMessages([welcomeMsg]);
+          },
+        },
+      ]
+    );
+  };
 
   const suggestedPrompts = [
-    { text: "Analyze my day", action: "Give me an AI summary of my progress today." },
-    { text: "Today's nutrition", action: "What is my calorie and protein status today?" },
-    { text: "Workout suggestions", action: "Suggest a quick 20 minute workout based on my readiness." }
+    { text: "Bio-Intelligence Summary", action: "Give me an AI summary of my progress today." },
+    { text: "Nutrition & Macros Status", action: "How is my calorie, protein, and nutrition status today?" },
+    { text: "Sleep & Circadian Analysis", action: "How was my sleep recovery and bedtime rhythm?" },
+    { text: "Digital Wellbeing & Screen", action: "How is my phone screen time and focus balance today?" },
   ];
 
-  const serverMessages = Array.isArray(messages) ? messages : [];
-  const messageList: Array<any> = [...serverMessages];
-  for (const lm of localMessages) {
-    if (!messageList.some(m => String(m.id) === String(lm.id) || (m.role === lm.role && m.content === lm.content))) {
-      messageList.push(lm);
-    }
-  }
-
   return (
-    <KeyboardAvoidingView 
+    <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
       keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
@@ -201,132 +323,223 @@ export default function CoachScreen() {
               </View>
               <Text style={styles.logoText}>Lumen Coach</Text>
             </View>
-            <Text style={styles.logoSub}>Grounded in biometric context</Text>
+            <Text style={styles.logoSub}>Ground-Truth Memory Engine & Context Model</Text>
           </View>
 
-          <Pressable onPress={openMenu} accessibilityLabel="Open Navigation Menu">
-            <View style={styles.avatarCircleSmall}>
-              <Text style={styles.avatarInitialSmall}>
-                {profile?.name ? profile.name[0].toUpperCase() : "A"}
-              </Text>
-            </View>
-          </Pressable>
-        </View>
-      </View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <Pressable
+              onPress={handleClearHistory}
+              style={styles.clearBtn}
+              accessibilityLabel="Reset Chat"
+            >
+              <RefreshCw size={14} color="#64748b" />
+            </Pressable>
 
-      {/* Main chat window */}
-      <ScrollView 
-        ref={scrollViewRef}
-        contentContainerStyle={styles.scrollContent}
-      >
-        {messageList.length > 0 ? (
-          <>
-          {messageList.map((m: any, idx: number) => {
-            const isUser = m.role === "user";
-            const messageId = m.id || String(idx);
-            return (
-              <View 
-                key={idx} 
-                style={[
-                  styles.bubbleContainer, 
-                  isUser ? styles.userBubbleContainer : styles.coachBubbleContainer
-                ]}
-              >
-                {!isUser && (
-                  <View style={styles.coachAvatar}>
-                    <Brain size={12} color="#10b981" />
-                  </View>
-                )}
-                <View 
-                  style={[
-                    styles.bubble, 
-                    isUser ? styles.userBubble : styles.coachBubble
-                  ]}
-                >
-                  <FormattedMessage content={m.content} isUser={isUser} />
-                  
-                  {!isUser && (
-                    <Pressable 
-                      onPress={() => toggleSpeakMessage(messageId, m.content)}
-                      style={styles.voiceIndicator}
-                    >
-                      {spokenMessageId === messageId ? (
-                        <VolumeX size={12} color="#10b981" />
-                      ) : (
-                        <Volume2 size={12} color="#64748b" />
-                      )}
-                    </Pressable>
-                  )}
-                </View>
-                {isUser && (
-                  <View style={styles.userAvatar}>
-                    <User size={12} color="#050b08" />
-                  </View>
-                )}
-              </View>
-            );
-          })}
-          {isThinking && (
-            <View style={[styles.bubbleContainer, styles.coachBubbleContainer]}>
-              <View style={styles.coachAvatar}>
-                <Brain size={12} color="#10b981" />
-              </View>
-              <View style={[styles.bubble, styles.coachBubble, { flexDirection: "row", alignItems: "center", gap: 8, paddingBottom: 12 }]}>
-                <Sparkles size={14} color="#10b981" />
-                <Text style={[styles.bubbleText, styles.coachBubbleText, { fontStyle: "italic", color: "#94a3b8" }]}>
-                  Lumen Coach is synthesizing your biometrics...
+            <Pressable onPress={openLeftMenu} accessibilityLabel="Open Navigation Menu">
+              <View style={styles.avatarCircleSmall}>
+                <Text style={styles.avatarInitialSmall}>
+                  {profile?.name ? profile.name[0].toUpperCase() : "S"}
                 </Text>
               </View>
-            </View>
-          )}
-        </>
-        ) : (
-          <View style={styles.welcomeContainer}>
-            <Brain size={48} color="#10b981" style={{ marginBottom: 15 }} />
-            <Text style={styles.welcomeTitle}>Ask your AI Health Coach</Text>
-            <Text style={styles.welcomeDesc}>
-              Lumen Coach automatically understands your steps, sleep hours, mood index, and nutrition logs to give hyper-grounded answers.
+            </Pressable>
+          </View>
+        </View>
+
+        {/* ========================================================= */}
+        {/* INTERACTIVE MEMORY ENGINE & CONTEXT RADAR BAR             */}
+        {/* ========================================================= */}
+        <Pressable
+          style={styles.contextPillBar}
+          onPress={() => setShowContextRadar(!showContextRadar)}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1 }}>
+            <View style={styles.pulseGreenDot} />
+            <Text style={styles.contextPillText} numberOfLines={1}>
+              Memory Engine Active • 5 Live Telemetry Streams Connected
             </Text>
           </View>
-        )}
+          {showContextRadar ? (
+            <ChevronUp size={14} color="#10b981" />
+          ) : (
+            <ChevronDown size={14} color="#10b981" />
+          )}
+        </Pressable>
 
-        {/* Suggested Prompt Cards */}
-        {messageList.length === 0 && (
-          <View style={styles.suggestions}>
-            <Text style={styles.suggestionsTitle}>Suggested Prompts</Text>
-            <View style={styles.suggestionsList}>
-              {suggestedPrompts.map((s, idx) => (
-                <Pressable 
-                  key={idx} 
-                  style={styles.suggestionCard}
-                  onPress={() => handleSend(s.action)}
-                >
-                  <Sparkles size={12} color="#10b981" />
-                  <Text style={styles.suggestionText}>{s.text}</Text>
-                </Pressable>
+        {/* Expandable Live Context Telemetry Radar */}
+        {showContextRadar && healthContext && (
+          <View style={styles.contextRadarDrawer}>
+            <Text style={styles.radarSectionTitle}>LIVE BIO-TELEMETRY CONTEXT SNAPSHOT</Text>
+
+            <View style={styles.radarMetricsGrid}>
+              <View style={styles.radarMetricCard}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                  <Utensils size={11} color="#10b981" />
+                  <Text style={styles.radarCardLabel}>Nutrition</Text>
+                </View>
+                <Text style={styles.radarCardVal}>{healthContext.nutrition.totalCalories} kcal</Text>
+                <Text style={styles.radarCardSub}>{healthContext.nutrition.totalProtein}g protein</Text>
+              </View>
+
+              <View style={styles.radarMetricCard}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                  <Moon size={11} color="#f59e0b" />
+                  <Text style={styles.radarCardLabel}>Sleep</Text>
+                </View>
+                <Text style={styles.radarCardVal}>{healthContext.sleep.durationHours}h</Text>
+                <Text style={styles.radarCardSub}>{healthContext.sleep.quality}</Text>
+              </View>
+
+              <View style={styles.radarMetricCard}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                  <Activity size={11} color="#06b6d4" />
+                  <Text style={styles.radarCardLabel}>Activity</Text>
+                </View>
+                <Text style={styles.radarCardVal}>{healthContext.activity.steps.toLocaleString()}</Text>
+                <Text style={styles.radarCardSub}>{healthContext.activity.activeCaloriesBurned} kcal</Text>
+              </View>
+
+              <View style={styles.radarMetricCard}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                  <Smartphone size={11} color="#a855f7" />
+                  <Text style={styles.radarCardLabel}>Screen</Text>
+                </View>
+                <Text style={styles.radarCardVal}>{healthContext.screenTime.hoursStr}</Text>
+                <Text style={styles.radarCardSub}>{healthContext.screenTime.status}</Text>
+              </View>
+            </View>
+
+            {/* Long-Term Memory Vectors */}
+            <View style={styles.memoryVectorsSection}>
+              <Text style={styles.radarSectionTitle}>
+                LEARNED LONG-TERM MEMORIES ({healthContext.memories.length})
+              </Text>
+              {healthContext.memories.slice(0, 3).map((m) => (
+                <View key={m.id} style={styles.memoryItemRow}>
+                  <ShieldCheck size={11} color="#10b981" style={{ marginTop: 2 }} />
+                  <Text style={styles.memoryFactText} numberOfLines={2}>
+                    <Text style={{ color: "#10b981", fontWeight: "bold" }}>
+                      [{m.category.toUpperCase()}]:{" "}
+                    </Text>
+                    {m.keyFact}
+                  </Text>
+                </View>
               ))}
             </View>
           </View>
         )}
+      </View>
+
+      {/* Main chat window */}
+      <ScrollView
+        ref={scrollViewRef}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {localMessages.map((m, idx) => {
+          const isUser = m.role === "user";
+          const messageId = m.id || String(idx);
+          return (
+            <View
+              key={messageId}
+              style={[
+                styles.bubbleContainer,
+                isUser ? styles.userBubbleContainer : styles.coachBubbleContainer,
+              ]}
+            >
+              {!isUser && (
+                <View style={styles.coachAvatar}>
+                  <Brain size={12} color="#10b981" />
+                </View>
+              )}
+              <View style={[styles.bubble, isUser ? styles.userBubble : styles.coachBubble]}>
+                <FormattedMessage content={m.content} isUser={isUser} />
+
+                {!isUser && (
+                  <Pressable
+                    onPress={() => toggleSpeakMessage(messageId, m.content)}
+                    style={styles.voiceIndicator}
+                  >
+                    {spokenMessageId === messageId ? (
+                      <VolumeX size={12} color="#10b981" />
+                    ) : (
+                      <Volume2 size={12} color="#64748b" />
+                    )}
+                  </Pressable>
+                )}
+              </View>
+              {isUser && (
+                <View style={styles.userAvatar}>
+                  <User size={12} color="#050b08" />
+                </View>
+              )}
+            </View>
+          );
+        })}
+
+        {isThinking && (
+          <View style={[styles.bubbleContainer, styles.coachBubbleContainer]}>
+            <View style={styles.coachAvatar}>
+              <Brain size={12} color="#10b981" />
+            </View>
+            <View
+              style={[
+                styles.bubble,
+                styles.coachBubble,
+                { flexDirection: "row", alignItems: "center", gap: 8, paddingBottom: 12 },
+              ]}
+            >
+              <Sparkles size={14} color="#10b981" />
+              <Text style={[styles.bubbleText, styles.coachBubbleText, { fontStyle: "italic", color: "#94a3b8" }]}>
+                Lumen Memory Engine is analyzing your live biometrics...
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {/* Suggested Quick Prompts */}
+        <View style={styles.suggestions}>
+          <Text style={styles.suggestionsTitle}>QUICK BIO-METRIC CONSULTATIONS</Text>
+          <View style={styles.suggestionsList}>
+            {suggestedPrompts.map((s, idx) => (
+              <Pressable
+                key={idx}
+                style={styles.suggestionCard}
+                onPress={() => handleSend(s.action)}
+              >
+                <Sparkles size={14} color="#10b981" />
+                <Text style={styles.suggestionText}>{s.text}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
+        <View style={{ height: 20 }} />
       </ScrollView>
 
-      {/* Input area */}
+      {/* Input Bar */}
       <View style={styles.inputBar}>
-        <Pressable 
-          style={[styles.iconBtn, isListening && styles.listeningMic]} 
+        <Pressable
+          style={[styles.iconBtn, isListening && styles.listeningMic]}
           onPress={handleMicPress}
         >
-          <Mic size={20} color={isListening ? "#050b08" : "#64748b"} />
+          <Mic size={18} color={isListening ? "#050b08" : "#94a3b8"} />
         </Pressable>
+
         <TextInput
           style={styles.textInput}
-          placeholder="Ask anything..."
-          placeholderTextColor="#475569"
+          placeholder="Ask Lumen Coach anything..."
+          placeholderTextColor="#64748b"
           value={inputText}
           onChangeText={setInputText}
           onSubmitEditing={() => handleSend(inputText)}
+          returnKeyType="send"
         />
-        <Pressable style={styles.sendBtn} onPress={() => handleSend(inputText)}>
+
+        <Pressable
+          style={[styles.sendBtn, !inputText.trim() && { opacity: 0.5 }]}
+          onPress={() => handleSend(inputText)}
+          disabled={!inputText.trim()}
+        >
           <Send size={16} color="#050b08" />
         </Pressable>
       </View>
@@ -338,98 +551,161 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#050b08",
-    paddingTop: Platform.OS === "ios" ? 60 : 40,
   },
   header: {
-    paddingHorizontal: 25,
+    paddingTop: Platform.OS === "ios" ? 52 : 36,
+    paddingHorizontal: 20,
+    paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#1e293b",
-    paddingBottom: 15,
-    marginBottom: 10,
+    borderBottomColor: "rgba(16, 185, 129, 0.15)",
+    backgroundColor: "#070c0a",
   },
   logoRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-  },
-  logoBox: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: "rgba(16, 185, 129, 0.1)",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.2)",
-  },
-  logoText: {
-    fontSize: 18,
-    fontWeight: "900",
-    color: "#e2e8f0",
-  },
-  logoSub: {
-    fontSize: 10,
-    color: "#64748b",
-    marginTop: 4,
-    fontWeight: "bold",
-    textTransform: "uppercase",
-  },
-  scrollContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 25,
-    gap: 15,
-  },
-  welcomeContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 20,
-    marginTop: 80,
-    gap: 10,
-  },
-  welcomeTitle: {
-    color: "#f8fafc",
-    fontSize: 22,
-    fontWeight: "900",
-  },
-  welcomeDesc: {
-    color: "#64748b",
-    fontSize: 13,
-    textAlign: "center",
-    lineHeight: 18,
-  },
-  suggestions: {
-    marginTop: 40,
-    gap: 12,
-  },
-  suggestionsTitle: {
-    color: "#94a3b8",
-    fontSize: 11,
-    fontWeight: "bold",
-    textTransform: "uppercase",
-  },
-  suggestionsList: {
     gap: 8,
   },
-  suggestionCard: {
-    flexDirection: "row",
+  logoBox: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.3)",
     alignItems: "center",
-    gap: 10,
-    backgroundColor: "#0b1310",
+    justifyContent: "center",
+  },
+  logoText: {
+    color: "#f8fafc",
+    fontSize: 18,
+    fontWeight: "900",
+    letterSpacing: -0.3,
+  },
+  logoSub: {
+    color: "#64748b",
+    fontSize: 11,
+    marginTop: 2,
+    fontWeight: "600",
+  },
+  clearBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#0d1612",
     borderWidth: 1,
     borderColor: "#1e293b",
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    height: 48,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  suggestionText: {
-    color: "#f8fafc",
+  avatarCircleSmall: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#13231c",
+    borderWidth: 1.5,
+    borderColor: "#10b981",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarInitialSmall: {
+    color: "#10b981",
     fontSize: 13,
-    fontWeight: "500",
+    fontWeight: "bold",
+  },
+  contextPillBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(16, 185, 129, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.25)",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    marginTop: 10,
+  },
+  pulseGreenDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: "#10b981",
+  },
+  contextPillText: {
+    color: "#10b981",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  contextRadarDrawer: {
+    backgroundColor: "#0b1410",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.2)",
+    padding: 12,
+    marginTop: 8,
+  },
+  radarSectionTitle: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: "#64748b",
+    letterSpacing: 0.8,
+    marginBottom: 8,
+  },
+  radarMetricsGrid: {
+    flexDirection: "row",
+    gap: 6,
+    marginBottom: 10,
+  },
+  radarMetricCard: {
+    flex: 1,
+    backgroundColor: "#070c0a",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    padding: 8,
+  },
+  radarCardLabel: {
+    color: "#94a3b8",
+    fontSize: 9,
+    fontWeight: "700",
+  },
+  radarCardVal: {
+    color: "#f8fafc",
+    fontSize: 12,
+    fontWeight: "800",
+    marginTop: 2,
+  },
+  radarCardSub: {
+    color: "#64748b",
+    fontSize: 9,
+    marginTop: 1,
+  },
+  memoryVectorsSection: {
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255, 255, 255, 0.05)",
+    paddingTop: 8,
+    gap: 5,
+  },
+  memoryItemRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 6,
+  },
+  memoryFactText: {
+    color: "#94a3b8",
+    fontSize: 11,
+    flex: 1,
+    lineHeight: 15,
+  },
+  scrollContent: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 20,
+    gap: 12,
   },
   bubbleContainer: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 10,
+    gap: 8,
     width: "100%",
   },
   userBubbleContainer: {
@@ -443,24 +719,24 @@ const styles = StyleSheet.create({
     maxWidth: "100%",
   },
   coachAvatar: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: "rgba(16, 185, 129, 0.1)",
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
     borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.2)",
+    borderColor: "rgba(16, 185, 129, 0.3)",
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 6,
+    marginTop: 4,
   },
   userAvatar: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: "#e2e8f0",
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: "#10b981",
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 6,
+    marginTop: 4,
   },
   bubble: {
     borderRadius: 18,
@@ -478,7 +754,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#1e293b",
     borderBottomLeftRadius: 4,
-    paddingBottom: 24, // spacing for speech indicator
+    paddingBottom: 26,
     flex: 1,
     flexShrink: 1,
   },
@@ -489,7 +765,7 @@ const styles = StyleSheet.create({
   },
   userBubbleText: {
     color: "#050b08",
-    fontWeight: "500",
+    fontWeight: "600",
   },
   coachBubbleText: {
     color: "#f8fafc",
@@ -526,16 +802,45 @@ const styles = StyleSheet.create({
   voiceIndicator: {
     position: "absolute",
     right: 12,
-    bottom: 6,
+    bottom: 8,
+  },
+  suggestions: {
+    marginTop: 20,
+    gap: 10,
+  },
+  suggestionsTitle: {
+    color: "#64748b",
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 1,
+  },
+  suggestionsList: {
+    gap: 8,
+  },
+  suggestionCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "#0b1310",
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  suggestionText: {
+    color: "#cbd5e1",
+    fontSize: 13,
+    fontWeight: "600",
   },
   inputBar: {
     height: 70,
     borderTopWidth: 1,
-    borderTopColor: "#1e293b",
-    backgroundColor: "#050b08",
+    borderTopColor: "rgba(30, 41, 59, 0.8)",
+    backgroundColor: "#070c0a",
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 15,
+    paddingHorizontal: 16,
     gap: 10,
   },
   textInput: {
@@ -555,6 +860,9 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: "#0d1612",
+    borderWidth: 1,
+    borderColor: "#1e293b",
   },
   listeningMic: {
     backgroundColor: "#10b981",
@@ -566,20 +874,5 @@ const styles = StyleSheet.create({
     backgroundColor: "#10b981",
     alignItems: "center",
     justifyContent: "center",
-  },
-  avatarCircleSmall: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#13231c",
-    borderWidth: 1.5,
-    borderColor: "#10b981",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarInitialSmall: {
-    color: "#10b981",
-    fontSize: 13,
-    fontWeight: "bold",
   },
 });

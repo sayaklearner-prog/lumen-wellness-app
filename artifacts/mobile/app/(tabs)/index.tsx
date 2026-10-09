@@ -60,6 +60,18 @@ import { speakText, stopSpeaking } from "@/services/voice";
 import { syncHealthData, getLastSyncStatus, HealthSyncStatus } from "@/services/health";
 import { storage } from "@/services/storage";
 import { useSlideMenu } from "@/context/SlideMenuContext";
+import {
+  getMeals,
+  getWorkouts,
+  getLatestSleep,
+  saveSleepSession,
+  getScreenTimeToday,
+  saveScreenTime,
+  getHydrationToday,
+  setHydrationToday,
+  SleepRecord,
+  ScreenTimeRecord,
+} from "@/services/db";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -248,42 +260,61 @@ export default function DashboardScreen() {
       const status = await getLastSyncStatus();
       setSyncStatus(status);
 
-      // 1. Read local meals
+      // 1. Read meals from SQLite master DB
       try {
-        const storedMeals = await storage.getItem("lumen_local_meals");
-        if (storedMeals) {
-          const parsed = JSON.parse(storedMeals);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setLocalMealsCount(parsed.length);
-            const totalCal = parsed.reduce((sum: number, m: any) => sum + (Number(m.calories) || 0), 0);
-            setLocalCaloriesConsumed(totalCal);
+        const dbMeals = await getMeals();
+        if (dbMeals && dbMeals.length > 0) {
+          setLocalMealsCount(dbMeals.length);
+          const totalCal = dbMeals.reduce((sum: number, m: any) => sum + (Number(m.calories) || 0), 0);
+          setLocalCaloriesConsumed(totalCal);
+        } else {
+          const storedMeals = await storage.getItem("lumen_local_meals");
+          if (storedMeals) {
+            const parsed = JSON.parse(storedMeals);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setLocalMealsCount(parsed.length);
+              const totalCal = parsed.reduce((sum: number, m: any) => sum + (Number(m.calories) || 0), 0);
+              setLocalCaloriesConsumed(totalCal);
+            }
           }
         }
       } catch {}
 
-      // 2. Read saved sleep
+      // 2. Read saved sleep from SQLite master DB
       try {
-        const storedSleep = await storage.getItem("lumen_sleep_session");
-        if (storedSleep) {
-          const parsed = JSON.parse(storedSleep);
-          if (parsed.hours) {
-            setSleepHoursLogged(Number(parsed.hours));
-            setSleepQuality(parsed.quality || "Restorative");
-            setHasLoggedSleepToday(true);
+        const dbSleep = await getLatestSleep();
+        if (dbSleep) {
+          setSleepHoursLogged(Number(dbSleep.durationHours));
+          setSleepQuality(dbSleep.quality || "Restorative");
+          setHasLoggedSleepToday(true);
+        } else {
+          const storedSleep = await storage.getItem("lumen_sleep_session");
+          if (storedSleep) {
+            const parsed = JSON.parse(storedSleep);
+            if (parsed.hours) {
+              setSleepHoursLogged(Number(parsed.hours));
+              setSleepQuality(parsed.quality || "Restorative");
+              setHasLoggedSleepToday(true);
+            }
           }
         }
       } catch {}
 
-      // 3. Read digital wellbeing
+      // 3. Read digital wellbeing from SQLite master DB
       try {
-        const storedWellbeing = await storage.getItem("lumen_digital_wellbeing");
-        if (storedWellbeing) {
-          const parsed = JSON.parse(storedWellbeing);
-          if (parsed.screenMinutes) setScreenMinutesToday(parsed.screenMinutes);
-          if (parsed.screenLimitMinutes) setScreenLimitMinutes(parsed.screenLimitMinutes);
-          if (parsed.focusModeActive !== undefined) setFocusModeActive(parsed.focusModeActive);
-          if (parsed.windDownActive !== undefined) setWindDownActive(parsed.windDownActive);
+        const dbScreen = await getScreenTimeToday();
+        if (dbScreen) {
+          setScreenMinutesToday(dbScreen.screenMinutes);
+          setScreenLimitMinutes(dbScreen.limitMinutes);
+          setFocusModeActive(dbScreen.focusMode);
+          setWindDownActive(dbScreen.windDown);
         }
+      } catch {}
+
+      // 4. Read hydration from SQLite master DB
+      try {
+        const cups = await getHydrationToday();
+        if (cups !== undefined) setWaterCups(cups);
       } catch {}
     }
     loadLocalHealthState();
@@ -505,18 +536,32 @@ export default function DashboardScreen() {
 
   const incrementWater = () => {
     triggerHaptic();
-    setWaterCups((prev) => prev + 1);
+    const nextVal = waterCups + 1;
+    setWaterCups(nextVal);
+    setHydrationToday(nextVal);
   };
 
   const decrementWater = () => {
     triggerHaptic();
-    setWaterCups((prev) => Math.max(0, prev - 1));
+    const nextVal = Math.max(0, waterCups - 1);
+    setWaterCups(nextVal);
+    setHydrationToday(nextVal);
   };
 
   // Sleep Modal save handler
   const handleSaveSleepSession = async () => {
     triggerHaptic("success");
     setHasLoggedSleepToday(true);
+    const sleepRecord: SleepRecord = {
+      id: `sleep-${Date.now()}`,
+      durationHours: sleepHoursLogged,
+      quality: sleepQuality,
+      deepSleepHours: Math.round(sleepHoursLogged * 0.22 * 10) / 10,
+      remSleepHours: Math.round(sleepHoursLogged * 0.25 * 10) / 10,
+      loggedAt: new Date().toISOString(),
+    };
+
+    await saveSleepSession(sleepRecord);
     await storage.setItem(
       "lumen_sleep_session",
       JSON.stringify({
@@ -532,6 +577,20 @@ export default function DashboardScreen() {
   // Digital Wellbeing save handler
   const handleSaveWellbeing = async () => {
     triggerHaptic("success");
+    const screenRecord: ScreenTimeRecord = {
+      id: `screen-${new Date().toISOString().slice(0, 10)}`,
+      screenMinutes: screenMinutesToday,
+      limitMinutes: screenLimitMinutes,
+      productivityMinutes: Math.round(screenMinutesToday * 0.45),
+      socialMinutes: Math.round(screenMinutesToday * 0.27),
+      mediaMinutes: Math.round(screenMinutesToday * 0.21),
+      wellbeingMinutes: Math.round(screenMinutesToday * 0.07),
+      focusMode: focusModeActive,
+      windDown: windDownActive,
+      loggedAt: new Date().toISOString(),
+    };
+
+    await saveScreenTime(screenRecord);
     await storage.setItem(
       "lumen_digital_wellbeing",
       JSON.stringify({
