@@ -125,7 +125,6 @@ export default function ActivityScreen() {
     pauseWorkout,
     resumeWorkout,
     stopAndFinishWorkout,
-    toggleSimulation,
     getDailySteps,
   } = useFitnessWatch();
 
@@ -576,10 +575,22 @@ export default function ActivityScreen() {
                     <Heart size={14} color="#f43f5e" />
                     <Text style={styles.telemetryLabel}>Heart Rate</Text>
                   </View>
-                  <Text style={styles.telemetryValue}>{watchMetrics.estimatedHeartRate} <Text style={styles.telemetryUnit}>BPM</Text></Text>
+                  <Text style={styles.telemetryValue}>
+                    {watchMetrics.cadenceSpm > 0 ? (
+                      <>
+                        {watchMetrics.estimatedHeartRate} <Text style={styles.telemetryUnit}>BPM</Text>
+                      </>
+                    ) : (
+                      <>
+                        -- <Text style={styles.telemetryUnit}>BPM</Text>
+                      </>
+                    )}
+                  </Text>
                   <View style={[styles.zoneBadge, { backgroundColor: getZoneColor(watchMetrics.heartRateZone) + "20" }]}>
                     <Text style={[styles.zoneBadgeText, { color: getZoneColor(watchMetrics.heartRateZone) }]}>
-                      Z{watchMetrics.heartRateZone} • {watchMetrics.currentIntensity.toUpperCase()}
+                      {watchMetrics.cadenceSpm > 0
+                        ? `Z${watchMetrics.heartRateZone} • ${watchMetrics.currentIntensity.toUpperCase()}`
+                        : "STATIONARY • AT REST"}
                     </Text>
                   </View>
                 </View>
@@ -647,18 +658,10 @@ export default function ActivityScreen() {
               {/* Watch Session Control Buttons */}
               <View style={styles.controlsRow}>
                 {!watchMetrics.isActive ? (
-                  <>
-                    <Pressable style={styles.startWorkoutBtn} onPress={handleStartWatch}>
-                      <Play size={18} color="#050b08" fill="#050b08" style={{ marginRight: 8 }} />
-                      <Text style={styles.startWorkoutText}>START {WORKOUT_MODE_INFO[selectedWatchMode].name.toUpperCase()}</Text>
-                    </Pressable>
-                    <Pressable style={styles.simDemoBtn} onPress={toggleSimulation}>
-                      <Sparkles size={14} color="#94a3b8" style={{ marginRight: 6 }} />
-                      <Text style={styles.simDemoText}>
-                        {watchMetrics.sensorState === "simulated" ? "Stop Sim" : "Test Motion Sim"}
-                      </Text>
-                    </Pressable>
-                  </>
+                  <Pressable style={styles.startWorkoutBtn} onPress={handleStartWatch}>
+                    <Play size={18} color="#050b08" fill="#050b08" style={{ marginRight: 8 }} />
+                    <Text style={styles.startWorkoutText}>START {WORKOUT_MODE_INFO[selectedWatchMode].name.toUpperCase()}</Text>
+                  </Pressable>
                 ) : (
                   <>
                     {watchMetrics.isPaused ? (
