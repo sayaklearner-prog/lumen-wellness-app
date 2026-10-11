@@ -59,6 +59,28 @@ export interface ScreenTimeRecord {
   loggedAt: string;
 }
 
+export interface FocusSessionRecord {
+  id: string;
+  sessionType: "pomodoro" | "deep_work" | "quick_focus" | "flow_state" | "custom";
+  targetMinutes: number;
+  completedSeconds: number;
+  status: "completed" | "interrupted" | "active";
+  distractingAppsBlocked: string[];
+  reflectionScore?: number;
+  reflectionNote?: string;
+  startedAt: string;
+  endedAt?: string;
+}
+
+export interface WellbeingConfigRecord {
+  dailyLimitMinutes: number;
+  windDownEnabled: boolean;
+  windDownBedtime: string;
+  windDownWakeup: string;
+  blockedCategories: string[];
+  dndAutoToggle: boolean;
+}
+
 export interface AlarmRecord {
   id: string;
   time: string;
@@ -208,6 +230,29 @@ export async function getDb() {
         focus_mode INTEGER,
         wind_down INTEGER,
         logged_at TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS focus_sessions (
+        id TEXT PRIMARY KEY,
+        session_type TEXT,
+        target_minutes INTEGER,
+        completed_seconds INTEGER,
+        status TEXT,
+        distracting_apps TEXT,
+        reflection_score INTEGER,
+        reflection_note TEXT,
+        started_at TEXT,
+        ended_at TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS wellbeing_config (
+        id TEXT PRIMARY KEY,
+        daily_limit_minutes INTEGER,
+        wind_down_enabled INTEGER,
+        wind_down_bedtime TEXT,
+        wind_down_wakeup TEXT,
+        blocked_categories TEXT,
+        dnd_auto_toggle INTEGER
       );
 
       CREATE TABLE IF NOT EXISTS alarms_reminders (
@@ -770,6 +815,177 @@ export async function saveScreenTime(st: ScreenTimeRecord): Promise<void> {
     );
   } catch (err) {
     console.warn("saveScreenTime error:", err);
+  }
+}
+
+export async function saveFocusSession(session: FocusSessionRecord): Promise<void> {
+  const store = getWebStore();
+  const existing = Array.isArray(store.focus_sessions) ? store.focus_sessions : [];
+  const updated = [session, ...existing.filter((s: any) => s.id !== session.id)];
+  store.focus_sessions = updated;
+  saveWebStore(store);
+
+  const db = await getDb();
+  if (!db) return;
+
+  try {
+    await db.runAsync(
+      `INSERT INTO focus_sessions (id, session_type, target_minutes, completed_seconds, status, distracting_apps, reflection_score, reflection_note, started_at, ended_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         session_type = excluded.session_type,
+         target_minutes = excluded.target_minutes,
+         completed_seconds = excluded.completed_seconds,
+         status = excluded.status,
+         distracting_apps = excluded.distracting_apps,
+         reflection_score = excluded.reflection_score,
+         reflection_note = excluded.reflection_note,
+         started_at = excluded.started_at,
+         ended_at = excluded.ended_at`,
+      session.id,
+      session.sessionType,
+      session.targetMinutes,
+      session.completedSeconds,
+      session.status,
+      JSON.stringify(session.distractingAppsBlocked || []),
+      session.reflectionScore ?? null,
+      session.reflectionNote ?? null,
+      session.startedAt,
+      session.endedAt ?? null
+    );
+  } catch (err) {
+    console.warn("saveFocusSession error:", err);
+  }
+}
+
+export async function getFocusSessionsToday(): Promise<FocusSessionRecord[]> {
+  const todayPrefix = new Date().toISOString().slice(0, 10);
+  const db = await getDb();
+  if (!db) {
+    const store = getWebStore();
+    const sessions = Array.isArray(store.focus_sessions) ? store.focus_sessions : [];
+    return sessions.filter((s: any) => s.startedAt?.startsWith(todayPrefix));
+  }
+
+  try {
+    const rows: any[] = await db.getAllAsync(
+      `SELECT * FROM focus_sessions WHERE started_at LIKE ? ORDER BY started_at DESC`,
+      `${todayPrefix}%`
+    );
+    return rows.map((r) => ({
+      id: r.id,
+      sessionType: r.session_type,
+      targetMinutes: Number(r.target_minutes),
+      completedSeconds: Number(r.completed_seconds),
+      status: r.status,
+      distractingAppsBlocked: r.distracting_apps ? JSON.parse(r.distracting_apps) : [],
+      reflectionScore: r.reflection_score != null ? Number(r.reflection_score) : undefined,
+      reflectionNote: r.reflection_note || undefined,
+      startedAt: r.started_at,
+      endedAt: r.ended_at || undefined,
+    }));
+  } catch (err) {
+    const store = getWebStore();
+    const sessions = Array.isArray(store.focus_sessions) ? store.focus_sessions : [];
+    return sessions.filter((s: any) => s.startedAt?.startsWith(todayPrefix));
+  }
+}
+
+export async function getFocusSessionHistory(limit = 20): Promise<FocusSessionRecord[]> {
+  const db = await getDb();
+  if (!db) {
+    const store = getWebStore();
+    return Array.isArray(store.focus_sessions) ? store.focus_sessions.slice(0, limit) : [];
+  }
+
+  try {
+    const rows: any[] = await db.getAllAsync(
+      `SELECT * FROM focus_sessions ORDER BY started_at DESC LIMIT ?`,
+      limit
+    );
+    return rows.map((r) => ({
+      id: r.id,
+      sessionType: r.session_type,
+      targetMinutes: Number(r.target_minutes),
+      completedSeconds: Number(r.completed_seconds),
+      status: r.status,
+      distractingAppsBlocked: r.distracting_apps ? JSON.parse(r.distracting_apps) : [],
+      reflectionScore: r.reflection_score != null ? Number(r.reflection_score) : undefined,
+      reflectionNote: r.reflection_note || undefined,
+      startedAt: r.started_at,
+      endedAt: r.ended_at || undefined,
+    }));
+  } catch {
+    const store = getWebStore();
+    return Array.isArray(store.focus_sessions) ? store.focus_sessions.slice(0, limit) : [];
+  }
+}
+
+export async function getWellbeingConfig(): Promise<WellbeingConfigRecord> {
+  const defaultConfig: WellbeingConfigRecord = {
+    dailyLimitMinutes: 240,
+    windDownEnabled: true,
+    windDownBedtime: "22:30",
+    windDownWakeup: "07:00",
+    blockedCategories: ["social", "video", "games"],
+    dndAutoToggle: true,
+  };
+
+  const db = await getDb();
+  if (!db) {
+    const store = getWebStore();
+    return store.wellbeing_config || defaultConfig;
+  }
+
+  try {
+    const row: any = await db.getFirstAsync(
+      `SELECT * FROM wellbeing_config WHERE id = ?`,
+      "primary"
+    );
+    if (!row) return defaultConfig;
+    return {
+      dailyLimitMinutes: Number(row.daily_limit_minutes),
+      windDownEnabled: Boolean(row.wind_down_enabled),
+      windDownBedtime: row.wind_down_bedtime || "22:30",
+      windDownWakeup: row.wind_down_wakeup || "07:00",
+      blockedCategories: row.blocked_categories ? JSON.parse(row.blocked_categories) : defaultConfig.blockedCategories,
+      dndAutoToggle: Boolean(row.dnd_auto_toggle),
+    };
+  } catch {
+    const store = getWebStore();
+    return store.wellbeing_config || defaultConfig;
+  }
+}
+
+export async function saveWellbeingConfig(cfg: WellbeingConfigRecord): Promise<void> {
+  const store = getWebStore();
+  store.wellbeing_config = cfg;
+  saveWebStore(store);
+
+  const db = await getDb();
+  if (!db) return;
+
+  try {
+    await db.runAsync(
+      `INSERT INTO wellbeing_config (id, daily_limit_minutes, wind_down_enabled, wind_down_bedtime, wind_down_wakeup, blocked_categories, dnd_auto_toggle)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         daily_limit_minutes = excluded.daily_limit_minutes,
+         wind_down_enabled = excluded.wind_down_enabled,
+         wind_down_bedtime = excluded.wind_down_bedtime,
+         wind_down_wakeup = excluded.wind_down_wakeup,
+         blocked_categories = excluded.blocked_categories,
+         dnd_auto_toggle = excluded.dnd_auto_toggle`,
+      "primary",
+      cfg.dailyLimitMinutes,
+      cfg.windDownEnabled ? 1 : 0,
+      cfg.windDownBedtime,
+      cfg.windDownWakeup,
+      JSON.stringify(cfg.blockedCategories),
+      cfg.dndAutoToggle ? 1 : 0
+    );
+  } catch (err) {
+    console.warn("saveWellbeingConfig error:", err);
   }
 }
 

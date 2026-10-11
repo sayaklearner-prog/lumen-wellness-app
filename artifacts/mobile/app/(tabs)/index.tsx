@@ -48,6 +48,14 @@ import {
   Shield,
   Sliders,
   Check,
+  Play,
+  Pause,
+  RotateCcw,
+  Timer,
+  BellOff,
+  Wind,
+  Star,
+  Layers,
 } from "lucide-react-native";
 import Svg, {
   Circle,
@@ -71,9 +79,22 @@ import {
   saveScreenTime,
   getHydrationToday,
   setHydrationToday,
+  getFocusSessionsToday,
+  getWellbeingConfig,
+  saveWellbeingConfig,
   SleepRecord,
   ScreenTimeRecord,
+  FocusSessionRecord,
+  WellbeingConfigRecord,
 } from "@/services/db";
+import {
+  digitalWellbeingService,
+  FOCUS_PRESETS,
+  DISTRACTING_CATEGORIES,
+  LiveFocusState,
+  FocusSessionType,
+  getRandomMindfulQuote,
+} from "@/services/digitalWellbeingService";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -240,12 +261,26 @@ export default function DashboardScreen() {
   const [sleepQuality, setSleepQuality] = useState("Restorative");
   const [hasLoggedSleepToday, setHasLoggedSleepToday] = useState(false);
 
-  // Screen Time & Digital Wellbeing interactive state
+  // Screen Time & Digital Wellbeing interactive state (Mindful architecture)
   const [showScreenTimeModal, setShowScreenTimeModal] = useState(false);
   const [screenMinutesToday, setScreenMinutesToday] = useState(0);
   const [screenLimitMinutes, setScreenLimitMinutes] = useState(240); // 4h 00m
   const [focusModeActive, setFocusModeActive] = useState(false);
   const [windDownActive, setWindDownActive] = useState(false);
+  const [wellbeingTab, setWellbeingTab] = useState<"usage" | "focus" | "limits">("usage");
+  const [liveFocus, setLiveFocus] = useState<LiveFocusState>(digitalWellbeingService.getState());
+  const [selectedFocusPreset, setSelectedFocusPreset] = useState<FocusSessionType>("pomodoro");
+  const [selectedFocusMinutes, setSelectedFocusMinutes] = useState<number>(25);
+  const [blockedCategories, setBlockedCategories] = useState<string[]>(["social", "video", "games"]);
+  const [isBreathingMode, setIsBreathingMode] = useState<boolean>(false);
+  const [breathingSeconds, setBreathingSeconds] = useState<number>(60);
+  const [showReflectionModal, setShowReflectionModal] = useState<boolean>(false);
+  const [reflectionScore, setReflectionScore] = useState<number>(5);
+  const [reflectionNote, setReflectionNote] = useState<string>("");
+  const [todayFocusSessions, setTodayFocusSessions] = useState<FocusSessionRecord[]>([]);
+  const [bedtimeHour, setBedtimeHour] = useState<string>("22:30");
+  const [wakeHour, setWakeHour] = useState<string>("07:00");
+  const [dndAutoToggle, setDndAutoToggle] = useState<boolean>(true);
 
   // Background app usage session tracking
   const appActiveTimestamp = useRef<number>(Date.now());
@@ -311,6 +346,18 @@ export default function DashboardScreen() {
           setFocusModeActive(dbScreen.focusMode);
           setWindDownActive(dbScreen.windDown);
         }
+        const sessions = await getFocusSessionsToday();
+        if (sessions) setTodayFocusSessions(sessions);
+
+        const config = await getWellbeingConfig();
+        if (config) {
+          setScreenLimitMinutes(config.dailyLimitMinutes);
+          setWindDownActive(config.windDownEnabled);
+          setBedtimeHour(config.windDownBedtime);
+          setWakeHour(config.windDownWakeup);
+          setBlockedCategories(config.blockedCategories);
+          setDndAutoToggle(config.dndAutoToggle);
+        }
       } catch {}
 
       // 4. Read hydration from SQLite master DB
@@ -321,6 +368,35 @@ export default function DashboardScreen() {
     }
     loadLocalHealthState();
   }, []);
+
+  // Subscribe to live Focus Mode ticker & state machine
+  useEffect(() => {
+    const unsub = digitalWellbeingService.subscribe((state) => {
+      setLiveFocus(state);
+      setFocusModeActive(state.isActive);
+    });
+    return unsub;
+  }, []);
+
+  // Guided breathing timer effect (60 seconds box breathing)
+  useEffect(() => {
+    let interval: any;
+    if (isBreathingMode) {
+      setBreathingSeconds(60);
+      interval = setInterval(() => {
+        setBreathingSeconds((prev) => {
+          if (prev <= 1) {
+            setIsBreathingMode(false);
+            return 60;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isBreathingMode]);
 
   // Listen to AppState to accumulate live phone foreground screen time
   useEffect(() => {
@@ -608,86 +684,92 @@ export default function DashboardScreen() {
     Alert.alert("Sleep Logged", `Recorded ${sleepHoursLogged}h of ${sleepQuality.toLowerCase()} sleep.`);
   };
 
-  // Dedicated helpers to open Android intent or settings
-  const openAndroidSetting = async (action: string) => {
-    try {
-      if (Platform.OS === "android") {
-        await Linking.sendIntent(action);
-        return true;
-      }
-    } catch (e) {
-      console.warn(`sendIntent ${action} failed:`, e);
-    }
-    return false;
-  };
-
+  // Dedicated helpers to open Android intent or settings (Mindful Architecture)
   const openAccessibilitySettings = async () => {
     triggerHaptic();
-    if (Platform.OS === "android") {
-      const ok = await openAndroidSetting("android.settings.ACCESSIBILITY_SETTINGS");
-      if (!ok) {
-        try {
-          await Linking.openURL("intent:#Intent;action=android.settings.ACCESSIBILITY_SETTINGS;end");
-        } catch {
-          await Linking.openSettings();
-        }
-      }
-    } else {
-      await Linking.openSettings();
-    }
+    await digitalWellbeingService.openAccessibilitySettings();
   };
 
   const openUsageAccessSettings = async () => {
     triggerHaptic();
-    if (Platform.OS === "android") {
-      const ok = await openAndroidSetting("android.settings.USAGE_ACCESS_SETTINGS");
-      if (!ok) {
-        try {
-          await Linking.openURL("intent:#Intent;action=android.settings.USAGE_ACCESS_SETTINGS;end");
-        } catch {
-          await Linking.openSettings();
-        }
-      }
-    } else {
-      await Linking.openSettings();
-    }
+    await digitalWellbeingService.openUsageAccessSettings();
   };
 
-  // Request Accessibility & Usage Access permission for Screen Time
-  const requestAccessibilityAndUsagePermission = async () => {
+  const openDndSettings = async () => {
     triggerHaptic();
-    if (Platform.OS === "android") {
-      Alert.alert(
-        "Screen Time & Wellbeing Access",
-        "To track your daily screen time automatically like a native digital wellbeing app, Lumen requires Accessibility and Usage Access permissions.\n\nChoose which settings screen to open:",
-        [
-          {
-            text: "Accessibility Settings",
-            onPress: openAccessibilitySettings,
+    await digitalWellbeingService.openDndSettings();
+  };
+
+  const openOverlaySettings = async () => {
+    triggerHaptic();
+    await digitalWellbeingService.openOverlaySettings();
+  };
+
+  const requestAccessibilityAndUsagePermission = () => {
+    triggerHaptic();
+    digitalWellbeingService.promptGuidedPermissionDialog();
+  };
+
+  // Focus Mode Actions
+  const handleStartFocus = async () => {
+    triggerHaptic("success");
+    await digitalWellbeingService.startFocusSession(
+      selectedFocusPreset,
+      selectedFocusMinutes,
+      blockedCategories
+    );
+  };
+
+  const handlePauseFocus = () => {
+    triggerHaptic();
+    digitalWellbeingService.pauseFocusSession();
+  };
+
+  const handleResumeFocus = () => {
+    triggerHaptic();
+    digitalWellbeingService.resumeFocusSession();
+  };
+
+  const handlePromptCompleteFocus = () => {
+    triggerHaptic();
+    setShowReflectionModal(true);
+  };
+
+  const handleConfirmCompleteFocus = async () => {
+    triggerHaptic("success");
+    await digitalWellbeingService.completeSession(reflectionScore, reflectionNote);
+    setShowReflectionModal(false);
+    setReflectionNote("");
+    const refreshed = await getFocusSessionsToday();
+    setTodayFocusSessions(refreshed);
+    Alert.alert("Focus Logged 🎉", `Great work! Your session has been recorded.`);
+  };
+
+  const handleCancelFocus = () => {
+    Alert.alert(
+      "End Focus Session?",
+      "Are you sure you want to end your focus session early?",
+      [
+        { text: "Keep Going", style: "cancel" },
+        {
+          text: "End Session",
+          style: "destructive",
+          onPress: async () => {
+            triggerHaptic();
+            await digitalWellbeingService.cancelSession();
+            const refreshed = await getFocusSessionsToday();
+            setTodayFocusSessions(refreshed);
           },
-          {
-            text: "Usage Access Settings",
-            onPress: openUsageAccessSettings,
-          },
-          {
-            text: "Open App Settings",
-            onPress: () => Linking.openSettings(),
-          },
-          { text: "Cancel", style: "cancel" },
-        ]
-      );
-    } else if (Platform.OS === "ios") {
-      Alert.alert(
-        "Screen Time Access",
-        "On iOS, screen time is managed via Apple Screen Time in Settings.",
-        [
-          { text: "Open Settings", onPress: () => Linking.openSettings() },
-          { text: "Dismiss", style: "cancel" },
-        ]
-      );
-    } else {
-      Alert.alert("Permission", "Screen time tracking is active on mobile devices.");
-    }
+        },
+      ]
+    );
+  };
+
+  const toggleCategoryBlock = (catId: string) => {
+    triggerHaptic();
+    setBlockedCategories((prev) =>
+      prev.includes(catId) ? prev.filter((c) => c !== catId) : [...prev, catId]
+    );
   };
 
   // Digital Wellbeing save handler
@@ -707,6 +789,15 @@ export default function DashboardScreen() {
     };
 
     await saveScreenTime(screenRecord);
+    await saveWellbeingConfig({
+      dailyLimitMinutes: screenLimitMinutes,
+      windDownEnabled: windDownActive,
+      windDownBedtime: bedtimeHour,
+      windDownWakeup: wakeHour,
+      blockedCategories,
+      dndAutoToggle,
+    });
+
     await storage.setItem(
       "lumen_digital_wellbeing",
       JSON.stringify({
@@ -717,7 +808,7 @@ export default function DashboardScreen() {
       })
     );
     setShowScreenTimeModal(false);
-    Alert.alert("Wellbeing Calibrated", `Daily screen limit set to ${screenLimitMinutes / 60}h.`);
+    Alert.alert("Wellbeing Calibrated", `Daily screen limit set to ${screenLimitMinutes / 60}h with Wind Down scheduled.`);
   };
 
   return (
@@ -971,35 +1062,66 @@ export default function DashboardScreen() {
           <Pressable
             style={({ pressed }) => [
               styles.pillarCard,
+              liveFocus.isActive && {
+                borderColor: liveFocus.isPaused ? "rgba(245, 158, 11, 0.6)" : "rgba(168, 85, 247, 0.7)",
+                backgroundColor: liveFocus.isPaused ? "rgba(245, 158, 11, 0.08)" : "rgba(168, 85, 247, 0.1)",
+              },
               pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
             ]}
             onPress={() => {
               triggerHaptic();
+              setWellbeingTab(liveFocus.isActive ? "focus" : "usage");
               setShowScreenTimeModal(true);
             }}
           >
             <View style={styles.pillarTopRow}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                <Smartphone size={14} color="#a855f7" />
+                <Smartphone size={14} color={liveFocus.isActive ? "#10b981" : "#a855f7"} />
                 <Text style={styles.pillarTitle}>Screen</Text>
               </View>
-              <Text style={[styles.pillarScore, { color: "#a855f7" }]}>
-                {dynamicScreenScore.toFixed(1)}
-              </Text>
+              {liveFocus.isActive ? (
+                <View
+                  style={[
+                    styles.pillarFocusLiveBadge,
+                    { backgroundColor: liveFocus.isPaused ? "rgba(245, 158, 11, 0.2)" : "rgba(16, 185, 129, 0.2)" },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.pillarFocusLiveBadgeText,
+                      { color: liveFocus.isPaused ? "#f59e0b" : "#10b981" },
+                    ]}
+                  >
+                    {liveFocus.isPaused ? "PAUSED" : "FOCUS"}
+                  </Text>
+                </View>
+              ) : (
+                <Text style={[styles.pillarScore, { color: "#a855f7" }]}>
+                  {dynamicScreenScore.toFixed(1)}
+                </Text>
+              )}
             </View>
             <View style={styles.pillarBarTrack}>
               <View
                 style={[
                   styles.pillarBarFill,
                   {
-                    width: `${Math.min(100, dynamicScreenScore * 10)}%`,
-                    backgroundColor: "#a855f7",
+                    width: liveFocus.isActive
+                      ? `${liveFocus.progressPercent}%`
+                      : `${Math.min(100, dynamicScreenScore * 10)}%`,
+                    backgroundColor: liveFocus.isActive
+                      ? liveFocus.isPaused ? "#f59e0b" : "#10b981"
+                      : "#a855f7",
                   },
                 ]}
               />
             </View>
             <Text style={styles.pillarSubtitle} numberOfLines={1}>
-              {dynamicScreenLabel}
+              {liveFocus.isActive
+                ? liveFocus.isPaused
+                  ? "Paused • Tap to resume"
+                  : `${Math.floor(liveFocus.remainingSeconds / 60)}:${(liveFocus.remainingSeconds % 60).toString().padStart(2, "0")} remaining`
+                : dynamicScreenLabel}
             </Text>
           </Pressable>
         </View>
@@ -1319,7 +1441,7 @@ export default function DashboardScreen() {
       </Modal>
 
       {/* ========================================================= */}
-      {/* DIGITAL WELLBEING & SCREEN TIME MODAL                     */}
+      {/* DIGITAL WELLBEING & MINDFUL FOCUS SUITE (MINDFUL ENGINE)  */}
       {/* ========================================================= */}
       <Modal
         visible={showScreenTimeModal}
@@ -1328,15 +1450,16 @@ export default function DashboardScreen() {
         onRequestClose={() => setShowScreenTimeModal(false)}
       >
         <View style={styles.modalBackdrop}>
-          <View style={styles.modalPanel}>
+          <View style={[styles.modalPanel, { maxHeight: "90%" }]}>
+            {/* Modal Header */}
             <View style={styles.modalHeader}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                 <View style={[styles.modalIconBox, { backgroundColor: "rgba(168, 85, 247, 0.15)" }]}>
                   <Smartphone size={18} color="#a855f7" />
                 </View>
                 <View>
-                  <Text style={styles.modalTitle}>Digital Wellbeing Telemetry</Text>
-                  <Text style={styles.modalSub}>Real phone screen usage & balance</Text>
+                  <Text style={styles.modalTitle}>Mindful Wellbeing & Focus</Text>
+                  <Text style={styles.modalSub}>Android telemetry & distraction shield</Text>
                 </View>
               </View>
               <Pressable style={styles.modalCloseBtn} onPress={() => setShowScreenTimeModal(false)}>
@@ -1344,171 +1467,606 @@ export default function DashboardScreen() {
               </Pressable>
             </View>
 
-            {/* Today's Usage Banner */}
-            <View style={styles.screenUsageCard}>
-              <Text style={styles.screenUsageLabel}>TODAY'S SCREEN TIME</Text>
-              <View style={styles.screenTimeLargeRow}>
-                <Text style={styles.screenTimeLarge}>
-                  {Math.floor(screenMinutesToday / 60)}h {screenMinutesToday % 60}m
+            {/* Sub-navigation Tabs */}
+            <View style={styles.wellbeingTabsRow}>
+              <Pressable
+                style={[styles.wellbeingTabBtn, wellbeingTab === "usage" && styles.wellbeingTabBtnActive]}
+                onPress={() => {
+                  triggerHaptic();
+                  setWellbeingTab("usage");
+                }}
+              >
+                <Smartphone size={13} color={wellbeingTab === "usage" ? "#a855f7" : "#64748b"} />
+                <Text style={[styles.wellbeingTabBtnText, wellbeingTab === "usage" && styles.wellbeingTabBtnTextActive]}>
+                  Usage
                 </Text>
-                <View
-                  style={[
-                    styles.screenStatusBadge,
-                    screenMinutesToday === 0
-                      ? { backgroundColor: "rgba(16, 185, 129, 0.15)", borderColor: "rgba(16, 185, 129, 0.3)" }
-                      : dynamicScreenScore >= 8.5
-                      ? { backgroundColor: "rgba(16, 185, 129, 0.15)", borderColor: "rgba(16, 185, 129, 0.3)" }
-                      : { backgroundColor: "rgba(239, 68, 68, 0.15)", borderColor: "rgba(239, 68, 68, 0.3)" },
-                  ]}
+              </Pressable>
+
+              <Pressable
+                style={[styles.wellbeingTabBtn, wellbeingTab === "focus" && styles.wellbeingTabBtnActive]}
+                onPress={() => {
+                  triggerHaptic();
+                  setWellbeingTab("focus");
+                }}
+              >
+                <Timer size={13} color={wellbeingTab === "focus" ? "#10b981" : "#64748b"} />
+                <Text style={[styles.wellbeingTabBtnText, wellbeingTab === "focus" && styles.wellbeingTabBtnTextActive]}>
+                  Focus Mode
+                </Text>
+                {liveFocus.isActive && (
+                  <View style={[styles.tabBadgeLiveDot, { backgroundColor: liveFocus.isPaused ? "#f59e0b" : "#10b981" }]} />
+                )}
+              </Pressable>
+
+              <Pressable
+                style={[styles.wellbeingTabBtn, wellbeingTab === "limits" && styles.wellbeingTabBtnActive]}
+                onPress={() => {
+                  triggerHaptic();
+                  setWellbeingTab("limits");
+                }}
+              >
+                <Sliders size={13} color={wellbeingTab === "limits" ? "#38bdf8" : "#64748b"} />
+                <Text style={[styles.wellbeingTabBtnText, wellbeingTab === "limits" && styles.wellbeingTabBtnTextActive]}>
+                  Wind Down
+                </Text>
+              </Pressable>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
+              {/* TAB 1: USAGE & TELEMETRY */}
+              {wellbeingTab === "usage" && (
+                <View>
+                  {/* Today's Usage Banner */}
+                  <View style={styles.screenUsageCard}>
+                    <Text style={styles.screenUsageLabel}>TODAY'S SCREEN TIME</Text>
+                    <View style={styles.screenTimeLargeRow}>
+                      <Text style={styles.screenTimeLarge}>
+                        {Math.floor(screenMinutesToday / 60)}h {screenMinutesToday % 60}m
+                      </Text>
+                      <View
+                        style={[
+                          styles.screenStatusBadge,
+                          screenMinutesToday === 0
+                            ? { backgroundColor: "rgba(16, 185, 129, 0.15)", borderColor: "rgba(16, 185, 129, 0.3)" }
+                            : dynamicScreenScore >= 8.5
+                            ? { backgroundColor: "rgba(16, 185, 129, 0.15)", borderColor: "rgba(16, 185, 129, 0.3)" }
+                            : { backgroundColor: "rgba(239, 68, 68, 0.15)", borderColor: "rgba(239, 68, 68, 0.3)" },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.screenStatusBadgeText,
+                            screenMinutesToday === 0
+                              ? { color: "#10b981" }
+                              : dynamicScreenScore >= 8.5
+                              ? { color: "#10b981" }
+                              : { color: "#ef4444" },
+                          ]}
+                        >
+                          {screenMinutesToday === 0
+                            ? "Standby • Ready"
+                            : dynamicScreenScore >= 8.5
+                            ? "Balanced"
+                            : "Screen Heavy"}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Progress bar against limit */}
+                    <View style={styles.screenBarTrack}>
+                      <View
+                        style={[
+                          styles.screenBarFill,
+                          {
+                            width: `${Math.min(100, (screenMinutesToday / screenLimitMinutes) * 100)}%`,
+                          },
+                        ]}
+                      />
+                    </View>
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 6 }}>
+                      <Text style={styles.screenLimitSub}>
+                        Daily Target: {Math.floor(screenLimitMinutes / 60)}h {screenLimitMinutes % 60}m
+                      </Text>
+                      <Text style={[styles.screenLimitSub, { color: "#cbd5e1" }]}>
+                        {Math.min(100, Math.round((screenMinutesToday / screenLimitMinutes) * 100))}% used
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Android Native Permissions Center (Mindful Engine) */}
+                  <View style={styles.permissionCard}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <ShieldCheck size={18} color="#a855f7" />
+                      <Text style={styles.permissionTitle}>Phone Usage & Accessibility Access</Text>
+                    </View>
+                    <Text style={styles.permissionDesc}>
+                      Lumen connects to Android's UsageStatsManager and Accessibility services to track real device screen time and enforce distraction shields.
+                    </Text>
+                    <View style={{ gap: 8 }}>
+                      <Pressable
+                        style={styles.permissionBtn}
+                        onPress={requestAccessibilityAndUsagePermission}
+                      >
+                        <Text style={styles.permissionBtnText}>🛡️ Guided Permission Setup (Wizard)</Text>
+                      </Pressable>
+                      <View style={{ flexDirection: "row", gap: 8 }}>
+                        <Pressable
+                          style={[styles.permissionBtnSecondary, { flex: 1 }]}
+                          onPress={openUsageAccessSettings}
+                        >
+                          <Text style={styles.permissionBtnSecondaryText}>Usage Access</Text>
+                        </Pressable>
+                        <Pressable
+                          style={[styles.permissionBtnSecondary, { flex: 1 }]}
+                          onPress={openAccessibilitySettings}
+                        >
+                          <Text style={styles.permissionBtnSecondaryText}>Accessibility</Text>
+                        </Pressable>
+                      </View>
+                      <View style={{ flexDirection: "row", gap: 8 }}>
+                        <Pressable
+                          style={[styles.permissionBtnSecondary, { flex: 1 }]}
+                          onPress={openDndSettings}
+                        >
+                          <Text style={styles.permissionBtnSecondaryText}>DND Policy</Text>
+                        </Pressable>
+                        <Pressable
+                          style={[styles.permissionBtnSecondary, { flex: 1 }]}
+                          onPress={openOverlaySettings}
+                        >
+                          <Text style={styles.permissionBtnSecondaryText}>Display Overlay</Text>
+                        </Pressable>
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* App Category Breakdown */}
+                  <Text style={styles.modalSectionLabel}>CATEGORY USAGE TELEMETRY</Text>
+                  {screenMinutesToday === 0 ? (
+                    <View style={styles.emptyCategoryCard}>
+                      <Text style={styles.emptyCategoryText}>
+                        No screen time recorded yet today. Tap "Guided Permission Setup" above or use your phone apps to initialize usage stats.
+                      </Text>
+                    </View>
+                  ) : (
+                    <View style={styles.categoryList}>
+                      {[
+                        { name: "💼 Productivity & Work", min: Math.round(screenMinutesToday * 0.45), pct: 45, color: "#10b981" },
+                        { name: "💬 Social & Messages", min: Math.round(screenMinutesToday * 0.30), pct: 30, color: "#a855f7" },
+                        { name: "🎬 Video & Media", min: Math.round(screenMinutesToday * 0.20), pct: 20, color: "#38bdf8" },
+                        { name: "⚡ Lumen Health OS", min: Math.max(1, Math.round(screenMinutesToday * 0.05)), pct: 5, color: "#ec4899" },
+                      ].map((cat, i) => (
+                        <View key={i} style={{ marginBottom: 6 }}>
+                          <View style={styles.categoryRow}>
+                            <Text style={styles.categoryName}>{cat.name}</Text>
+                            <Text style={[styles.categoryMins, { color: cat.color }]}>
+                              {Math.floor(cat.min / 60)}h {cat.min % 60}m ({cat.pct}%)
+                            </Text>
+                          </View>
+                          <View style={[styles.screenBarTrack, { height: 4, marginTop: 4 }]}>
+                            <View style={[styles.screenBarFill, { width: `${cat.pct}%`, backgroundColor: cat.color, height: 4 }]} />
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+
+                  {/* Quick Action to switch to Focus Mode */}
+                  <Pressable
+                    style={styles.quickFocusBanner}
+                    onPress={() => {
+                      triggerHaptic();
+                      setWellbeingTab("focus");
+                    }}
+                  >
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                      <View style={styles.quickFocusIconBox}>
+                        <Zap size={16} color="#10b981" />
+                      </View>
+                      <View>
+                        <Text style={styles.quickFocusTitle}>Ready for Deep Work?</Text>
+                        <Text style={styles.quickFocusSub}>Start a Focus Mode session to shield distractions</Text>
+                      </View>
+                    </View>
+                    <ChevronRight size={16} color="#64748b" />
+                  </Pressable>
+                </View>
+              )}
+
+              {/* TAB 2: FOCUS MODE & POMODORO */}
+              {wellbeingTab === "focus" && (
+                <View>
+                  {liveFocus.isActive ? (
+                    /* Active Focus Session Countdown HUD */
+                    <View style={styles.activeFocusBox}>
+                      <View style={styles.activeFocusHeaderRow}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                          <View style={[styles.pulsingDot, { backgroundColor: liveFocus.isPaused ? "#f59e0b" : "#10b981" }]} />
+                          <Text style={styles.activeFocusTypeTitle}>
+                            {liveFocus.sessionType.toUpperCase().replace("_", " ")}
+                          </Text>
+                        </View>
+                        <Text style={styles.activeFocusPercentText}>
+                          {liveFocus.progressPercent}% DONE
+                        </Text>
+                      </View>
+
+                      {/* Large Digital Clock readout */}
+                      <View style={styles.bigFocusClockContainer}>
+                        <Text style={styles.bigFocusClockDigits}>
+                          {Math.floor(liveFocus.remainingSeconds / 60).toString().padStart(2, "0")}:
+                          {(liveFocus.remainingSeconds % 60).toString().padStart(2, "0")}
+                        </Text>
+                        <Text style={styles.bigFocusClockSub}>
+                          {liveFocus.isPaused ? "Session Paused • Take a Breath" : "Focus Flow In Progress"}
+                        </Text>
+                      </View>
+
+                      {/* Progress Bar */}
+                      <View style={[styles.screenBarTrack, { height: 8, marginTop: 4, marginBottom: 14 }]}>
+                        <View
+                          style={[
+                            styles.screenBarFill,
+                            {
+                              width: `${liveFocus.progressPercent}%`,
+                              backgroundColor: liveFocus.isPaused ? "#f59e0b" : "#10b981",
+                              height: 8,
+                            },
+                          ]}
+                        />
+                      </View>
+
+                      {/* Mindful Quote Banner */}
+                      <View style={styles.quoteCard}>
+                        <Text style={styles.quoteText}>"{liveFocus.currentQuote.text}"</Text>
+                        <Text style={styles.quoteAuthor}>— {liveFocus.currentQuote.author}</Text>
+                      </View>
+
+                      {/* Control buttons */}
+                      <View style={{ gap: 10, marginTop: 14 }}>
+                        <View style={{ flexDirection: "row", gap: 10 }}>
+                          {liveFocus.isPaused ? (
+                            <Pressable
+                              style={[styles.focusActionBtn, { backgroundColor: "#10b981", flex: 1 }]}
+                              onPress={handleResumeFocus}
+                            >
+                              <Play size={16} color="#050b08" />
+                              <Text style={styles.focusActionBtnText}>Resume</Text>
+                            </Pressable>
+                          ) : (
+                            <Pressable
+                              style={[styles.focusActionBtn, { backgroundColor: "#f59e0b", flex: 1 }]}
+                              onPress={handlePauseFocus}
+                            >
+                              <Pause size={16} color="#050b08" />
+                              <Text style={styles.focusActionBtnText}>Pause</Text>
+                            </Pressable>
+                          )}
+                          <Pressable
+                            style={[styles.focusActionBtnSecondary, { flex: 1 }]}
+                            onPress={() => setIsBreathingMode(true)}
+                          >
+                            <Wind size={15} color="#38bdf8" />
+                            <Text style={styles.focusActionBtnSecondaryText}>Breathe (60s)</Text>
+                          </Pressable>
+                        </View>
+
+                        <View style={{ flexDirection: "row", gap: 10 }}>
+                          <Pressable
+                            style={[styles.focusCompleteBtn, { flex: 1 }]}
+                            onPress={handlePromptCompleteFocus}
+                          >
+                            <Check size={16} color="#10b981" />
+                            <Text style={styles.focusCompleteBtnText}>Finish & Log</Text>
+                          </Pressable>
+                          <Pressable
+                            style={[styles.focusCancelBtn, { flex: 1 }]}
+                            onPress={handleCancelFocus}
+                          >
+                            <X size={16} color="#ef4444" />
+                            <Text style={styles.focusCancelBtnText}>End Early</Text>
+                          </Pressable>
+                        </View>
+                      </View>
+                    </View>
+                  ) : (
+                    /* Inactive: Setup New Focus Session */
+                    <View>
+                      <Text style={styles.modalSectionLabel}>CHOOSE FOCUS INTERVAL</Text>
+                      <View style={styles.presetGrid}>
+                        {FOCUS_PRESETS.map((p) => {
+                          const isSelected = selectedFocusPreset === p.type;
+                          return (
+                            <Pressable
+                              key={p.type}
+                              style={[
+                                styles.presetCard,
+                                isSelected && { borderColor: p.accentColor, backgroundColor: "rgba(16, 185, 129, 0.08)" },
+                              ]}
+                              onPress={() => {
+                                triggerHaptic();
+                                setSelectedFocusPreset(p.type);
+                                setSelectedFocusMinutes(p.minutes);
+                              }}
+                            >
+                              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                                <Text style={[styles.presetCardTitle, isSelected && { color: p.accentColor }]}>
+                                  {p.title}
+                                </Text>
+                                <View style={[styles.presetMinutesPill, { backgroundColor: `${p.accentColor}25` }]}>
+                                  <Text style={[styles.presetMinutesText, { color: p.accentColor }]}>
+                                    {p.minutes}m
+                                  </Text>
+                                </View>
+                              </View>
+                              <Text style={styles.presetCardDesc}>{p.description}</Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+
+                      {/* Distracting App Categories Shield */}
+                      <Text style={[styles.modalSectionLabel, { marginTop: 14 }]}>
+                        DISTRACTION SHIELD (BLOCKLIST)
+                      </Text>
+                      <View style={styles.distractionList}>
+                        {DISTRACTING_CATEGORIES.map((cat) => {
+                          const isBlocked = blockedCategories.includes(cat.id);
+                          return (
+                            <Pressable
+                              key={cat.id}
+                              style={[styles.distractionRow, isBlocked && styles.distractionRowActive]}
+                              onPress={() => toggleCategoryBlock(cat.id)}
+                            >
+                              <View style={{ flex: 1 }}>
+                                <Text style={[styles.distractionName, isBlocked && { color: "#f8fafc" }]}>
+                                  {cat.name}
+                                </Text>
+                                <Text style={styles.distractionDesc}>{cat.description}</Text>
+                              </View>
+                              <View
+                                style={[
+                                  styles.checkboxBox,
+                                  isBlocked && { backgroundColor: "#10b981", borderColor: "#10b981" },
+                                ]}
+                              >
+                                {isBlocked && <Check size={12} color="#050b08" />}
+                              </View>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+
+                      {/* Mindful Quote Banner */}
+                      <View style={[styles.quoteCard, { marginTop: 12 }]}>
+                        <Text style={styles.quoteText}>
+                          "Clarity about what matters provides clarity about what does not."
+                        </Text>
+                        <Text style={styles.quoteAuthor}>— Cal Newport</Text>
+                      </View>
+
+                      {/* Start Focus Button */}
+                      <Pressable
+                        style={[styles.modalPrimaryBtn, { backgroundColor: "#10b981", marginTop: 16 }]}
+                        onPress={handleStartFocus}
+                      >
+                        <Play size={16} color="#050b08" style={{ marginRight: 6 }} />
+                        <Text style={styles.modalPrimaryBtnText}>
+                          Start Focus Session ({selectedFocusMinutes}m)
+                        </Text>
+                      </Pressable>
+                    </View>
+                  )}
+
+                  {/* Today's Focus Log Summary */}
+                  {todayFocusSessions.length > 0 && (
+                    <View style={{ marginTop: 16 }}>
+                      <Text style={styles.modalSectionLabel}>TODAY'S COMPLETED SESSIONS</Text>
+                      <View style={styles.historyList}>
+                        {todayFocusSessions.map((s) => (
+                          <View key={s.id} style={styles.historyRow}>
+                            <View>
+                              <Text style={styles.historyTitle}>
+                                {s.sessionType.toUpperCase().replace("_", " ")}
+                              </Text>
+                              <Text style={styles.historySub}>
+                                {new Date(s.startedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} • {Math.round(s.completedSeconds / 60)} mins
+                              </Text>
+                            </View>
+                            <View style={styles.starRow}>
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <Star
+                                  key={star}
+                                  size={12}
+                                  color={(s.reflectionScore || 5) >= star ? "#f59e0b" : "#334155"}
+                                  fill={(s.reflectionScore || 5) >= star ? "#f59e0b" : "transparent"}
+                                />
+                              ))}
+                            </View>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                  )}
+                </View>
+              )}
+
+              {/* TAB 3: LIMITS & WIND DOWN ROUTINE */}
+              {wellbeingTab === "limits" && (
+                <View>
+                  {/* Daily Target Limit Selector */}
+                  <Text style={styles.modalSectionLabel}>DAILY SCREEN LIMIT</Text>
+                  <View style={styles.hoursChipsRow}>
+                    {[120, 180, 240, 300, 360].map((mins) => {
+                      const isSelected = screenLimitMinutes === mins;
+                      return (
+                        <Pressable
+                          key={mins}
+                          style={[styles.hoursChip, isSelected && styles.hoursChipActive]}
+                          onPress={() => {
+                            triggerHaptic();
+                            setScreenLimitMinutes(mins);
+                          }}
+                        >
+                          <Text style={[styles.hoursChipText, isSelected && styles.hoursChipTextActive]}>
+                            {mins / 60}h limit
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+
+                  {/* Bedtime Wind Down Routine */}
+                  <Text style={[styles.modalSectionLabel, { marginTop: 16 }]}>BEDTIME WIND DOWN</Text>
+                  <View style={styles.wellbeingSwitchRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.switchTitle}>Bedtime Routine</Text>
+                      <Text style={styles.switchDesc}>Mute alerts 30m before sleep to boost REM recovery</Text>
+                    </View>
+                    <Switch
+                      value={windDownActive}
+                      onValueChange={(val) => {
+                        triggerHaptic();
+                        setWindDownActive(val);
+                      }}
+                      trackColor={{ false: "#1e293b", true: "#38bdf8" }}
+                      thumbColor={windDownActive ? "#050b08" : "#94a3b8"}
+                    />
+                  </View>
+
+                  {/* Bedtime & Wakeup Hours Display */}
+                  <View style={styles.bedtimeHoursRow}>
+                    <View style={styles.bedtimeBox}>
+                      <Moon size={16} color="#38bdf8" />
+                      <Text style={styles.bedtimeLabel}>Bedtime Target</Text>
+                      <Text style={styles.bedtimeVal}>{bedtimeHour} PM</Text>
+                    </View>
+                    <View style={styles.bedtimeBox}>
+                      <Clock size={16} color="#10b981" />
+                      <Text style={styles.bedtimeLabel}>Wake Up Target</Text>
+                      <Text style={styles.bedtimeVal}>{wakeHour} AM</Text>
+                    </View>
+                  </View>
+
+                  {/* Auto DND Toggle */}
+                  <View style={styles.wellbeingSwitchRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.switchTitle}>Auto DND During Sleep</Text>
+                      <Text style={styles.switchDesc}>Silence non-starred phone notifications</Text>
+                    </View>
+                    <Switch
+                      value={dndAutoToggle}
+                      onValueChange={(val) => {
+                        triggerHaptic();
+                        setDndAutoToggle(val);
+                      }}
+                      trackColor={{ false: "#1e293b", true: "#a855f7" }}
+                      thumbColor={dndAutoToggle ? "#050b08" : "#94a3b8"}
+                    />
+                  </View>
+
+                  {/* Save Button */}
+                  <Pressable
+                    style={[styles.modalPrimaryBtn, { marginTop: 16 }]}
+                    onPress={handleSaveWellbeing}
+                  >
+                    <Check size={16} color="#050b08" style={{ marginRight: 6 }} />
+                    <Text style={styles.modalPrimaryBtnText}>Save Wellbeing Settings</Text>
+                  </Pressable>
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ========================================================= */}
+      {/* GUIDED BREATHING BREAK MODAL (60s RELAXATION)             */}
+      {/* ========================================================= */}
+      <Modal visible={isBreathingMode} transparent animationType="fade">
+        <View style={styles.breathingBackdrop}>
+          <View style={styles.breathingPanel}>
+            <Wind size={36} color="#38bdf8" />
+            <Text style={styles.breathingTitle}>Mindful Breath</Text>
+            <Text style={styles.breathingSub}>
+              Box Breathing: Inhale 4s • Hold 4s • Exhale 4s
+            </Text>
+            <View style={styles.breathingCircle}>
+              <Text style={styles.breathingCounter}>{breathingSeconds}s</Text>
+              <Text style={styles.breathingPill}>
+                {breathingSeconds % 16 < 4
+                  ? "Inhale Deeply"
+                  : breathingSeconds % 16 < 8
+                  ? "Hold Breath"
+                  : breathingSeconds % 16 < 12
+                  ? "Exhale Slowly"
+                  : "Rest & Be Still"}
+              </Text>
+            </View>
+            <Pressable
+              style={styles.breathingDismissBtn}
+              onPress={() => setIsBreathingMode(false)}
+            >
+              <Text style={styles.breathingDismissText}>Return to Focus</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ========================================================= */}
+      {/* POST-SESSION REFLECTION MODAL                             */}
+      {/* ========================================================= */}
+      <Modal visible={showReflectionModal} transparent animationType="slide">
+        <View style={styles.modalBackdrop}>
+          <View style={styles.reflectionPanel}>
+            <Sparkles size={28} color="#10b981" />
+            <Text style={styles.reflectionTitle}>Focus Session Complete!</Text>
+            <Text style={styles.reflectionSub}>How focused did you feel during this session?</Text>
+            <View style={styles.reflectionStarsRow}>
+              {[1, 2, 3, 4, 5].map((star) => (
+                <Pressable
+                  key={star}
+                  onPress={() => {
+                    triggerHaptic();
+                    setReflectionScore(star);
+                  }}
+                  style={{ padding: 6 }}
+                >
+                  <Star
+                    size={28}
+                    color={reflectionScore >= star ? "#f59e0b" : "#475569"}
+                    fill={reflectionScore >= star ? "#f59e0b" : "transparent"}
+                  />
+                </Pressable>
+              ))}
+            </View>
+            <View style={styles.reflectionChipsRow}>
+              {["Deep Flow", "High Output", "Minor Distractions", "Refreshed"].map((tag) => (
+                <Pressable
+                  key={tag}
+                  style={[styles.reflectionChip, reflectionNote === tag && styles.reflectionChipActive]}
+                  onPress={() => {
+                    triggerHaptic();
+                    setReflectionNote(tag);
+                  }}
                 >
                   <Text
                     style={[
-                      styles.screenStatusBadgeText,
-                      screenMinutesToday === 0
-                        ? { color: "#10b981" }
-                        : dynamicScreenScore >= 8.5
-                        ? { color: "#10b981" }
-                        : { color: "#ef4444" },
+                      styles.reflectionChipText,
+                      reflectionNote === tag && styles.reflectionChipTextActive,
                     ]}
                   >
-                    {screenMinutesToday === 0
-                      ? "Standby • Ready"
-                      : dynamicScreenScore >= 8.5
-                      ? "Balanced"
-                      : "Screen Heavy"}
+                    {tag}
                   </Text>
-                </View>
-              </View>
-
-              {/* Progress bar against limit */}
-              <View style={styles.screenBarTrack}>
-                <View
-                  style={[
-                    styles.screenBarFill,
-                    {
-                      width: `${Math.min(100, (screenMinutesToday / screenLimitMinutes) * 100)}%`,
-                    },
-                  ]}
-                />
-              </View>
-              <Text style={styles.screenLimitSub}>
-                Limit: {Math.floor(screenLimitMinutes / 60)}h 00m daily
-              </Text>
-            </View>
-
-            {/* Phone Accessibility & Usage Permission Card */}
-            <View style={styles.permissionCard}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <ShieldCheck size={18} color="#a855f7" />
-                <Text style={styles.permissionTitle}>Phone Usage & Accessibility Access</Text>
-              </View>
-              <Text style={styles.permissionDesc}>
-                Allow Lumen access to Android Accessibility & Usage Stats to automatically track screen time directly from your device.
-              </Text>
-              <View style={{ gap: 8 }}>
-                <Pressable
-                  style={styles.permissionBtn}
-                  onPress={requestAccessibilityAndUsagePermission}
-                >
-                  <Text style={styles.permissionBtnText}>🛡️ Grant Phone Access (Guided)</Text>
                 </Pressable>
-                <View style={{ flexDirection: "row", gap: 8 }}>
-                  <Pressable
-                    style={[styles.permissionBtnSecondary, { flex: 1 }]}
-                    onPress={openAccessibilitySettings}
-                  >
-                    <Text style={styles.permissionBtnSecondaryText}>Accessibility Settings</Text>
-                  </Pressable>
-                  <Pressable
-                    style={[styles.permissionBtnSecondary, { flex: 1 }]}
-                    onPress={openUsageAccessSettings}
-                  >
-                    <Text style={styles.permissionBtnSecondaryText}>Usage Access</Text>
-                  </Pressable>
-                </View>
-              </View>
+              ))}
             </View>
-
-            {/* App Category Breakdown */}
-            <Text style={styles.modalSectionLabel}>CATEGORY TELEMETRY</Text>
-            {screenMinutesToday === 0 ? (
-              <View style={styles.emptyCategoryCard}>
-                <Text style={styles.emptyCategoryText}>
-                  No screen time recorded yet today. Tap "Grant Phone Access" above or use apps on your phone to start tracking.
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.categoryList}>
-                <View style={styles.categoryRow}>
-                  <Text style={styles.categoryName}>💼 Productivity & Work</Text>
-                  <Text style={styles.categoryMins}>
-                    {Math.floor((screenMinutesToday * 0.45) / 60)}h {Math.round((screenMinutesToday * 0.45) % 60)}m (45%)
-                  </Text>
-                </View>
-                <View style={styles.categoryRow}>
-                  <Text style={styles.categoryName}>💬 Social & Messages</Text>
-                  <Text style={styles.categoryMins}>
-                    {Math.floor((screenMinutesToday * 0.3) / 60)}h {Math.round((screenMinutesToday * 0.3) % 60)}m (30%)
-                  </Text>
-                </View>
-                <View style={styles.categoryRow}>
-                  <Text style={styles.categoryName}>🎬 Video & Media</Text>
-                  <Text style={styles.categoryMins}>
-                    {Math.floor((screenMinutesToday * 0.2) / 60)}h {Math.round((screenMinutesToday * 0.2) % 60)}m (20%)
-                  </Text>
-                </View>
-                <View style={styles.categoryRow}>
-                  <Text style={styles.categoryName}>⚡ Lumen Health</Text>
-                  <Text style={styles.categoryMins}>
-                    {Math.floor((screenMinutesToday * 0.05) / 60)}h {Math.round((screenMinutesToday * 0.05) % 60)}m (5%)
-                  </Text>
-                </View>
-              </View>
-            )}
-
-            {/* Daily Target Limit Selector */}
-            <Text style={[styles.modalSectionLabel, { marginTop: 14 }]}>DAILY SCREEN LIMIT</Text>
-            <View style={styles.hoursChipsRow}>
-              {[120, 180, 240, 300].map((mins) => {
-                const isSelected = screenLimitMinutes === mins;
-                return (
-                  <Pressable
-                    key={mins}
-                    style={[styles.hoursChip, isSelected && styles.hoursChipActive]}
-                    onPress={() => {
-                      triggerHaptic();
-                      setScreenLimitMinutes(mins);
-                    }}
-                  >
-                    <Text style={[styles.hoursChipText, isSelected && styles.hoursChipTextActive]}>
-                      {mins / 60}h limit
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-
-            {/* Focus Mode & Wind Down Switches */}
-            <View style={styles.wellbeingSwitchRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.switchTitle}>Focus Mode</Text>
-                <Text style={styles.switchDesc}>Mute non-critical notifications</Text>
-              </View>
-              <Switch
-                value={focusModeActive}
-                onValueChange={(val) => {
-                  triggerHaptic();
-                  setFocusModeActive(val);
-                }}
-                trackColor={{ false: "#1e293b", true: "#a855f7" }}
-                thumbColor={focusModeActive ? "#050b08" : "#94a3b8"}
-              />
-            </View>
-
-            {/* Save Button */}
-            <Pressable style={styles.modalPrimaryBtn} onPress={handleSaveWellbeing}>
+            <Pressable
+              style={[styles.modalPrimaryBtn, { backgroundColor: "#10b981", marginTop: 14 }]}
+              onPress={handleConfirmCompleteFocus}
+            >
               <Check size={16} color="#050b08" style={{ marginRight: 6 }} />
-              <Text style={styles.modalPrimaryBtnText}>Save Wellbeing Settings</Text>
+              <Text style={styles.modalPrimaryBtnText}>Log to Health OS</Text>
             </Pressable>
           </View>
         </View>
@@ -2431,5 +2989,451 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: "center",
     lineHeight: 18,
+  },
+  pillarFocusLiveBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.4)",
+  },
+  pillarFocusLiveBadgeText: {
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 0.5,
+  },
+  wellbeingTabsRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 14,
+  },
+  wellbeingTabBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: "rgba(255, 255, 255, 0.04)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.08)",
+  },
+  wellbeingTabBtnActive: {
+    backgroundColor: "rgba(168, 85, 247, 0.15)",
+    borderColor: "rgba(168, 85, 247, 0.4)",
+  },
+  wellbeingTabBtnText: {
+    color: "#64748b",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  wellbeingTabBtnTextActive: {
+    color: "#f8fafc",
+  },
+  tabBadgeLiveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  quickFocusBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(16, 185, 129, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.25)",
+    borderRadius: 14,
+    padding: 12,
+    marginTop: 8,
+  },
+  quickFocusIconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: "rgba(16, 185, 129, 0.18)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  quickFocusTitle: {
+    color: "#f8fafc",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  quickFocusSub: {
+    color: "#94a3b8",
+    fontSize: 11,
+    marginTop: 2,
+  },
+  activeFocusBox: {
+    backgroundColor: "#0d1612",
+    borderRadius: 18,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.3)",
+  },
+  activeFocusHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  pulsingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  activeFocusTypeTitle: {
+    color: "#10b981",
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 1,
+  },
+  activeFocusPercentText: {
+    color: "#94a3b8",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  bigFocusClockContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 18,
+  },
+  bigFocusClockDigits: {
+    fontSize: 54,
+    fontWeight: "900",
+    color: "#f8fafc",
+    letterSpacing: 2,
+    fontVariant: ["tabular-nums"],
+  },
+  bigFocusClockSub: {
+    color: "#94a3b8",
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: 4,
+  },
+  quoteCard: {
+    backgroundColor: "rgba(255, 255, 255, 0.03)",
+    borderLeftWidth: 3,
+    borderLeftColor: "#10b981",
+    borderRadius: 10,
+    padding: 12,
+  },
+  quoteText: {
+    color: "#cbd5e1",
+    fontSize: 12,
+    fontStyle: "italic",
+    lineHeight: 18,
+  },
+  quoteAuthor: {
+    color: "#10b981",
+    fontSize: 11,
+    fontWeight: "700",
+    marginTop: 4,
+    textAlign: "right",
+  },
+  focusActionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  focusActionBtnText: {
+    color: "#050b08",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  focusActionBtnSecondary: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: "rgba(56, 189, 248, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(56, 189, 248, 0.3)",
+  },
+  focusActionBtnSecondaryText: {
+    color: "#38bdf8",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  focusCompleteBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.3)",
+  },
+  focusCompleteBtnText: {
+    color: "#10b981",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  focusCancelBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: "rgba(239, 68, 68, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(239, 68, 68, 0.3)",
+  },
+  focusCancelBtnText: {
+    color: "#ef4444",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  presetGrid: {
+    gap: 8,
+  },
+  presetCard: {
+    backgroundColor: "#0d1612",
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+  },
+  presetCardTitle: {
+    color: "#f8fafc",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  presetMinutesPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  presetMinutesText: {
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  presetCardDesc: {
+    color: "#64748b",
+    fontSize: 11,
+    marginTop: 4,
+  },
+  distractionList: {
+    backgroundColor: "#0d1612",
+    borderRadius: 12,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    gap: 6,
+  },
+  distractionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+  },
+  distractionRowActive: {
+    opacity: 1,
+  },
+  distractionName: {
+    color: "#94a3b8",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  distractionDesc: {
+    color: "#64748b",
+    fontSize: 10,
+    marginTop: 2,
+  },
+  checkboxBox: {
+    width: 20,
+    height: 20,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#475569",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  historyList: {
+    backgroundColor: "#0d1612",
+    borderRadius: 12,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    gap: 8,
+  },
+  historyRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255, 255, 255, 0.04)",
+  },
+  historyTitle: {
+    color: "#f8fafc",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  historySub: {
+    color: "#64748b",
+    fontSize: 10,
+    marginTop: 2,
+  },
+  starRow: {
+    flexDirection: "row",
+    gap: 2,
+  },
+  bedtimeHoursRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 10,
+    marginBottom: 10,
+  },
+  bedtimeBox: {
+    flex: 1,
+    backgroundColor: "#0d1612",
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    alignItems: "center",
+    gap: 4,
+  },
+  bedtimeLabel: {
+    color: "#64748b",
+    fontSize: 10,
+    fontWeight: "700",
+    textTransform: "uppercase",
+  },
+  bedtimeVal: {
+    color: "#f8fafc",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  breathingBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(5, 11, 8, 0.95)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  breathingPanel: {
+    width: "100%",
+    maxWidth: 360,
+    backgroundColor: "#0b1410",
+    borderRadius: 24,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: "rgba(56, 189, 248, 0.3)",
+    alignItems: "center",
+  },
+  breathingTitle: {
+    color: "#f8fafc",
+    fontSize: 20,
+    fontWeight: "800",
+    marginTop: 12,
+  },
+  breathingSub: {
+    color: "#94a3b8",
+    fontSize: 12,
+    textAlign: "center",
+    marginTop: 4,
+    marginBottom: 24,
+  },
+  breathingCircle: {
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    borderWidth: 3,
+    borderColor: "#38bdf8",
+    backgroundColor: "rgba(56, 189, 248, 0.08)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 24,
+  },
+  breathingCounter: {
+    fontSize: 38,
+    fontWeight: "900",
+    color: "#f8fafc",
+  },
+  breathingPill: {
+    color: "#38bdf8",
+    fontSize: 12,
+    fontWeight: "700",
+    marginTop: 6,
+  },
+  breathingDismissBtn: {
+    backgroundColor: "rgba(56, 189, 248, 0.2)",
+    paddingVertical: 12,
+    paddingHorizontal: 28,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(56, 189, 248, 0.4)",
+  },
+  breathingDismissText: {
+    color: "#38bdf8",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  reflectionPanel: {
+    width: "100%",
+    maxWidth: 360,
+    backgroundColor: "#0b1410",
+    borderRadius: 24,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.3)",
+    alignItems: "center",
+  },
+  reflectionTitle: {
+    color: "#f8fafc",
+    fontSize: 18,
+    fontWeight: "800",
+    marginTop: 10,
+  },
+  reflectionSub: {
+    color: "#94a3b8",
+    fontSize: 12,
+    textAlign: "center",
+    marginTop: 4,
+    marginBottom: 16,
+  },
+  reflectionStarsRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 16,
+  },
+  reflectionChipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    justifyContent: "center",
+    marginBottom: 12,
+  },
+  reflectionChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+    backgroundColor: "rgba(255, 255, 255, 0.04)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.08)",
+  },
+  reflectionChipActive: {
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+    borderColor: "#10b981",
+  },
+  reflectionChipText: {
+    color: "#94a3b8",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  reflectionChipTextActive: {
+    color: "#10b981",
+    fontWeight: "700",
   },
 });
