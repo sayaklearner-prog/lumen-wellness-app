@@ -17,6 +17,7 @@ import connectionsRouter from "./connections";
 import focusRouter from "./focus";
 import glucoseRouter from "./glucose";
 import onboardingRouter from "./onboarding";
+import authRouter from "./auth";
 
 const router: IRouter = Router();
 
@@ -38,5 +39,6 @@ router.use(connectionsRouter);
 router.use(focusRouter);
 router.use(glucoseRouter);
 router.use(onboardingRouter);
+router.use(authRouter);
 
 export default router;

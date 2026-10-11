@@ -28,7 +28,20 @@ import {
   getStoredGoogleUser,
   GoogleUser,
 } from "@/services/googleAuth";
-import { Sparkles, ArrowRight, ShieldCheck, Mail, CheckCircle2, X, User } from "lucide-react-native";
+import { authService } from "@/services/authService";
+import {
+  Sparkles,
+  ArrowRight,
+  ShieldCheck,
+  Mail,
+  CheckCircle2,
+  X,
+  User,
+  KeyRound,
+  RefreshCw,
+  AlertCircle,
+  Lock,
+} from "lucide-react-native";
 
 const { width } = Dimensions.get("window");
 
@@ -39,6 +52,18 @@ export default function WelcomeScreen() {
   // Mode: "signup" | "signin"
   const [authMode, setAuthMode] = useState<"signup" | "signin">("signup");
   const [isLoading, setIsLoading] = useState(false);
+
+  // Email OTP Manual Sign-Up / Sign-In Modal State
+  const [showOtpModal, setShowOtpModal] = useState(false);
+  const [otpEmail, setOtpEmail] = useState("");
+  const [otpStage, setOtpStage] = useState<"enter_email" | "enter_otp" | "verified">("enter_email");
+  const [otpCode, setOtpCode] = useState("");
+  const [otpSending, setOtpSending] = useState(false);
+  const [otpVerifying, setOtpVerifying] = useState(false);
+  const [otpExpiresIn, setOtpExpiresIn] = useState(300);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [otpErrorMessage, setOtpErrorMessage] = useState("");
+  const [devOtpNotification, setDevOtpNotification] = useState<string | null>(null);
 
   // Google Sign-In Interactive Modal State (used when OAuth key is pending or for direct account selection)
   const [showGoogleModal, setShowGoogleModal] = useState(false);
@@ -202,23 +227,132 @@ export default function WelcomeScreen() {
     }
   };
 
-  // Fallback Manual Profile Setup (Get Started)
-  const handleManualGetStarted = async () => {
-    triggerHaptic();
-    await storage.setItem("lumen_auth_token", "authenticated");
-    await storage.setItem("lumen_in_onboarding", "true");
-    await storage.removeItem("lumen_onboarding_completed");
-    if (Platform.OS === "web" && typeof localStorage !== "undefined") {
-      localStorage.setItem("lumen_authenticated", "true");
-      localStorage.setItem("lumen_in_onboarding", "true");
-      localStorage.removeItem("lumen_onboarding_completed");
+  // Countdown timer for OTP expiry and resend cooldown
+  useEffect(() => {
+    let interval: any;
+    if (showOtpModal && otpStage === "enter_otp") {
+      interval = setInterval(() => {
+        setOtpExpiresIn((prev) => (prev > 0 ? prev - 1 : 0));
+        setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+      }, 1000);
     }
-    qc.invalidateQueries({ queryKey: getGetMyProfileQueryKey() });
-    router.replace("/(auth)/onboarding");
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [showOtpModal, otpStage]);
+
+  // Open Email OTP Modal for Manual Sign Up
+  const handleOpenManualSignUp = () => {
+    triggerHaptic();
+    setOtpEmail("");
+    setOtpCode("");
+    setOtpStage("enter_email");
+    setOtpErrorMessage("");
+    setDevOtpNotification(null);
+    setShowOtpModal(true);
   };
 
-  // Fallback Manual Direct Sign In (Continue as Guest)
-  const handleManualSignIn = async () => {
+  // Open Email OTP Modal for Sign In
+  const handleOpenManualSignIn = () => {
+    triggerHaptic();
+    setOtpEmail("");
+    setOtpCode("");
+    setOtpStage("enter_email");
+    setOtpErrorMessage("");
+    setDevOtpNotification(null);
+    setShowOtpModal(true);
+  };
+
+  // Request 6-digit OTP code to user's email
+  const handleRequestOtp = async () => {
+    triggerHaptic();
+    setOtpErrorMessage("");
+    const cleanEmail = otpEmail.trim().toLowerCase();
+
+    if (!cleanEmail) {
+      setOtpErrorMessage("Please enter your email address.");
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(cleanEmail)) {
+      setOtpErrorMessage("Please enter a valid email address (e.g., name@example.com).");
+      return;
+    }
+
+    setOtpSending(true);
+    try {
+      const result = await authService.sendOtp(cleanEmail, authMode);
+      if (result.success) {
+        setOtpStage("enter_otp");
+        setOtpExpiresIn(result.expiresInSeconds || 300);
+        setResendCooldown(60);
+        setOtpCode("");
+        if (result.devOtp) {
+          setDevOtpNotification(result.devOtp);
+        }
+      } else {
+        setOtpErrorMessage(result.error || "Failed to dispatch verification code.");
+      }
+    } catch (err: any) {
+      setOtpErrorMessage(err?.message || "Network error. Please try again.");
+    } finally {
+      setOtpSending(false);
+    }
+  };
+
+  // Verify user's 6-digit OTP
+  const handleVerifyOtp = async () => {
+    triggerHaptic(Haptics.ImpactFeedbackStyle.Medium);
+    setOtpErrorMessage("");
+    const cleanCode = otpCode.trim();
+
+    if (cleanCode.length !== 6) {
+      setOtpErrorMessage("Please enter the complete 6-digit verification code.");
+      return;
+    }
+
+    setOtpVerifying(true);
+    try {
+      const result = await authService.verifyOtp(otpEmail, cleanCode, authMode);
+      if (result.success && result.verified) {
+        triggerHaptic(Haptics.ImpactFeedbackStyle.Heavy);
+        setOtpStage("verified");
+
+        setTimeout(async () => {
+          setShowOtpModal(false);
+          qc.invalidateQueries({ queryKey: getGetMyProfileQueryKey() });
+
+          if (authMode === "signup") {
+            // First email verification done! Now transition to other onboarding inputs
+            await storage.setItem("lumen_in_onboarding", "true");
+            await storage.removeItem("lumen_onboarding_completed");
+            if (Platform.OS === "web" && typeof localStorage !== "undefined") {
+              localStorage.setItem("lumen_in_onboarding", "true");
+              localStorage.removeItem("lumen_onboarding_completed");
+            }
+            router.replace("/(auth)/onboarding");
+          } else {
+            // Sign in verified -> go straight to dashboard
+            await storage.removeItem("lumen_in_onboarding");
+            if (Platform.OS === "web" && typeof localStorage !== "undefined") {
+              localStorage.removeItem("lumen_in_onboarding");
+            }
+            router.replace("/(tabs)");
+          }
+        }, 1200);
+      } else {
+        setOtpErrorMessage(result.error || "Invalid verification code.");
+      }
+    } catch (err: any) {
+      setOtpErrorMessage(err?.message || "Verification failed. Please try again.");
+    } finally {
+      setOtpVerifying(false);
+    }
+  };
+
+  // Guest bypass fallback if needed
+  const handleGuestBypass = async () => {
     triggerHaptic();
     await storage.setItem("lumen_auth_token", "authenticated");
     await storage.removeItem("lumen_in_onboarding");
@@ -330,22 +464,36 @@ export default function WelcomeScreen() {
                 styles.secondaryBtn,
                 pressed && { opacity: 0.8 },
               ]}
-              onPress={handleManualGetStarted}
+              onPress={handleOpenManualSignUp}
             >
-              <Text style={styles.secondaryBtnText}>Set Up Profile Manually</Text>
+              <Mail size={16} color="#10b981" />
+              <Text style={styles.secondaryBtnText}>Sign Up with Email Verification</Text>
               <ArrowRight size={16} color="#94a3b8" />
             </Pressable>
           ) : (
-            <Pressable
-              style={({ pressed }) => [
-                styles.secondaryBtn,
-                pressed && { opacity: 0.8 },
-              ]}
-              onPress={handleManualSignIn}
-            >
-              <Text style={styles.secondaryBtnText}>Continue as Guest / Offline</Text>
-              <ArrowRight size={16} color="#94a3b8" />
-            </Pressable>
+            <View style={{ gap: 10 }}>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.secondaryBtn,
+                  pressed && { opacity: 0.8 },
+                ]}
+                onPress={handleOpenManualSignIn}
+              >
+                <Mail size={16} color="#10b981" />
+                <Text style={styles.secondaryBtnText}>Sign In with Email Code</Text>
+                <ArrowRight size={16} color="#94a3b8" />
+              </Pressable>
+
+              <Pressable
+                style={({ pressed }) => [
+                  styles.ghostBtn,
+                  pressed && { opacity: 0.8 },
+                ]}
+                onPress={handleGuestBypass}
+              >
+                <Text style={styles.ghostBtnText}>Continue as Guest / Offline</Text>
+              </Pressable>
+            </View>
           )}
 
           {/* Switch Mode Prompt */}
@@ -476,6 +624,215 @@ export default function WelcomeScreen() {
                 </>
               )}
             </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ========================================================= */}
+      {/* EMAIL OTP VERIFICATION MODAL                             */}
+      {/* ========================================================= */}
+      <Modal
+        visible={showOtpModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => {
+          if (!otpSending && !otpVerifying) setShowOtpModal(false);
+        }}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalPanel}>
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                <View style={styles.otpHeaderIcon}>
+                  <Mail size={18} color="#10b981" />
+                </View>
+                <View>
+                  <Text style={styles.modalTitle}>
+                    {authMode === "signup" ? "Email Verification" : "Sign In with Email"}
+                  </Text>
+                  <Text style={styles.modalSub}>
+                    {otpStage === "enter_email"
+                      ? "Step 1 of 2: Confirm your email"
+                      : otpStage === "enter_otp"
+                      ? "Step 2 of 2: Enter 6-digit code"
+                      : "Verification Complete"}
+                  </Text>
+                </View>
+              </View>
+              <Pressable
+                style={styles.modalCloseBtn}
+                onPress={() => setShowOtpModal(false)}
+                disabled={otpSending || otpVerifying}
+              >
+                <X size={16} color="#94a3b8" />
+              </Pressable>
+            </View>
+
+            {/* Error Banner if any */}
+            {otpErrorMessage ? (
+              <View style={styles.errorBanner}>
+                <AlertCircle size={15} color="#ef4444" />
+                <Text style={styles.errorBannerText}>{otpErrorMessage}</Text>
+              </View>
+            ) : null}
+
+            {/* Dev Notification / Preview Hint if available */}
+            {devOtpNotification && otpStage === "enter_otp" ? (
+              <Pressable
+                style={styles.devBanner}
+                onPress={() => {
+                  setOtpCode(devOtpNotification);
+                  triggerHaptic();
+                }}
+              >
+                <Sparkles size={14} color="#10b981" />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.devBannerTitle}>Development Preview Code</Text>
+                  <Text style={styles.devBannerBody}>
+                    Tap to auto-fill code: <Text style={{ fontWeight: "900", color: "#10b981" }}>{devOtpNotification}</Text>
+                  </Text>
+                </View>
+              </Pressable>
+            ) : null}
+
+            {/* STAGE 1: ENTER EMAIL */}
+            {otpStage === "enter_email" && (
+              <View style={{ gap: 14 }}>
+                <View style={styles.inputCard}>
+                  <Text style={styles.inputCardLabel}>ENTER YOUR EMAIL ADDRESS</Text>
+                  <View style={styles.inputRow}>
+                    <Mail size={16} color="#94a3b8" />
+                    <TextInput
+                      style={styles.textInput}
+                      placeholder="e.g. alex@example.com"
+                      placeholderTextColor="#475569"
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      value={otpEmail}
+                      onChangeText={(t) => {
+                        setOtpEmail(t);
+                        if (otpErrorMessage) setOtpErrorMessage("");
+                      }}
+                      onSubmitEditing={handleRequestOtp}
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.securityNoticeRow}>
+                  <Lock size={13} color="#10b981" />
+                  <Text style={styles.securityNoticeText}>
+                    A secure 6-digit verification code will be sent to this email. No password required.
+                  </Text>
+                </View>
+
+                <Pressable
+                  style={[styles.modalSubmitBtn, otpSending && { opacity: 0.7 }]}
+                  onPress={handleRequestOtp}
+                  disabled={otpSending}
+                >
+                  {otpSending ? (
+                    <ActivityIndicator size="small" color="#050b08" />
+                  ) : (
+                    <>
+                      <Text style={styles.modalSubmitBtnText}>Send Verification Code</Text>
+                      <ArrowRight size={16} color="#050b08" />
+                    </>
+                  )}
+                </Pressable>
+              </View>
+            )}
+
+            {/* STAGE 2: ENTER OTP */}
+            {otpStage === "enter_otp" && (
+              <View style={{ gap: 14 }}>
+                {/* Active target email indicator */}
+                <View style={styles.targetEmailRow}>
+                  <Text style={styles.targetEmailText}>
+                    Code sent to <Text style={{ color: "#f8fafc", fontWeight: "700" }}>{otpEmail}</Text>
+                  </Text>
+                  <Pressable
+                    onPress={() => {
+                      setOtpStage("enter_email");
+                      setOtpErrorMessage("");
+                    }}
+                  >
+                    <Text style={styles.changeEmailLink}>Edit</Text>
+                  </Pressable>
+                </View>
+
+                {/* 6-digit Code input card */}
+                <View style={styles.inputCard}>
+                  <View style={styles.otpInputHeaderRow}>
+                    <Text style={styles.inputCardLabel}>6-DIGIT VERIFICATION CODE</Text>
+                    <Text style={styles.expiryTimerText}>
+                      Expires in {Math.floor(otpExpiresIn / 60)}:{(otpExpiresIn % 60).toString().padStart(2, "0")}
+                    </Text>
+                  </View>
+                  <TextInput
+                    style={styles.otpCodeInput}
+                    placeholder="• • • • • •"
+                    placeholderTextColor="#334155"
+                    keyboardType="number-pad"
+                    maxLength={6}
+                    value={otpCode}
+                    onChangeText={(val) => {
+                      const clean = val.replace(/[^0-9]/g, "");
+                      setOtpCode(clean);
+                      if (otpErrorMessage) setOtpErrorMessage("");
+                    }}
+                    autoFocus
+                  />
+                </View>
+
+                {/* Resend actions */}
+                <View style={styles.resendRow}>
+                  <Text style={styles.resendPrompt}>Didn't receive code?</Text>
+                  {resendCooldown > 0 ? (
+                    <Text style={styles.resendCooldownText}>Resend in {resendCooldown}s</Text>
+                  ) : (
+                    <Pressable onPress={handleRequestOtp} disabled={otpSending}>
+                      <Text style={styles.resendActionLink}>Resend Code</Text>
+                    </Pressable>
+                  )}
+                </View>
+
+                <Pressable
+                  style={[
+                    styles.modalSubmitBtn,
+                    (otpCode.length !== 6 || otpVerifying) && { opacity: otpCode.length === 6 ? 0.7 : 0.5 },
+                  ]}
+                  onPress={handleVerifyOtp}
+                  disabled={otpCode.length !== 6 || otpVerifying}
+                >
+                  {otpVerifying ? (
+                    <ActivityIndicator size="small" color="#050b08" />
+                  ) : (
+                    <>
+                      <ShieldCheck size={18} color="#050b08" />
+                      <Text style={styles.modalSubmitBtnText}>Verify & Continue</Text>
+                    </>
+                  )}
+                </Pressable>
+              </View>
+            )}
+
+            {/* STAGE 3: VERIFIED SUCCESS */}
+            {otpStage === "verified" && (
+              <View style={styles.verifiedContainer}>
+                <View style={styles.verifiedIconBadge}>
+                  <CheckCircle2 size={44} color="#10b981" />
+                </View>
+                <Text style={styles.verifiedTitle}>Email Verified!</Text>
+                <Text style={styles.verifiedSub}>
+                  {authMode === "signup"
+                    ? "Welcome to Lumen. Now let's set up your bio-profile..."
+                    : "Signing you into Lumen Health OS..."}
+                </Text>
+                <ActivityIndicator size="small" color="#10b981" style={{ marginTop: 12 }} />
+              </View>
+            )}
           </View>
         </View>
       </Modal>
@@ -805,5 +1162,169 @@ const styles = StyleSheet.create({
     color: "#050b08",
     fontSize: 14,
     fontWeight: "800",
+  },
+
+  // Ghost Button
+  ghostBtn: {
+    height: 42,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  ghostBtnText: {
+    color: "#64748b",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+
+  // OTP Modal Styles
+  otpHeaderIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.25)",
+  },
+  errorBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(239, 68, 68, 0.12)",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: "rgba(239, 68, 68, 0.3)",
+  },
+  errorBannerText: {
+    color: "#f87171",
+    fontSize: 12,
+    flex: 1,
+  },
+  devBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.35)",
+  },
+  devBannerTitle: {
+    color: "#10b981",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  devBannerBody: {
+    color: "#94a3b8",
+    fontSize: 12,
+    marginTop: 2,
+  },
+  securityNoticeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 4,
+  },
+  securityNoticeText: {
+    color: "#64748b",
+    fontSize: 11,
+    lineHeight: 16,
+    flex: 1,
+  },
+  targetEmailRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#0d1612",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.06)",
+  },
+  targetEmailText: {
+    color: "#94a3b8",
+    fontSize: 12,
+  },
+  changeEmailLink: {
+    color: "#10b981",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  otpInputHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  expiryTimerText: {
+    color: "#10b981",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  otpCodeInput: {
+    backgroundColor: "#121d18",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    color: "#10b981",
+    fontSize: 26,
+    fontWeight: "900",
+    letterSpacing: 10,
+    textAlign: "center",
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.3)",
+  },
+  resendRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 8,
+  },
+  resendPrompt: {
+    color: "#64748b",
+    fontSize: 12,
+  },
+  resendCooldownText: {
+    color: "#94a3b8",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  resendActionLink: {
+    color: "#10b981",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  verifiedContainer: {
+    alignItems: "center",
+    paddingVertical: 20,
+    gap: 10,
+  },
+  verifiedIconBadge: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.35)",
+    marginBottom: 6,
+  },
+  verifiedTitle: {
+    fontSize: 20,
+    fontWeight: "900",
+    color: "#f8fafc",
+  },
+  verifiedSub: {
+    fontSize: 13,
+    color: "#94a3b8",
+    textAlign: "center",
+    paddingHorizontal: 20,
   },
 });

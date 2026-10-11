@@ -5,7 +5,8 @@ import { useGetProfile, useUpdateProfile, getGetProfileQueryKey } from "@workspa
 import { useQueryClient } from "@tanstack/react-query";
 import { storage } from "@/services/storage";
 import { getStoredGoogleUser } from "@/services/googleAuth";
-import { User, Flame, Sparkles, Moon, Clock, Trophy, ChevronRight, Check, Plus, Minus } from "lucide-react-native";
+import { authService } from "@/services/authService";
+import { User, Flame, Sparkles, Moon, Clock, Trophy, ChevronRight, Check, Plus, Minus, ShieldCheck } from "lucide-react-native";
 
 const healthModes = [
   { id: "standard", label: "Standard Health", icon: "🌱", desc: "Energy & wellbeing." },
@@ -111,6 +112,7 @@ export default function OnboardingScreen() {
 
   const [step, setStep] = useState(1);
   const [name, setName] = useState(profile?.name || "");
+  const [verifiedEmail, setVerifiedEmail] = useState<string | null>(null);
   const [mode, setMode] = useState(profile?.mode || "standard");
   const [calories, setCalories] = useState(2100);
   const [protein, setProtein] = useState(110);
@@ -133,15 +135,24 @@ export default function OnboardingScreen() {
   }, [profile]);
 
   useEffect(() => {
-    async function loadGoogleName() {
+    async function loadIdentitySession() {
       try {
+        const vEmail = await authService.getVerifiedEmail();
+        if (vEmail) {
+          setVerifiedEmail(vEmail);
+          if (!name) {
+            const prefix = vEmail.split("@")[0].replace(/[._-]/g, " ");
+            setName(prefix.charAt(0).toUpperCase() + prefix.slice(1));
+          }
+        }
         const gUser = await getStoredGoogleUser();
-        if (gUser?.name && !name) {
-          setName(gUser.name);
+        if (gUser) {
+          if (gUser.name && !name) setName(gUser.name);
+          if (gUser.email && !vEmail) setVerifiedEmail(gUser.email);
         }
       } catch {}
     }
-    loadGoogleName();
+    loadIdentitySession();
   }, []);
 
   const handleNext = () => {
@@ -213,6 +224,23 @@ export default function OnboardingScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {step === 1 && (
           <View style={styles.stepContainer}>
+            {verifiedEmail ? (
+              <View style={styles.verifiedBannerCard}>
+                <View style={styles.verifiedBadgeRow}>
+                  <View style={styles.verifiedIconBox}>
+                    <ShieldCheck size={16} color="#10b981" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.verifiedBadgeTitle}>EMAIL VERIFIED</Text>
+                    <Text style={styles.verifiedBadgeEmail}>{verifiedEmail}</Text>
+                  </View>
+                </View>
+                <Text style={styles.verifiedBadgeDesc}>
+                  Your email has been authenticated via one-time code. Complete your personal health profile below.
+                </Text>
+              </View>
+            ) : null}
+
             <Text style={styles.stepTitle}>Let's initialize your bio-profile.</Text>
             <Text style={styles.stepDesc}>What is your name and main wellness focus?</Text>
 
@@ -655,5 +683,43 @@ const styles = StyleSheet.create({
   nextBtnText: {
     color: "#050b08",
     fontWeight: "bold",
+  },
+  verifiedBannerCard: {
+    backgroundColor: "rgba(16, 185, 129, 0.08)",
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.25)",
+    gap: 8,
+    marginBottom: 14,
+  },
+  verifiedBadgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  verifiedIconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  verifiedBadgeTitle: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#10b981",
+    letterSpacing: 0.8,
+  },
+  verifiedBadgeEmail: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#f8fafc",
+  },
+  verifiedBadgeDesc: {
+    fontSize: 11,
+    color: "#94a3b8",
+    lineHeight: 16,
   },
 });
