@@ -169,16 +169,39 @@ class FitnessWatchSensorEngine {
 
   // Sensor state
   private rawAccel: Motion3D = { x: 0, y: 9.81, z: 0 };
-  private gravityVec: Motion3D = { x: 0, y: 9.81, z: 0 };
   private rawGyro: Motion3D = { x: 0, y: 0, z: 0 };
   private sensorState: "hardware_active" | "simulated" | "standby" = "standby";
-  private hasInitializedGravity = false;
 
-  // Step detection Peak-and-Valley State Machine
-  private stepDetectorState: "LOOKING_FOR_PEAK" | "LOOKING_FOR_VALLEY" = "LOOKING_FOR_PEAK";
-  private currentStepPeakMag = 0;
+  // StepTrackerAndroid / DebugActivity.java smoothing variables
+  private static readonly SMOOTHING_WINDOW_SIZE = 20;
+  private mRawAccelValues: [number, number, number] = [0, 9.81, 0];
+  private mAccelValueHistory: [number[], number[], number[]] = [
+    new Array(20).fill(0),
+    new Array(20).fill(0),
+    new Array(20).fill(0),
+  ];
+  private mRunningAccelTotal: [number, number, number] = [0, 0, 0];
+  private mCurAccelAvg: [number, number, number] = [0, 0, 0];
+  private mCurReadIndex = 0;
+  private mBufferInitialized = false;
+
+  // Signal magnitudes (derived from raw & moving average)
+  private lastMag = 0;
+  private avgMag = 0;
+  private netMag = 0;
+
+  // StepTrackerAndroid / DebugActivity.java peak detection variables
+  // (Mladenov et al. algorithm)
+  private windowSize = 10;
+  private netMagHistory: number[] = [];
+  private ambientNetMagHistory: number[] = [];
   private lastStepTimestamp = 0;
+  private lastAmbientStepTimestamp = 0;
   private stepIntervalHistory: number[] = [];
+
+  // Deduplication check to prevent duplicate worklet frames from shrinking the smoothing window
+  private lastFedSample: Motion3D = { x: 0, y: 0, z: 0 };
+  private hasFedSample = false;
 
   // Jump rope peak-valley
   private jumpState: "PEAK" | "VALLEY" = "PEAK";
@@ -194,8 +217,6 @@ class FitnessWatchSensorEngine {
 
   // Ambient steps counted when workout is not active
   private dailyAmbientSteps = 0;
-  private ambientPeakMag = 0;
-  private ambientState: "PEAK" | "VALLEY" = "PEAK";
 
   constructor() {
     this.initAmbientStepStorage();
@@ -253,16 +274,13 @@ class FitnessWatchSensorEngine {
   }
 
   public getSnapshot(): LiveWatchMetrics {
-    const mag = Math.sqrt(
+    const mag = this.lastMag || Math.sqrt(
       this.rawAccel.x * this.rawAccel.x +
       this.rawAccel.y * this.rawAccel.y +
       this.rawAccel.z * this.rawAccel.z
     );
 
-    const dynX = this.rawAccel.x - this.gravityVec.x;
-    const dynY = this.rawAccel.y - this.gravityVec.y;
-    const dynZ = this.rawAccel.z - this.gravityVec.z;
-    const dynamicMag = Math.sqrt(dynX * dynX + dynY * dynY + dynZ * dynZ);
+    const dynamicMag = Math.abs(this.netMag);
 
     const angularRate = Math.sqrt(
       this.rawGyro.x * this.rawGyro.x +
@@ -275,22 +293,24 @@ class FitnessWatchSensorEngine {
     let zoneLabel = "Zone 1 • Recovery / Standby";
     let intensity: LiveWatchMetrics["currentIntensity"] = "recovery";
 
-    if (this.currentCadenceSpm > 165 || dynamicMag > 4.5) {
-      zone = 5;
-      zoneLabel = "Zone 5 • Anaerobic Peak";
-      intensity = "peak";
-    } else if (this.currentCadenceSpm > 140 || dynamicMag > 3.2) {
-      zone = 4;
-      zoneLabel = "Zone 4 • Threshold Power";
-      intensity = "anaerobic";
-    } else if (this.currentCadenceSpm > 115 || dynamicMag > 2.2) {
-      zone = 3;
-      zoneLabel = "Zone 3 • Aerobic Tempo";
-      intensity = "threshold";
-    } else if (this.currentCadenceSpm > 80 || dynamicMag > 1.4) {
-      zone = 2;
-      zoneLabel = "Zone 2 • Active Movement";
-      intensity = "aerobic";
+    if (this.currentCadenceSpm > 0) {
+      if (this.currentCadenceSpm > 165 || dynamicMag > 4.5) {
+        zone = 5;
+        zoneLabel = "Zone 5 • Anaerobic Peak";
+        intensity = "peak";
+      } else if (this.currentCadenceSpm > 140 || dynamicMag > 3.2) {
+        zone = 4;
+        zoneLabel = "Zone 4 • Threshold Power";
+        intensity = "anaerobic";
+      } else if (this.currentCadenceSpm > 115 || dynamicMag > 2.2) {
+        zone = 3;
+        zoneLabel = "Zone 3 • Aerobic Tempo";
+        intensity = "threshold";
+      } else if (this.currentCadenceSpm > 80 || dynamicMag > 1.4) {
+        zone = 2;
+        zoneLabel = "Zone 2 • Active Movement";
+        intensity = "aerobic";
+      }
     }
 
     // Pace formatting
@@ -370,180 +390,224 @@ class FitnessWatchSensorEngine {
 
   /**
    * HIGH FREQUENCY SENSOR PIPELINE
-   * Fed directly by mobile device internal sensors (Accelerometer, Gyroscope, Gravity)
+   * Fed directly by mobile device internal sensors (Accelerometer, Gyroscope).
+   * Exact signal smoothing, gravity decoupling & peak detection ported from StepTrackerAndroid (DebugActivity.java)
    */
-  public handleSensorData(accel: Motion3D, gyro?: Motion3D, gravity?: Motion3D) {
-    this.rawAccel = accel;
+  public handleSensorData(accel: Motion3D, gyro?: Motion3D, _gravity?: Motion3D) {
     if (gyro) this.rawGyro = gyro;
     this.sensorState = "hardware_active";
 
-    // 1. Precise Gravity Isolation
-    if (gravity && (Math.abs(gravity.x) > 0.1 || Math.abs(gravity.y) > 0.1 || Math.abs(gravity.z) > 0.1)) {
-      this.gravityVec = gravity;
-      this.hasInitializedGravity = true;
-    } else if (!this.hasInitializedGravity) {
-      // First hardware reading establishes true orientation baseline (prevents initial fake step)
-      this.gravityVec = { ...accel };
-      this.hasInitializedGravity = true;
-    } else {
-      // Adaptive low-pass filter (92% gravity memory, 8% current acceleration)
-      const alpha = 0.92;
-      this.gravityVec.x = alpha * this.gravityVec.x + (1 - alpha) * accel.x;
-      this.gravityVec.y = alpha * this.gravityVec.y + (1 - alpha) * accel.y;
-      this.gravityVec.z = alpha * this.gravityVec.z + (1 - alpha) * accel.z;
+    // Deduplicate identical readings if worklet frame fired without new hardware ADC update
+    if (
+      this.hasFedSample &&
+      accel.x === this.lastFedSample.x &&
+      accel.y === this.lastFedSample.y &&
+      accel.z === this.lastFedSample.z
+    ) {
+      return;
     }
 
-    // 2. Dynamic linear acceleration (gravity subtracted)
-    const dynX = accel.x - this.gravityVec.x;
-    const dynY = accel.y - this.gravityVec.y;
-    const dynZ = accel.z - this.gravityVec.z;
-    const dynamicMag = Math.sqrt(dynX * dynX + dynY * dynY + dynZ * dynZ);
+    this.hasFedSample = true;
+    this.lastFedSample = { x: accel.x, y: accel.y, z: accel.z };
+    this.rawAccel = accel;
 
-    const gForce = Math.sqrt(accel.x * accel.x + accel.y * accel.y + accel.z * accel.z) / 9.81;
+    this.mRawAccelValues = [accel.x, accel.y, accel.z];
+
+    // Seed circular buffer on initial reading to establish stationary orientation baseline
+    if (!this.mBufferInitialized) {
+      for (let i = 0; i < 3; i++) {
+        for (let k = 0; k < FitnessWatchSensorEngine.SMOOTHING_WINDOW_SIZE; k++) {
+          this.mAccelValueHistory[i][k] = this.mRawAccelValues[i];
+        }
+        this.mRunningAccelTotal[i] = this.mRawAccelValues[i] * FitnessWatchSensorEngine.SMOOTHING_WINDOW_SIZE;
+        this.mCurAccelAvg[i] = this.mRawAccelValues[i];
+      }
+      this.mBufferInitialized = true;
+    }
+
+    // 1. Raw magnitude: Math.sqrt(x^2 + y^2 + z^2)
+    this.lastMag = Math.sqrt(
+      this.mRawAccelValues[0] * this.mRawAccelValues[0] +
+      this.mRawAccelValues[1] * this.mRawAccelValues[1] +
+      this.mRawAccelValues[2] * this.mRawAccelValues[2]
+    );
+
+    // 2. Exact StepTrackerAndroid per-axis running window smoothing (Source: CSE590Sp2018 / Jon Froehlich)
+    for (let i = 0; i < 3; i++) {
+      this.mRunningAccelTotal[i] = this.mRunningAccelTotal[i] - this.mAccelValueHistory[i][this.mCurReadIndex];
+      this.mAccelValueHistory[i][this.mCurReadIndex] = this.mRawAccelValues[i];
+      this.mRunningAccelTotal[i] = this.mRunningAccelTotal[i] + this.mAccelValueHistory[i][this.mCurReadIndex];
+      this.mCurAccelAvg[i] = this.mRunningAccelTotal[i] / FitnessWatchSensorEngine.SMOOTHING_WINDOW_SIZE;
+    }
+    this.mCurReadIndex++;
+    if (this.mCurReadIndex >= FitnessWatchSensorEngine.SMOOTHING_WINDOW_SIZE) {
+      this.mCurReadIndex = 0;
+    }
+
+    // 3. Average magnitude (smoothed gravity component)
+    this.avgMag = Math.sqrt(
+      this.mCurAccelAvg[0] * this.mCurAccelAvg[0] +
+      this.mCurAccelAvg[1] * this.mCurAccelAvg[1] +
+      this.mCurAccelAvg[2] * this.mCurAccelAvg[2]
+    );
+
+    // 4. Net dynamic acceleration (removes gravity effect): lastMag - avgMag
+    this.netMag = this.lastMag - this.avgMag;
+
+    const gForce = this.lastMag / 9.81;
     if (gForce > this.peakGForce) {
       this.peakGForce = parseFloat(gForce.toFixed(2));
     }
 
     const now = Date.now();
 
-    // 3. Movement DSP depending on active workout mode
+    // 5. Movement DSP based on active workout mode
     if (this.isActive && !this.isPaused) {
       switch (this.mode) {
         case "walk":
         case "run":
-          this.processStepDetection(dynamicMag, now);
+          this.peakDetection(now);
           break;
         case "jumprope":
-          this.processJumpRopeDetection(dynZ, dynamicMag, now);
+          this.processJumpRopeDetection(this.netMag, now);
           break;
         case "strength_reps":
-          this.processRepDetection(dynY, dynamicMag, now);
+          this.processRepDetection(this.mRawAccelValues[1] - this.mCurAccelAvg[1], this.netMag, now);
           break;
         case "sports_games":
-          this.processSportsGamesDetection(dynamicMag, now);
+          this.processSportsGamesDetection(this.netMag, now);
           break;
         case "cycling":
-          this.processCyclingCadence(dynamicMag, now);
+          this.processCyclingCadence(this.netMag, now);
           break;
       }
     } else {
-      // When workout is not actively running, count ambient daily steps
-      this.processAmbientStepDetection(dynamicMag, now);
+      this.peakDetectionAmbient(now);
     }
   }
 
   /**
-   * STEP DETECTION ALGORITHM (True Peak-and-Valley State Machine)
-   * Prevents fake steps while stationary or tilted.
-   * Requires:
-   * 1. Acceleration rises above peak threshold.
-   * 2. Acceleration drops through valley threshold.
-   * 3. Inter-step interval is within valid human cadence bounds (250ms - 2000ms).
+   * Peak detection algorithm derived from:
+   * "A Step Counter Service for Java-Enabled Devices Using a Built-In Accelerometer", Mladenov et al.
+   * Ported directly from StepTrackerAndroid DebugActivity.java
    */
-  private processStepDetection(dynamicMag: number, now: number) {
+  private peakDetection(now: number) {
+    this.netMagHistory.push(this.netMag);
+
+    if (this.netMagHistory.length < this.windowSize + 1) {
+      return;
+    }
+
     const isRunning = this.mode === "run";
-    const peakThreshold = isRunning ? 3.2 : 1.8; // m/s^2 dynamic peak
-    const valleyThreshold = 0.85; // m/s^2 valley to complete ground release
-    const minStepIntervalMs = isRunning ? 250 : 320; // Max ~240 SPM
+    const stepThreshold = isRunning ? 1.2 : 1.0;
+    const noiseThreshold = isRunning ? 4.8 : 3.2; // Extended from DebugActivity 2.0d for modern devices
+    const minStepIntervalMs = isRunning ? 230 : 280;
 
-    if (this.stepDetectorState === "LOOKING_FOR_PEAK") {
-      if (dynamicMag > peakThreshold) {
-        if (dynamicMag > this.currentStepPeakMag) {
-          this.currentStepPeakMag = dynamicMag;
-        } else if (dynamicMag < this.currentStepPeakMag - 0.35) {
-          // Signal reached its local peak and started descending
-          this.stepDetectorState = "LOOKING_FOR_VALLEY";
-        }
-      }
-    } else if (this.stepDetectorState === "LOOKING_FOR_VALLEY") {
-      if (dynamicMag < valleyThreshold) {
-        // Valley reached! Verify time interval from last step
-        const deltaMs = now - this.lastStepTimestamp;
-        if (deltaMs >= minStepIntervalMs) {
-          // Check gyro to ensure not just turning in place without foot strike
-          const angRate = Math.sqrt(
-            this.rawGyro.x * this.rawGyro.x +
-            this.rawGyro.y * this.rawGyro.y +
-            this.rawGyro.z * this.rawGyro.z
-          );
+    let forwardSlope = 0;
+    let downwardSlope = 0;
 
-          if (angRate < 12.0) {
-            this.lastStepTimestamp = now;
-            this.steps++;
+    for (let i = 1; i < this.netMagHistory.length - 1; i++) {
+      forwardSlope = this.netMagHistory[i + 1] - this.netMagHistory[i];
+      downwardSlope = this.netMagHistory[i] - this.netMagHistory[i - 1];
 
-            // Stride & Cadence calculation
-            if (deltaMs <= 2500) {
-              const instantSpm = Math.min(240, Math.max(45, 60000 / deltaMs));
-              this.stepIntervalHistory.push(instantSpm);
-              if (this.stepIntervalHistory.length > 5) this.stepIntervalHistory.shift();
+      if (
+        forwardSlope < 0 &&
+        downwardSlope > 0 &&
+        this.netMagHistory[i] > stepThreshold &&
+        this.netMagHistory[i] < noiseThreshold
+      ) {
+        if (now - this.lastStepTimestamp >= minStepIntervalMs) {
+          const deltaMs = this.lastStepTimestamp === 0 ? 600 : now - this.lastStepTimestamp;
+          this.lastStepTimestamp = now;
+          this.steps++;
 
-              const avgSpm =
-                this.stepIntervalHistory.reduce((a, b) => a + b, 0) /
-                this.stepIntervalHistory.length;
-              this.currentCadenceSpm = Math.round(avgSpm);
+          // Stride & Cadence calculation
+          if (deltaMs <= 2500) {
+            const instantSpm = Math.min(240, Math.max(45, Math.round(60000 / deltaMs)));
+            this.stepIntervalHistory.push(instantSpm);
+            if (this.stepIntervalHistory.length > 5) this.stepIntervalHistory.shift();
 
-              // Biomechanical stride length based on height & cadence
-              const heightM = this.userBody.heightCm / 100;
-              const strideLengthM = heightM * (0.415 + (isRunning ? 0.0022 : 0.0012) * avgSpm);
-              this.distanceKm = parseFloat((this.distanceKm + strideLengthM / 1000).toFixed(3));
+            const avgSpm = Math.round(
+              this.stepIntervalHistory.reduce((a, b) => a + b, 0) /
+              this.stepIntervalHistory.length
+            );
+            this.currentCadenceSpm = avgSpm;
 
-              // Speed in km/h
-              this.currentSpeedKmh = parseFloat(((strideLengthM * avgSpm * 60) / 1000).toFixed(1));
+            // Biomechanical stride length based on height & cadence
+            const heightM = this.userBody.heightCm / 100;
+            const strideLengthM = heightM * (0.415 + (isRunning ? 0.0022 : 0.0012) * avgSpm);
+            this.distanceKm = parseFloat((this.distanceKm + strideLengthM / 1000).toFixed(3));
 
-              // Heart rate exertion model based on cadence
-              const cadenceRatio = Math.min(1.0, (avgSpm - 50) / 140);
-              const targetHr = this.userBody.restingHr + cadenceRatio * (this.userBody.maxHr - this.userBody.restingHr);
-              this.estimatedHeartRate = Math.round(this.estimatedHeartRate + (targetHr - this.estimatedHeartRate) * 0.2);
-            }
+            // Speed in km/h
+            this.currentSpeedKmh = parseFloat(((strideLengthM * avgSpm * 60) / 1000).toFixed(1));
 
-            // Real physical calorie burn per actual step taken:
-            // ~0.043 kcal per walk step, ~0.058 kcal per run step for 70kg human
-            const kcalPerStep = (isRunning ? 0.058 : 0.043) * (this.userBody.weightKg / 70);
-            this.activeCalories = parseFloat((this.activeCalories + kcalPerStep).toFixed(1));
-
-            // Haptic feedback on step milestone
-            if (this.steps % 250 === 0 && Platform.OS !== "web") {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            }
+            // Heart rate exertion model based on cadence
+            const cadenceRatio = Math.min(1.0, (avgSpm - 50) / 140);
+            const targetHr = this.userBody.restingHr + cadenceRatio * (this.userBody.maxHr - this.userBody.restingHr);
+            this.estimatedHeartRate = Math.round(this.estimatedHeartRate + (targetHr - this.estimatedHeartRate) * 0.2);
           }
-        }
 
-        // Reset for next step cycle
-        this.currentStepPeakMag = 0;
-        this.stepDetectorState = "LOOKING_FOR_PEAK";
+          // Real physical calorie burn per actual step taken:
+          // ~0.043 kcal per walk step, ~0.058 kcal per run step for 70kg human
+          const kcalPerStep = (isRunning ? 0.058 : 0.043) * (this.userBody.weightKg / 70);
+          this.activeCalories = parseFloat((this.activeCalories + kcalPerStep).toFixed(1));
+
+          // Haptic feedback on step milestone
+          if (this.steps % 250 === 0 && Platform.OS !== "web") {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          }
+
+          this.notify();
+        }
       }
     }
+
+    // Slide window forward by keeping the last point as the start of the next window
+    this.netMagHistory = [this.netMagHistory[this.netMagHistory.length - 1]];
   }
 
-  // Ambient steps counted when workout is not active
-  private processAmbientStepDetection(dynamicMag: number, now: number) {
-    if (this.ambientState === "PEAK") {
-      if (dynamicMag > 2.0) {
-        if (dynamicMag > this.ambientPeakMag) {
-          this.ambientPeakMag = dynamicMag;
-        } else if (dynamicMag < this.ambientPeakMag - 0.4) {
-          this.ambientState = "VALLEY";
-        }
-      }
-    } else {
-      if (dynamicMag < 0.9) {
-        if (now - this.lastStepTimestamp > 330) {
-          this.lastStepTimestamp = now;
+  // Ambient steps counted when workout is not active (DebugActivity.java algorithm)
+  private peakDetectionAmbient(now: number) {
+    this.ambientNetMagHistory.push(this.netMag);
+
+    if (this.ambientNetMagHistory.length < this.windowSize + 1) {
+      return;
+    }
+
+    const stepThreshold = 1.0;
+    const noiseThreshold = 3.2;
+    const minStepIntervalMs = 280;
+
+    let forwardSlope = 0;
+    let downwardSlope = 0;
+
+    for (let i = 1; i < this.ambientNetMagHistory.length - 1; i++) {
+      forwardSlope = this.ambientNetMagHistory[i + 1] - this.ambientNetMagHistory[i];
+      downwardSlope = this.ambientNetMagHistory[i] - this.ambientNetMagHistory[i - 1];
+
+      if (
+        forwardSlope < 0 &&
+        downwardSlope > 0 &&
+        this.ambientNetMagHistory[i] > stepThreshold &&
+        this.ambientNetMagHistory[i] < noiseThreshold
+      ) {
+        if (now - this.lastAmbientStepTimestamp >= minStepIntervalMs) {
+          this.lastAmbientStepTimestamp = now;
           this.dailyAmbientSteps++;
           if (this.dailyAmbientSteps % 10 === 0) {
             this.persistDailySteps();
           }
         }
-        this.ambientPeakMag = 0;
-        this.ambientState = "PEAK";
       }
     }
+
+    this.ambientNetMagHistory = [this.ambientNetMagHistory[this.ambientNetMagHistory.length - 1]];
   }
 
-  // Jump Rope Detection: Vertical Z-axis impulse and cadence
-  private processJumpRopeDetection(dynZ: number, dynamicMag: number, now: number) {
+  // Jump Rope Detection: Dynamic magnitude impulse and cadence
+  private processJumpRopeDetection(dynamicMag: number, now: number) {
     if (this.jumpState === "PEAK") {
-      if (dynamicMag > 3.6 && Math.abs(dynZ) > 2.2) {
+      if (dynamicMag > 3.6) {
         if (dynamicMag > this.jumpPeakMag) {
           this.jumpPeakMag = dynamicMag;
         } else if (dynamicMag < this.jumpPeakMag - 0.5) {
@@ -551,24 +615,24 @@ class FitnessWatchSensorEngine {
         }
       }
     } else {
-      if (dynamicMag < 1.2) {
+      if (dynamicMag < 1.0) {
         const deltaMs = now - this.lastJumpTimestamp;
         if (deltaMs >= 200) {
           this.lastJumpTimestamp = now;
           this.jumps++;
 
           if (deltaMs < 1500) {
-            const instantRpm = Math.min(300, Math.max(60, 60000 / deltaMs));
-            this.currentCadenceSpm = Math.round(instantRpm);
+            const instantRpm = Math.min(300, Math.max(60, Math.round(60000 / deltaMs)));
+            this.currentCadenceSpm = instantRpm;
           }
 
-          // Real calories per jump: ~0.14 kcal for 70kg human
           const kcalPerJump = 0.14 * (this.userBody.weightKg / 70);
           this.activeCalories = parseFloat((this.activeCalories + kcalPerJump).toFixed(1));
 
           if (this.jumps % 50 === 0 && Platform.OS !== "web") {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
           }
+          this.notify();
         }
         this.jumpPeakMag = 0;
         this.jumpState = "PEAK";
@@ -698,10 +762,11 @@ class FitnessWatchSensorEngine {
     this.currentSpeedKmh = 0;
     this.estimatedHeartRate = this.userBody.restingHr;
     this.currentMet = WORKOUT_MODE_INFO[mode].baseMet;
-    this.stepDetectorState = "LOOKING_FOR_PEAK";
-    this.currentStepPeakMag = 0;
-    this.hasInitializedGravity = false;
+    this.lastStepTimestamp = 0;
     this.stepIntervalHistory = [];
+    this.netMagHistory = [];
+    this.mBufferInitialized = false;
+    this.hasFedSample = false;
 
     if (Platform.OS !== "web") {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

@@ -26,20 +26,17 @@ export function useFitnessWatch() {
     return unsub;
   }, []);
 
-  const feedSensorData = useCallback((accel: Motion3D, gyro?: Motion3D, gravity?: Motion3D) => {
-    fitnessWatchSensor.handleSensorData(accel, gyro, gravity);
+  const feedSensorData = useCallback((accel: Motion3D, gyro?: Motion3D) => {
+    fitnessWatchSensor.handleSensorData(accel, gyro);
   }, []);
 
   // Reanimated native hardware sensor hooks
-  // Configured at 50Hz (20ms interval) for hardware biomechanical detection
+  // Configured at 50ms interval (~20Hz), matching Android SENSOR_DELAY_UI used in StepTrackerAndroid
   const accelSensor = useAnimatedSensor(SensorType.ACCELEROMETER, {
-    interval: 20,
+    interval: 50,
   });
   const gyroSensor = useAnimatedSensor(SensorType.GYROSCOPE, {
-    interval: 20,
-  });
-  const gravitySensor = useAnimatedSensor(SensorType.GRAVITY, {
-    interval: 20,
+    interval: 50,
   });
 
   // Reanimated UI-thread frame callback feeding real internal sensors
@@ -48,11 +45,9 @@ export function useFitnessWatch() {
     if (accelSensor.isAvailable) {
       const a = accelSensor.sensor.value;
       const g = gyroSensor.isAvailable ? gyroSensor.sensor.value : undefined;
-      const gr = gravitySensor.isAvailable ? gravitySensor.sensor.value : undefined;
       runOnJS(feedSensorData)(
         { x: a.x, y: a.y, z: a.z },
-        g ? { x: g.x, y: g.y, z: g.z } : undefined,
-        gr ? { x: gr.x, y: gr.y, z: gr.z } : undefined
+        g ? { x: g.x, y: g.y, z: g.z } : undefined
       );
     }
   });
