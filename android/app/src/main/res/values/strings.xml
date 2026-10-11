@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Lumen OS</string>
+    <string name="title_activity_main">Lumen OS</string>
+    <string name="package_name">com.meshmind.lumen</string>
+    <string name="custom_url_scheme">com.meshmind.lumen</string>
+</resources>

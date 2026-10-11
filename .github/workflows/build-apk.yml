@@ -54,6 +54,7 @@ jobs:
       - name: Setup Capacitor and Android platform
         run: |
           npx cap add android || true
+          npx --yes @capacitor/assets generate --android || true
           npx cap sync android
 
       - name: Configure Android Permissions & Camera Access
