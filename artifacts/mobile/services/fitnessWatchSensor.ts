@@ -14,6 +14,7 @@
 import { Platform } from "react-native";
 import * as Haptics from "expo-haptics";
 import { getKV, setKV } from "./db";
+import { wearableSyncService } from "./wearableSyncService";
 
 export type WorkoutMode = 
   | "walk" 
@@ -250,6 +251,13 @@ class FitnessWatchSensorEngine {
   }
 
   public getDailySteps(): number {
+    const wearable = wearableSyncService.getConnectedDevice();
+    if (wearable?.isConnected) {
+      const wTel = wearableSyncService.getLatestTelemetry();
+      if (wTel.steps > 0) {
+        return Math.max(wTel.steps, this.dailyAmbientSteps + this.steps);
+      }
+    }
     return this.dailyAmbientSteps + this.steps;
   }
 
@@ -322,6 +330,12 @@ class FitnessWatchSensorEngine {
       paceMinKm = `${mins}'${secs.toString().padStart(2, "0")}"`;
     }
 
+    const connectedWearable = wearableSyncService.getConnectedDevice();
+    const wearableTel = connectedWearable?.isConnected ? wearableSyncService.getLatestTelemetry() : null;
+    const resolvedHeartRate = wearableTel && wearableTel.heartRate > 0
+      ? wearableTel.heartRate
+      : (this.currentCadenceSpm > 0 ? Math.round(this.estimatedHeartRate) : this.userBody.restingHr);
+
     return {
       isActive: this.isActive,
       isPaused: this.isPaused,
@@ -337,7 +351,7 @@ class FitnessWatchSensorEngine {
       speedKmh: parseFloat(this.currentSpeedKmh.toFixed(1)),
       paceMinKm,
       activeCalories: parseFloat(this.activeCalories.toFixed(1)),
-      estimatedHeartRate: this.currentCadenceSpm > 0 ? Math.round(this.estimatedHeartRate) : this.userBody.restingHr,
+      estimatedHeartRate: resolvedHeartRate,
       heartRateZone: zone,
       heartRateZoneLabel: zoneLabel,
       currentMet: parseFloat(this.currentMet.toFixed(1)),
@@ -356,7 +370,7 @@ class FitnessWatchSensorEngine {
         z: parseFloat(this.rawGyro.z.toFixed(2)),
         angularRate: parseFloat(angularRate.toFixed(2)),
       },
-      sensorState: this.sensorState,
+      sensorState: connectedWearable?.isConnected ? "hardware_active" : this.sensorState,
     };
   }
 

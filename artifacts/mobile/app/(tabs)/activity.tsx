@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, Pressable, 
   Platform, TextInput, ActivityIndicator, Alert, Modal 
 } from "react-native";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { 
   useListWorkouts, useCreateWorkout, useDeleteWorkouts, 
   useGetWorkoutReadiness, useGetWorkoutInsights, useGetTodayDashboard, useGetProfile,
@@ -13,12 +14,15 @@ import {
   Activity, Timer, Zap, Trash2, Plus, 
   Sparkles, CheckCircle2, Trophy, Flame, Footprints, 
   Dumbbell, Bike, TrendingUp, Award, ChevronRight, X, Sliders,
-  Play, Pause, Square, RotateCcw, Compass, Gauge, Shield, Watch
+  Play, Pause, Square, RotateCcw, Compass, Gauge, Shield, Watch,
+  Bluetooth, RefreshCw, Moon, Heart, Radio, BatteryCharging, Check, Disc, ArrowUpRight
 } from "lucide-react-native";
 import Svg, { Circle, Defs, LinearGradient, Stop } from "react-native-svg";
 import { queueOfflineLog, getWorkouts, saveWorkout, deleteWorkout, WorkoutRecord } from "@/services/db";
 import { useSlideMenu } from "@/context/SlideMenuContext";
 import { useFitnessWatch } from "@/hooks/useFitnessWatch";
+import { useWearableSync } from "@/hooks/useWearableSync";
+import { WearableDevice } from "@/services/wearableSyncService";
 import { 
   WORKOUT_MODE_INFO, 
   WorkoutMode, 
@@ -97,8 +101,31 @@ export default function ActivityScreen() {
   const qc = useQueryClient();
   const { openLeftMenu, openMenu } = useSlideMenu();
 
-  // Active Main Tab: "watch" (Fitness Watch HUD), "catalog" (Manual Entry & Presets), "strain" (Readiness & Analytics)
-  const [activeMainTab, setActiveMainTab] = useState<"watch" | "catalog" | "strain">("watch");
+  const params = useLocalSearchParams();
+
+  // Active Main Tab: "watch" (Fitness Watch HUD), "wearable" (Wearable Sync), "catalog" (Manual Entry), "strain" (Readiness)
+  const [activeMainTab, setActiveMainTab] = useState<"watch" | "wearable" | "catalog" | "strain">("watch");
+
+  // Wearable Bluetooth Sync Hook (OpenStrap Edge Architecture)
+  const {
+    connectedDevice,
+    telemetry: wearableTel,
+    discoveredDevices,
+    isScanning: isBleScanning,
+    isSyncing: isBleSyncing,
+    scanDevices: scanBleDevices,
+    connectDevice: connectBleDevice,
+    syncNow: syncBleNow,
+    disconnectDevice: disconnectBleDevice,
+  } = useWearableSync();
+
+  const [wearableFilter, setWearableFilter] = useState<"all" | "ring" | "watch" | "band" | "chest_strap">("all");
+
+  useEffect(() => {
+    if (params?.tab === "wearable") {
+      setActiveMainTab("wearable");
+    }
+  }, [params?.tab]);
 
   // Selected watch exercise mode
   const [selectedWatchMode, setSelectedWatchMode] = useState<WorkoutMode>("run");
@@ -409,25 +436,38 @@ export default function ActivityScreen() {
           </Pressable>
         </View>
 
-        {/* Triple Segmented View Switcher */}
+        {/* Quad Segmented View Switcher */}
         <View style={styles.tabBar}>
           <Pressable
             style={[styles.tabItem, activeMainTab === "watch" && styles.tabItemActive]}
             onPress={() => setActiveMainTab("watch")}
           >
-            <Watch size={15} color={activeMainTab === "watch" ? "#10b981" : "#64748b"} />
+            <Watch size={14} color={activeMainTab === "watch" ? "#10b981" : "#64748b"} />
             <Text style={[styles.tabText, activeMainTab === "watch" && styles.tabTextActive]}>
-              Fitness Watch
+              Watch
             </Text>
+          </Pressable>
+
+          <Pressable
+            style={[styles.tabItem, activeMainTab === "wearable" && styles.tabItemActive]}
+            onPress={() => setActiveMainTab("wearable")}
+          >
+            <Bluetooth size={14} color={activeMainTab === "wearable" ? "#10b981" : "#64748b"} />
+            <Text style={[styles.tabText, activeMainTab === "wearable" && styles.tabTextActive]}>
+              Wearables
+            </Text>
+            {connectedDevice && (
+              <View style={styles.tabConnectedDot} />
+            )}
           </Pressable>
 
           <Pressable
             style={[styles.tabItem, activeMainTab === "catalog" && styles.tabItemActive]}
             onPress={() => setActiveMainTab("catalog")}
           >
-            <Dumbbell size={15} color={activeMainTab === "catalog" ? "#10b981" : "#64748b"} />
+            <Dumbbell size={14} color={activeMainTab === "catalog" ? "#10b981" : "#64748b"} />
             <Text style={[styles.tabText, activeMainTab === "catalog" && styles.tabTextActive]}>
-              Manual & Catalog
+              Catalog
             </Text>
           </Pressable>
 
@@ -435,9 +475,9 @@ export default function ActivityScreen() {
             style={[styles.tabItem, activeMainTab === "strain" && styles.tabItemActive]}
             onPress={() => setActiveMainTab("strain")}
           >
-            <Gauge size={15} color={activeMainTab === "strain" ? "#10b981" : "#64748b"} />
+            <Gauge size={14} color={activeMainTab === "strain" ? "#10b981" : "#64748b"} />
             <Text style={[styles.tabText, activeMainTab === "strain" && styles.tabTextActive]}>
-              Strain & Load
+              Strain
             </Text>
           </Pressable>
         </View>
@@ -740,7 +780,275 @@ export default function ActivityScreen() {
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 2: MANUAL LOGGING & WORKOUT CATALOG (100% PRESERVED AS REQUESTED)    */}
+        {/* TAB 2: WEARABLE BLUETOOTH SYNC (OPENSTRAP EDGE ARCHITECTURE)              */}
+        {/* ========================================================================= */}
+        {activeMainTab === "wearable" && (
+          <View style={{ gap: 16 }}>
+            {/* Active Device Overview Card */}
+            <View style={styles.wearableHeroCard}>
+              <View style={styles.wearableHeroHeader}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
+                  <View style={styles.wearableIconBadge}>
+                    <Text style={{ fontSize: 24 }}>
+                      {connectedDevice ? connectedDevice.icon : "📡"}
+                    </Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <Text style={styles.wearableDeviceName} numberOfLines={1}>
+                        {connectedDevice ? connectedDevice.name : "No Wearable Connected"}
+                      </Text>
+                      {connectedDevice && (
+                        <View style={styles.connectedPill}>
+                          <View style={styles.connectedPillDot} />
+                          <Text style={styles.connectedPillText}>CONNECTED</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={styles.wearableBrandSub} numberOfLines={1}>
+                      {connectedDevice
+                        ? `${connectedDevice.brandName} • Battery: ${connectedDevice.batteryLevel}% • RSSI: ${connectedDevice.rssi} dBm`
+                        : "Connect your smartwatch, ring, or fitness strap"}
+                    </Text>
+                  </View>
+                </View>
+
+                {connectedDevice && (
+                  <Pressable
+                    style={styles.disconnectMiniBtn}
+                    onPress={disconnectBleDevice}
+                  >
+                    <X size={14} color="#94a3b8" />
+                  </Pressable>
+                )}
+              </View>
+
+              {/* Sync Actions Row */}
+              <View style={styles.wearableActionRow}>
+                <Pressable
+                  style={[styles.syncNowBtn, isBleSyncing && { opacity: 0.7 }]}
+                  onPress={syncBleNow}
+                  disabled={!connectedDevice || isBleSyncing}
+                >
+                  {isBleSyncing ? (
+                    <ActivityIndicator size="small" color="#050b08" />
+                  ) : (
+                    <>
+                      <RefreshCw size={14} color="#050b08" />
+                      <Text style={styles.syncNowBtnText}>Sync Telemetry Now</Text>
+                    </>
+                  )}
+                </Pressable>
+
+                <Pressable
+                  style={styles.scanBleTriggerBtn}
+                  onPress={scanBleDevices}
+                  disabled={isBleScanning}
+                >
+                  {isBleScanning ? (
+                    <ActivityIndicator size="small" color="#10b981" />
+                  ) : (
+                    <>
+                      <Bluetooth size={14} color="#10b981" />
+                      <Text style={styles.scanBleTriggerText}>Scan Devices</Text>
+                    </>
+                  )}
+                </Pressable>
+              </View>
+
+              {connectedDevice?.lastSyncedAt && (
+                <Text style={styles.lastSyncCaption}>
+                  Last synchronized: {new Date(connectedDevice.lastSyncedAt).toLocaleTimeString()} • SQLite Cache Updated
+                </Text>
+              )}
+            </View>
+
+            {/* Live Synchronized Telemetry Section */}
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+              <Text style={styles.wearableSectionTitle}>SYNCHRONIZED WEARABLE METRICS</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: connectedDevice ? "#10b981" : "#64748b" }} />
+                <Text style={{ fontSize: 11, color: connectedDevice ? "#10b981" : "#64748b", fontWeight: "700" }}>
+                  {connectedDevice ? "Live BLE Stream" : "Standby"}
+                </Text>
+              </View>
+            </View>
+            
+            <View style={styles.wearableTelemetryGrid}>
+              {/* Card 1: Steps */}
+              <View style={styles.telemetryCard}>
+                <View style={styles.telemetryCardHeader}>
+                  <Footprints size={15} color="#10b981" />
+                  <Text style={styles.telemetryCardLabel}>DAILY STEPS</Text>
+                </View>
+                <Text style={styles.telemetryCardVal}>
+                  {wearableTel.steps.toLocaleString()}
+                </Text>
+                <Text style={styles.telemetryCardSub}>
+                  {wearableTel.cadenceSpm} SPM • {wearableTel.distanceKm} km
+                </Text>
+              </View>
+
+              {/* Card 2: Active Calories */}
+              <View style={styles.telemetryCard}>
+                <View style={styles.telemetryCardHeader}>
+                  <Flame size={15} color="#f97316" />
+                  <Text style={styles.telemetryCardLabel}>CALORIE BURN</Text>
+                </View>
+                <Text style={styles.telemetryCardVal}>
+                  {wearableTel.activeCalories} <Text style={styles.telemetryUnit}>kcal</Text>
+                </Text>
+                <Text style={styles.telemetryCardSub}>
+                  Total daily: {wearableTel.totalCalories} kcal
+                </Text>
+              </View>
+
+              {/* Card 3: Sleep Architecture */}
+              <View style={styles.telemetryCard}>
+                <View style={styles.telemetryCardHeader}>
+                  <Moon size={15} color="#a855f7" />
+                  <Text style={styles.telemetryCardLabel}>SLEEP RECOVERY</Text>
+                </View>
+                <Text style={styles.telemetryCardVal}>
+                  {wearableTel.sleepDurationHours} <Text style={styles.telemetryUnit}>hrs</Text>
+                </Text>
+                <Text style={styles.telemetryCardSub}>
+                  Score: {wearableTel.sleepScore}% • Deep: {wearableTel.deepSleepPercent}%
+                </Text>
+              </View>
+
+              {/* Card 4: Heart Rate & Vitals */}
+              <View style={styles.telemetryCard}>
+                <View style={styles.telemetryCardHeader}>
+                  <Heart size={15} color="#ef4444" />
+                  <Text style={styles.telemetryCardLabel}>HEART RATE & HRV</Text>
+                </View>
+                <Text style={styles.telemetryCardVal}>
+                  {wearableTel.heartRate} <Text style={styles.telemetryUnit}>BPM</Text>
+                </Text>
+                <Text style={styles.telemetryCardSub}>
+                  RHR: {wearableTel.restingHeartRate} BPM • HRV: {wearableTel.hrvMs} ms
+                </Text>
+              </View>
+            </View>
+
+            {/* Extra Vitals Row: SpO2, Skin Temp, Recovery Score */}
+            <View style={styles.vitalsPillRow}>
+              <View style={styles.vitalPill}>
+                <Text style={styles.vitalPillLabel}>Blood Oxygen</Text>
+                <Text style={styles.vitalPillValue}>{wearableTel.spo2Percent}%</Text>
+              </View>
+              <View style={styles.vitalPill}>
+                <Text style={styles.vitalPillLabel}>Skin Temp</Text>
+                <Text style={styles.vitalPillValue}>{wearableTel.skinTemperatureC}°C</Text>
+              </View>
+              <View style={styles.vitalPill}>
+                <Text style={styles.vitalPillLabel}>Recovery</Text>
+                <Text style={[styles.vitalPillValue, { color: "#10b981" }]}>
+                  {wearableTel.recoveryScorePercent}%
+                </Text>
+              </View>
+            </View>
+
+            {/* Wearable Device Pairing & Catalog */}
+            <View style={styles.deviceCatalogSection}>
+              <View style={styles.sectionHeaderRow}>
+                <View>
+                  <Text style={styles.sectionHeaderTitle}>Bluetooth Wearables</Text>
+                  <Text style={styles.sectionHeaderSub}>Pair to stream steps, calories & sleep</Text>
+                </View>
+                <View style={styles.edgeProtocolBadge}>
+                  <Text style={styles.edgeProtocolBadgeText}>EDGE BLE ENGINE</Text>
+                </View>
+              </View>
+
+              {/* Filter chips */}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 6 }}>
+                <View style={{ flexDirection: "row", gap: 6 }}>
+                  {(["all", "ring", "watch", "band", "chest_strap"] as const).map((cat) => (
+                    <Pressable
+                      key={cat}
+                      style={[
+                        styles.filterChip,
+                        wearableFilter === cat && styles.filterChipActive,
+                      ]}
+                      onPress={() => setWearableFilter(cat)}
+                    >
+                      <Text
+                        style={[
+                          styles.filterChipText,
+                          wearableFilter === cat && styles.filterChipTextActive,
+                        ]}
+                      >
+                        {cat === "all" ? "All Devices" : cat === "ring" ? "Smart Rings" : cat === "watch" ? "Smartwatches" : cat === "band" ? "Fitness Bands" : "Heart Straps"}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </ScrollView>
+
+              {/* Discovered & Preset devices list */}
+              <View style={{ gap: 10, marginTop: 6 }}>
+                {discoveredDevices
+                  .filter((d) => wearableFilter === "all" || d.deviceType === wearableFilter)
+                  .map((device) => {
+                    const isCurrent = connectedDevice?.id === device.id;
+                    return (
+                      <View key={device.id} style={[styles.devicePairCard, isCurrent && styles.devicePairCardActive]}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 12, flex: 1 }}>
+                          <View style={styles.deviceAvatar}>
+                            <Text style={{ fontSize: 20 }}>{device.icon}</Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                              <Text style={styles.devicePairName}>{device.name}</Text>
+                              {isCurrent && (
+                                <View style={styles.activeTag}>
+                                  <Text style={styles.activeTagText}>SYNCED</Text>
+                                </View>
+                              )}
+                            </View>
+                            <Text style={styles.devicePairBrand}>
+                              {device.brandName} • RSSI {device.rssi} dBm • Batt {device.batteryLevel}%
+                            </Text>
+                            <Text style={styles.deviceFeatureList} numberOfLines={1}>
+                              {device.features.join(" • ")}
+                            </Text>
+                          </View>
+                        </View>
+
+                        <Pressable
+                          style={[
+                            styles.pairActionBtn,
+                            isCurrent && styles.pairActionBtnConnected,
+                          ]}
+                          onPress={() => {
+                            if (isCurrent) {
+                              disconnectBleDevice();
+                            } else {
+                              connectBleDevice(device);
+                            }
+                          }}
+                        >
+                          <Text
+                            style={[
+                              styles.pairActionBtnText,
+                              isCurrent && styles.pairActionBtnTextConnected,
+                            ]}
+                          >
+                            {isCurrent ? "Disconnect" : "Pair & Sync"}
+                          </Text>
+                        </Pressable>
+                      </View>
+                    );
+                  })}
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 3: MANUAL LOGGING & WORKOUT CATALOG                                   */}
         {/* ========================================================================= */}
         {activeMainTab === "catalog" && (
           <View style={{ gap: 16 }}>
@@ -2319,5 +2627,298 @@ const styles = StyleSheet.create({
     color: "#050b08",
     fontSize: 12,
     fontWeight: "900",
+  },
+
+  // Wearable BLE Sync Styles
+  tabConnectedDot: {
+    position: "absolute",
+    top: 6,
+    right: 8,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#10b981",
+  },
+  wearableHeroCard: {
+    backgroundColor: "#0d1612",
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.25)",
+    gap: 14,
+  },
+  wearableHeroHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  wearableIconBadge: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.25)",
+  },
+  wearableDeviceName: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#f8fafc",
+  },
+  connectedPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(16, 185, 129, 0.18)",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.4)",
+  },
+  connectedPillDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: "#10b981",
+  },
+  connectedPillText: {
+    fontSize: 9,
+    fontWeight: "900",
+    color: "#10b981",
+    letterSpacing: 0.5,
+  },
+  wearableBrandSub: {
+    fontSize: 11,
+    color: "#94a3b8",
+    marginTop: 2,
+  },
+  disconnectMiniBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: "rgba(255, 255, 255, 0.06)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  wearableActionRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  syncNowBtn: {
+    flex: 2,
+    height: 44,
+    backgroundColor: "#10b981",
+    borderRadius: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  syncNowBtnText: {
+    color: "#050b08",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  scanBleTriggerBtn: {
+    flex: 1.2,
+    height: 44,
+    backgroundColor: "#13231c",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.3)",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  scanBleTriggerText: {
+    color: "#10b981",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  lastSyncCaption: {
+    fontSize: 10,
+    color: "#64748b",
+    textAlign: "center",
+  },
+  wearableSectionTitle: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#64748b",
+    letterSpacing: 0.8,
+  },
+  wearableTelemetryGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  telemetryCard: {
+    flex: 1,
+    minWidth: "47%",
+    backgroundColor: "#0d1612",
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.06)",
+    gap: 4,
+  },
+  telemetryCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 4,
+  },
+  telemetryCardLabel: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#64748b",
+    letterSpacing: 0.6,
+  },
+  telemetryCardVal: {
+    fontSize: 22,
+    fontWeight: "900",
+    color: "#f8fafc",
+  },
+  telemetryCardSub: {
+    fontSize: 11,
+    color: "#94a3b8",
+    marginTop: 2,
+  },
+  vitalsPillRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  vitalPill: {
+    flex: 1,
+    backgroundColor: "#0d1612",
+    borderRadius: 12,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.05)",
+    alignItems: "center",
+  },
+  vitalPillLabel: {
+    fontSize: 10,
+    color: "#64748b",
+    fontWeight: "700",
+  },
+  vitalPillValue: {
+    fontSize: 14,
+    color: "#f8fafc",
+    fontWeight: "800",
+    marginTop: 2,
+  },
+  deviceCatalogSection: {
+    backgroundColor: "#070c0a",
+    borderRadius: 18,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.06)",
+    gap: 10,
+  },
+  edgeProtocolBadge: {
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.3)",
+  },
+  edgeProtocolBadgeText: {
+    fontSize: 9,
+    fontWeight: "900",
+    color: "#10b981",
+    letterSpacing: 0.6,
+  },
+  filterChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    backgroundColor: "#0d1612",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.06)",
+  },
+  filterChipActive: {
+    backgroundColor: "#16251e",
+    borderColor: "#10b981",
+  },
+  filterChipText: {
+    fontSize: 11,
+    color: "#64748b",
+    fontWeight: "700",
+  },
+  filterChipTextActive: {
+    color: "#10b981",
+  },
+  devicePairCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#0d1612",
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.06)",
+    gap: 10,
+  },
+  devicePairCardActive: {
+    borderColor: "rgba(16, 185, 129, 0.4)",
+    backgroundColor: "#111f18",
+  },
+  deviceAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  devicePairName: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#f8fafc",
+  },
+  activeTag: {
+    backgroundColor: "rgba(16, 185, 129, 0.2)",
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  activeTagText: {
+    fontSize: 8,
+    fontWeight: "900",
+    color: "#10b981",
+  },
+  devicePairBrand: {
+    fontSize: 11,
+    color: "#94a3b8",
+    marginTop: 1,
+  },
+  deviceFeatureList: {
+    fontSize: 10,
+    color: "#64748b",
+    marginTop: 2,
+  },
+  pairActionBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: "#10b981",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pairActionBtnConnected: {
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+  },
+  pairActionBtnText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#050b08",
+  },
+  pairActionBtnTextConnected: {
+    color: "#94a3b8",
   },
 });

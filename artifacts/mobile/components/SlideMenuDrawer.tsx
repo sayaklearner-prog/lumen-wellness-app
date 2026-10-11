@@ -33,6 +33,8 @@ import {
   LogOut,
   Bell,
   Clock,
+  Bluetooth,
+  Watch,
 } from "lucide-react-native";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -213,6 +215,29 @@ export function SlideMenuDrawer({ isOpen, onClose, side = "left" }: SlideMenuDra
         >
           {/* SECTION 1: PRIMARY MODULES */}
           <Text style={styles.sectionHeading}>MODULES & TELEMETRY</Text>
+
+          {/* Wearable Bluetooth Sync (OpenStrap Edge) */}
+          <Pressable
+            style={[
+              styles.navItemCard,
+              pathname?.includes("activity") && styles.navItemCardActive,
+            ]}
+            onPress={() => handleNavigate("/(tabs)/activity?tab=wearable")}
+          >
+            <View style={[styles.navIconBox, { backgroundColor: "rgba(16, 185, 129, 0.15)" }]}>
+              <Bluetooth size={18} color="#10b981" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Text style={styles.navTitle}>Wearable Bluetooth Sync</Text>
+                <View style={{ backgroundColor: "rgba(16, 185, 129, 0.2)", paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4 }}>
+                  <Text style={{ fontSize: 9, fontWeight: "900", color: "#10b981" }}>BLE</Text>
+                </View>
+              </View>
+              <Text style={styles.navSub}>Oura, Whoop, Garmin, Mi Band & Rings</Text>
+            </View>
+            <ChevronRight size={16} color="#475569" />
+          </Pressable>
 
           {/* Reminders & Alarms (New Dedicated Alarm Screen) */}
           <Pressable
