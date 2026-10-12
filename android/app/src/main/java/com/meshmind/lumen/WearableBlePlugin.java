@@ -70,6 +70,7 @@ import java.util.UUID;
         )
     }
 )
+@SuppressWarnings("deprecation")
 public class WearableBlePlugin extends Plugin {
 
     private static final String TAG = "WearableBlePlugin";
@@ -109,7 +110,7 @@ public class WearableBlePlugin extends Plugin {
      */
     @PluginMethod
     public void checkBlePermissions(PluginCall call) {
-        boolean granted = hasRequiredPermissions();
+        boolean granted = hasBlePermissions();
         JSObject ret = new JSObject();
         ret.put("granted", granted);
         ret.put("apiLevel", Build.VERSION.SDK_INT);
@@ -128,7 +129,7 @@ public class WearableBlePlugin extends Plugin {
      */
     @PluginMethod
     public void requestBlePermissions(PluginCall call) {
-        if (hasRequiredPermissions()) {
+        if (hasBlePermissions()) {
             JSObject ret = new JSObject();
             ret.put("granted", true);
             ret.put("alreadyGranted", true);
@@ -145,14 +146,14 @@ public class WearableBlePlugin extends Plugin {
 
     @PermissionCallback
     private void blePermissionsCallback(PluginCall call) {
-        boolean granted = hasRequiredPermissions();
+        boolean granted = hasBlePermissions();
         JSObject ret = new JSObject();
         ret.put("granted", granted);
         ret.put("apiLevel", Build.VERSION.SDK_INT);
         call.resolve(ret);
     }
 
-    private boolean hasRequiredPermissions() {
+    private boolean hasBlePermissions() {
         Context context = getContext();
         if (context == null) return false;
 
@@ -213,7 +214,7 @@ public class WearableBlePlugin extends Plugin {
     @SuppressLint("MissingPermission")
     @PluginMethod
     public void getBondedDevices(PluginCall call) {
-        if (!hasRequiredPermissions()) {
+        if (!hasBlePermissions()) {
             call.reject("Bluetooth permissions not granted");
             return;
         }
@@ -256,7 +257,7 @@ public class WearableBlePlugin extends Plugin {
     @SuppressLint("MissingPermission")
     @PluginMethod
     public void startScan(PluginCall call) {
-        if (!hasRequiredPermissions()) {
+        if (!hasBlePermissions()) {
             call.reject("Bluetooth permissions not granted. Call requestBlePermissions first.");
             return;
         }
@@ -384,7 +385,7 @@ public class WearableBlePlugin extends Plugin {
             return;
         }
 
-        if (!hasRequiredPermissions()) {
+        if (!hasBlePermissions()) {
             call.reject("Bluetooth permissions not granted");
             return;
         }
