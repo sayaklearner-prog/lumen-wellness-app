@@ -2,12 +2,13 @@
  * LUMEN DIGITAL WELLBEING & FOCUS MODE SERVICE
  * 
  * Inspired by Mindful (Digital Wellbeing & Screen Time Android Architecture):
- * - Real Android Settings Deep Links (Usage Access, Accessibility, DND, Overlay, Battery)
- * - State Machine for Active Focus Sessions & Pomodoro Intervals
- * - Mindful Quotes Engine & Guided Breathing Breaks
- * - Distracting App Preset Blocklists & Categories
- * - Screen Time Telemetry & Digital Balance Scoring
- * - Persistent Focus Logs in SQLite (db.ts)
+ * - Direct Bridge to Android's Native UsageStatsManager & AppOpsManager via DigitalWellbeingPlugin
+ * - Real Screen Time & App Usage Telemetry (YouTube, Instagram, WhatsApp, Chrome, etc.)
+ * - Automatic App Categorization: Productivity, Social, Entertainment, Gaming, Other
+ * - Real Screen Unlocks counter & Digital Balance scoring
+ * - Android Do Not Disturb (DND) Integration & Native Focus Notifications
+ * - Distracting App Preset Blocklists & Installed Apps selector
+ * - Local SQLite Caching & Backend Synchronization
  */
 
 import { Platform, Linking, Alert } from "react-native";
@@ -26,8 +27,44 @@ import {
 import { storage } from "./storage";
 
 // ============================================================================
-// 1. MINDFUL QUOTES DATABASE (Ported from Mindful Architecture)
+// 1. DATA MODELS & TELEMETRY
 // ============================================================================
+
+export interface AppUsageDetail {
+  packageName: string;
+  appName: string;
+  screenSeconds: number;
+  screenMinutes: number;
+  category: "productivity" | "social" | "entertainment" | "gaming" | "other";
+  icon?: string; // data:image/png;base64,...
+}
+
+export interface ScreenCategoryDetail {
+  minutes: number;
+  percentage: number;
+}
+
+export interface ScreenTimeTelemetry {
+  permissionGranted: boolean;
+  totalScreenSeconds: number;
+  totalScreenMinutes: number;
+  unlockCount: number;
+  categories: {
+    productivity: ScreenCategoryDetail;
+    social: ScreenCategoryDetail;
+    entertainment: ScreenCategoryDetail;
+    gaming: ScreenCategoryDetail;
+    other: ScreenCategoryDetail;
+  };
+  apps: AppUsageDetail[];
+  syncedAt?: string;
+}
+
+export interface InstalledAppItem {
+  packageName: string;
+  appName: string;
+  category: string;
+}
 
 export interface MindfulQuote {
   author: string;
@@ -164,10 +201,6 @@ export const DISTRACTING_CATEGORIES: DistractingCategory[] = [
   },
 ];
 
-// ============================================================================
-// 3. FOCUS SESSION TYPES & STATE MACHINE
-// ============================================================================
-
 export type FocusSessionType = "pomodoro" | "deep_work" | "quick_focus" | "flow_state" | "custom";
 
 export interface FocusPreset {
@@ -216,15 +249,83 @@ export interface LiveFocusState {
   targetSeconds: number;
   elapsedSeconds: number;
   remainingSeconds: number;
-  progressPercent: number; // 0 to 100
+  progressPercent: number;
   blockedCategories: string[];
   currentQuote: MindfulQuote;
   startedAtTimestamp: number;
 }
 
+// ============================================================================
+// 3. CAPACITOR BRIDGE
+// ============================================================================
+
+interface DigitalWellbeingNativePlugin {
+  checkUsagePermission(): Promise<{ granted: boolean; apiLevel: number }>;
+  requestUsagePermission(): Promise<{ requested: boolean }>;
+  checkDndPermission(): Promise<{ granted: boolean }>;
+  requestDndPermission(): Promise<{ requested: boolean }>;
+  setDndMode(options: { enabled: boolean }): Promise<{ success: boolean; enabled: boolean }>;
+  getTodayScreenTime(): Promise<{
+    permissionGranted: boolean;
+    totalScreenSeconds: number;
+    totalScreenMinutes: number;
+    unlockCount: number;
+    categories: {
+      productivity: ScreenCategoryDetail;
+      social: ScreenCategoryDetail;
+      entertainment: ScreenCategoryDetail;
+      gaming: ScreenCategoryDetail;
+      other: ScreenCategoryDetail;
+    };
+    apps: AppUsageDetail[];
+  }>;
+  getInstalledApps(): Promise<{ apps: InstalledAppItem[] }>;
+  startFocusSession(options: {
+    sessionType: string;
+    minutes: number;
+    enableDnd: boolean;
+  }): Promise<{ success: boolean }>;
+  stopFocusSession(): Promise<{ success: boolean }>;
+}
+
+const getCapacitor = () => {
+  if (typeof window !== "undefined" && (window as any).Capacitor) {
+    return (window as any).Capacitor;
+  }
+  return null;
+};
+
+const getNativePlugin = (): DigitalWellbeingNativePlugin | null => {
+  const cap = getCapacitor();
+  if (cap && cap.Plugins && cap.Plugins.DigitalWellbeing) {
+    return cap.Plugins.DigitalWellbeing as DigitalWellbeingNativePlugin;
+  }
+  return null;
+};
+
+// ============================================================================
+// 4. MAIN DIGITAL WELLBEING SERVICE CLASS
+// ============================================================================
+
 class DigitalWellbeingService {
   private timerRef: any = null;
-  private listeners: Set<(state: LiveFocusState) => void> = new Set();
+  private focusListeners: Set<(state: LiveFocusState) => void> = new Set();
+  private telemetryListeners: Set<(telemetry: ScreenTimeTelemetry) => void> = new Set();
+
+  private currentTelemetry: ScreenTimeTelemetry = {
+    permissionGranted: false,
+    totalScreenSeconds: 0,
+    totalScreenMinutes: 0,
+    unlockCount: 0,
+    categories: {
+      productivity: { minutes: 0, percentage: 0 },
+      social: { minutes: 0, percentage: 0 },
+      entertainment: { minutes: 0, percentage: 0 },
+      gaming: { minutes: 0, percentage: 0 },
+      other: { minutes: 0, percentage: 0 },
+    },
+    apps: [],
+  };
 
   private currentState: LiveFocusState = {
     isActive: false,
@@ -241,38 +342,263 @@ class DigitalWellbeingService {
 
   constructor() {
     this.restoreSessionIfActive();
+    this.loadCachedTelemetry();
   }
 
   public getState(): LiveFocusState {
     return { ...this.currentState };
   }
 
+  public getTelemetry(): ScreenTimeTelemetry {
+    return { ...this.currentTelemetry };
+  }
+
   public subscribe(listener: (state: LiveFocusState) => void): () => void {
-    this.listeners.add(listener);
+    this.focusListeners.add(listener);
     listener({ ...this.currentState });
     return () => {
-      this.listeners.delete(listener);
+      this.focusListeners.delete(listener);
     };
   }
 
-  private notify() {
+  public subscribeTelemetry(listener: (telemetry: ScreenTimeTelemetry) => void): () => void {
+    this.telemetryListeners.add(listener);
+    listener({ ...this.currentTelemetry });
+    return () => {
+      this.telemetryListeners.delete(listener);
+    };
+  }
+
+  private notifyFocus() {
     const copy = { ...this.currentState };
-    for (const listener of this.listeners) {
+    for (const listener of this.focusListeners) {
       try {
         listener(copy);
       } catch (err) {
-        console.warn("Wellbeing listener error:", err);
+        console.warn("Focus listener error:", err);
       }
     }
   }
 
-  private triggerHaptic() {
+  private notifyTelemetry() {
+    const copy = { ...this.currentTelemetry };
+    for (const listener of this.telemetryListeners) {
+      try {
+        listener(copy);
+      } catch (err) {
+        console.warn("Telemetry listener error:", err);
+      }
+    }
+  }
+
+  private triggerHaptic(style: Haptics.ImpactFeedbackStyle = Haptics.ImpactFeedbackStyle.Medium) {
     try {
       if (Platform.OS !== "web") {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        Haptics.impactAsync(style);
       }
     } catch {}
   }
+
+  private async loadCachedTelemetry() {
+    try {
+      const cached = await getScreenTimeToday();
+      if (cached) {
+        this.currentTelemetry = {
+          ...this.currentTelemetry,
+          totalScreenMinutes: cached.screenMinutes,
+          totalScreenSeconds: cached.screenMinutes * 60,
+          categories: {
+            productivity: { minutes: cached.productivityMinutes, percentage: 0 },
+            social: { minutes: cached.socialMinutes, percentage: 0 },
+            entertainment: { minutes: cached.mediaMinutes, percentage: 0 },
+            gaming: { minutes: 0, percentage: 0 },
+            other: { minutes: cached.wellbeingMinutes, percentage: 0 },
+          },
+          syncedAt: cached.loggedAt,
+        };
+        this.notifyTelemetry();
+      }
+    } catch {}
+  }
+
+  // ============================================================================
+  // 5. NATIVE ANDROID PERMISSION CHECKS & REQUESTS
+  // ============================================================================
+
+  public async checkUsagePermission(): Promise<{ granted: boolean }> {
+    const native = getNativePlugin();
+    if (native) {
+      try {
+        const res = await native.checkUsagePermission();
+        this.currentTelemetry.permissionGranted = res.granted;
+        this.notifyTelemetry();
+        return res;
+      } catch (err) {
+        console.warn("Error calling native checkUsagePermission:", err);
+      }
+    }
+    return { granted: false };
+  }
+
+  public async requestUsagePermission(): Promise<void> {
+    this.triggerHaptic();
+    const native = getNativePlugin();
+    if (native) {
+      try {
+        await native.requestUsagePermission();
+        return;
+      } catch (err) {
+        console.warn("Error calling native requestUsagePermission:", err);
+      }
+    }
+    // Fallback to deep link intent
+    await this.openUsageAccessSettings();
+  }
+
+  public async checkDndPermission(): Promise<{ granted: boolean }> {
+    const native = getNativePlugin();
+    if (native) {
+      try {
+        return await native.checkDndPermission();
+      } catch {}
+    }
+    return { granted: false };
+  }
+
+  public async requestDndPermission(): Promise<void> {
+    this.triggerHaptic();
+    const native = getNativePlugin();
+    if (native) {
+      try {
+        await native.requestDndPermission();
+        return;
+      } catch {}
+    }
+    await this.openDndSettings();
+  }
+
+  public async setDndMode(enabled: boolean): Promise<boolean> {
+    const native = getNativePlugin();
+    if (native) {
+      try {
+        const res = await native.setDndMode({ enabled });
+        return res.success;
+      } catch {}
+    }
+    return false;
+  }
+
+  // ============================================================================
+  // 6. REAL SCREEN TIME TELEMETRY SYNC
+  // ============================================================================
+
+  /**
+   * Fetches real phone screen time and app usage from Android UsageStatsManager
+   */
+  public async fetchTodayScreenTime(): Promise<ScreenTimeTelemetry> {
+    const native = getNativePlugin();
+
+    if (native) {
+      try {
+        const res = await native.getTodayScreenTime();
+
+        this.currentTelemetry = {
+          permissionGranted: res.permissionGranted,
+          totalScreenSeconds: res.totalScreenSeconds,
+          totalScreenMinutes: res.totalScreenMinutes,
+          unlockCount: res.unlockCount,
+          categories: res.categories,
+          apps: res.apps || [],
+          syncedAt: new Date().toISOString(),
+        };
+
+        if (res.permissionGranted && res.totalScreenMinutes >= 0) {
+          // Persist to local SQLite
+          const config = await getWellbeingConfig();
+          const screenRecord: ScreenTimeRecord = {
+            id: `screen-${new Date().toISOString().slice(0, 10)}`,
+            screenMinutes: res.totalScreenMinutes,
+            limitMinutes: config.dailyLimitMinutes || 240,
+            productivityMinutes: res.categories.productivity.minutes,
+            socialMinutes: res.categories.social.minutes,
+            mediaMinutes: res.categories.entertainment.minutes,
+            wellbeingMinutes: res.categories.other.minutes,
+            focusMode: this.currentState.isActive,
+            windDown: false,
+            loggedAt: new Date().toISOString(),
+          };
+          await saveScreenTime(screenRecord);
+
+          // Sync to Backend
+          this.syncTelemetryToBackend(this.currentTelemetry).catch((err) =>
+            console.warn("Background screen sync err:", err)
+          );
+        }
+
+        this.notifyTelemetry();
+        return this.currentTelemetry;
+      } catch (err) {
+        console.warn("Failed to fetch native screen time:", err);
+      }
+    }
+
+    // Fallback: load SQLite cached record
+    await this.loadCachedTelemetry();
+    return this.currentTelemetry;
+  }
+
+  public async getInstalledApps(): Promise<InstalledAppItem[]> {
+    const native = getNativePlugin();
+    if (native) {
+      try {
+        const res = await native.getInstalledApps();
+        return res.apps || [];
+      } catch {}
+    }
+    return [];
+  }
+
+  private async syncTelemetryToBackend(telemetry: ScreenTimeTelemetry): Promise<void> {
+    const payload = {
+      category: "all_apps",
+      duration_seconds: telemetry.totalScreenSeconds,
+      started_at: new Date(new Date().setHours(0, 0, 0, 0)).toISOString(),
+      ended_at: new Date().toISOString(),
+      date: new Date().toISOString().slice(0, 10),
+      totalMinutes: telemetry.totalScreenMinutes,
+      socialMinutes: telemetry.categories.social.minutes,
+      productivityMinutes: telemetry.categories.productivity.minutes,
+      entertainmentMinutes: telemetry.categories.entertainment.minutes,
+      otherMinutes: telemetry.categories.other.minutes,
+      unlockCount: telemetry.unlockCount,
+    };
+
+    const endpoints = [
+      "http://10.0.2.2:8000/api/v1/screentime",
+      "http://localhost:8000/api/v1/screentime",
+      "http://10.0.2.2:5001/api/screentime",
+      "http://localhost:5001/api/screentime",
+    ];
+
+    for (const url of endpoints) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
+        await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        break; // Successfully synced to active server
+      } catch {}
+    }
+  }
+
+  // ============================================================================
+  // 7. FOCUS SESSIONS & TIMERS
+  // ============================================================================
 
   private async restoreSessionIfActive() {
     try {
@@ -290,9 +616,8 @@ class DigitalWellbeingService {
               progressPercent: Math.min(100, Math.round((elapsed / parsed.targetSeconds) * 100)),
             };
             this.startTicker();
-            this.notify();
+            this.notifyFocus();
           } else {
-            // Expired in background -> auto complete
             await this.completeSession(5, "Completed in background");
           }
         }
@@ -300,16 +625,14 @@ class DigitalWellbeingService {
     } catch {}
   }
 
-  /**
-   * Start a new Focus Session
-   */
   public async startFocusSession(
     type: FocusSessionType = "pomodoro",
     minutes = 25,
-    blockedCategories: string[] = ["social", "video", "games"]
+    blockedCategories: string[] = ["social", "video", "games"],
+    enableDnd = true
   ): Promise<void> {
     this.stopTicker();
-    this.triggerHaptic();
+    this.triggerHaptic(Haptics.ImpactFeedbackStyle.Heavy);
 
     const targetSeconds = Math.max(60, minutes * 60);
     this.currentState = {
@@ -330,13 +653,24 @@ class DigitalWellbeingService {
       JSON.stringify(this.currentState)
     );
 
+    // Call native Android plugin for focus notification & DND
+    const native = getNativePlugin();
+    if (native) {
+      try {
+        await native.startFocusSession({
+          sessionType: type,
+          minutes,
+          enableDnd,
+        });
+      } catch (err) {
+        console.warn("Native startFocusSession err:", err);
+      }
+    }
+
     this.startTicker();
-    this.notify();
+    this.notifyFocus();
   }
 
-  /**
-   * Pause active session
-   */
   public pauseFocusSession(): void {
     if (!this.currentState.isActive || this.currentState.isPaused) return;
     this.stopTicker();
@@ -347,12 +681,9 @@ class DigitalWellbeingService {
       isPaused: true,
     };
     this.persistLiveSession();
-    this.notify();
+    this.notifyFocus();
   }
 
-  /**
-   * Resume paused session
-   */
   public resumeFocusSession(): void {
     if (!this.currentState.isActive || !this.currentState.isPaused) return;
     this.triggerHaptic();
@@ -363,15 +694,12 @@ class DigitalWellbeingService {
     };
     this.startTicker();
     this.persistLiveSession();
-    this.notify();
+    this.notifyFocus();
   }
 
-  /**
-   * Complete active session and log to SQLite database
-   */
   public async completeSession(reflectionScore = 5, reflectionNote?: string): Promise<FocusSessionRecord> {
     this.stopTicker();
-    this.triggerHaptic();
+    this.triggerHaptic(Haptics.ImpactFeedbackStyle.Heavy);
 
     const nowIso = new Date().toISOString();
     const completedRecord: FocusSessionRecord = {
@@ -390,6 +718,13 @@ class DigitalWellbeingService {
     await saveFocusSession(completedRecord);
     await storage.removeItem("lumen_live_focus_session");
 
+    const native = getNativePlugin();
+    if (native) {
+      try {
+        await native.stopFocusSession();
+      } catch {}
+    }
+
     this.currentState = {
       ...this.currentState,
       isActive: false,
@@ -397,20 +732,16 @@ class DigitalWellbeingService {
       progressPercent: 100,
       remainingSeconds: 0,
     };
-    this.notify();
+    this.notifyFocus();
 
     return completedRecord;
   }
 
-  /**
-   * Cancel/Stop active session
-   */
   public async cancelSession(): Promise<void> {
     this.stopTicker();
     this.triggerHaptic();
 
     if (this.currentState.isActive && this.currentState.elapsedSeconds > 60) {
-      // Save partial session as interrupted
       const record: FocusSessionRecord = {
         id: `focus-${Date.now()}`,
         sessionType: this.currentState.sessionType,
@@ -426,6 +757,13 @@ class DigitalWellbeingService {
 
     await storage.removeItem("lumen_live_focus_session");
 
+    const native = getNativePlugin();
+    if (native) {
+      try {
+        await native.stopFocusSession();
+      } catch {}
+    }
+
     this.currentState = {
       ...this.currentState,
       isActive: false,
@@ -434,7 +772,7 @@ class DigitalWellbeingService {
       remainingSeconds: this.currentState.targetSeconds,
       progressPercent: 0,
     };
-    this.notify();
+    this.notifyFocus();
   }
 
   private startTicker() {
@@ -446,7 +784,6 @@ class DigitalWellbeingService {
       const remaining = Math.max(0, this.currentState.targetSeconds - elapsed);
       const progress = Math.min(100, Math.round((elapsed / this.currentState.targetSeconds) * 100));
 
-      // Refresh quote every 5 minutes during deep work
       let quote = this.currentState.currentQuote;
       if (elapsed > 0 && elapsed % 300 === 0) {
         quote = getRandomMindfulQuote();
@@ -463,7 +800,7 @@ class DigitalWellbeingService {
       if (remaining <= 0) {
         await this.completeSession(5, "Session finished successfully");
       } else {
-        this.notify();
+        this.notifyFocus();
       }
     }, 1000);
   }
@@ -485,18 +822,13 @@ class DigitalWellbeingService {
   }
 
   // ============================================================================
-  // 4. ANDROID DEEP LINK INTENT LAUNCHERS (Mindful Architecture)
+  // 8. ANDROID DEEP LINK SETTINGS (Mindful PermissionsHelper)
   // ============================================================================
 
-  /**
-   * Open Android Usage Access Settings
-   * Matches Mindful's PermissionsHelper.getAndAskUsageAccessPermission
-   */
   public async openUsageAccessSettings(): Promise<boolean> {
     this.triggerHaptic();
     if (Platform.OS === "android") {
       try {
-        // Deep link with package URI directly to Lumen's toggle
         await Linking.openURL("intent:#Intent;action=android.settings.USAGE_ACCESS_SETTINGS;data=package:com.meshmind.lumen;end");
         return true;
       } catch {
@@ -513,10 +845,6 @@ class DigitalWellbeingService {
     return false;
   }
 
-  /**
-   * Open Android Accessibility Settings
-   * Matches Mindful's PermissionsHelper.getAndAskAccessibilityPermission
-   */
   public async openAccessibilitySettings(): Promise<boolean> {
     this.triggerHaptic();
     if (Platform.OS === "android") {
@@ -537,10 +865,6 @@ class DigitalWellbeingService {
     return false;
   }
 
-  /**
-   * Open Android Display Over Other Apps (Overlay) Permission
-   * Matches Mindful's PermissionsHelper.getAndAskDisplayOverlayPermission
-   */
   public async openOverlaySettings(): Promise<boolean> {
     this.triggerHaptic();
     if (Platform.OS === "android") {
@@ -561,10 +885,6 @@ class DigitalWellbeingService {
     return false;
   }
 
-  /**
-   * Open Android Do Not Disturb (DND) / Notification Policy Settings
-   * Matches Mindful's FocusSessionService DND toggle
-   */
   public async openDndSettings(): Promise<boolean> {
     this.triggerHaptic();
     if (Platform.OS === "android") {
@@ -585,48 +905,22 @@ class DigitalWellbeingService {
     return false;
   }
 
-  /**
-   * Open Android Battery Optimization Exemption
-   * Matches Mindful's PermissionsHelper.getAndAskBatteryOptimizationPermission
-   */
-  public async openBatteryOptimizationSettings(): Promise<boolean> {
-    this.triggerHaptic();
-    if (Platform.OS === "android") {
-      try {
-        await Linking.sendIntent("android.settings.IGNORE_BATTERY_OPTIMIZATION_SETTINGS");
-        return true;
-      } catch {
-        await Linking.openSettings();
-        return false;
-      }
-    }
-    await Linking.openSettings();
-    return false;
-  }
-
-  /**
-   * Guided Permissions Walkthrough Modal
-   */
   public promptGuidedPermissionDialog(): void {
     if (Platform.OS === "android") {
       Alert.alert(
         "🛡️ Digital Wellbeing & Screen Access",
-        "Lumen uses Android's native Usage Stats and Accessibility APIs to track your screen time and mute distracting apps during Focus Mode.\n\nChoose which permission to configure:",
+        "Lumen connects directly to Android's Usage Stats APIs to fetch real screen time, track app usage, and protect focus time.\n\nChoose permission to configure:",
         [
           {
             text: "1. Usage Access (Required for Screen Time)",
-            onPress: () => this.openUsageAccessSettings(),
+            onPress: () => this.requestUsagePermission(),
           },
           {
-            text: "2. Accessibility (For Focus Blocklist)",
-            onPress: () => this.openAccessibilitySettings(),
+            text: "2. Do Not Disturb (DND for Focus Mode)",
+            onPress: () => this.requestDndPermission(),
           },
           {
-            text: "3. Do Not Disturb (DND)",
-            onPress: () => this.openDndSettings(),
-          },
-          {
-            text: "Open App Settings",
+            text: "Open System App Settings",
             onPress: () => Linking.openSettings(),
           },
           { text: "Dismiss", style: "cancel" },
@@ -645,7 +939,7 @@ class DigitalWellbeingService {
   }
 
   // ============================================================================
-  // 5. SCREEN TELEMETRY & DIGITAL BALANCE SCORING
+  // 9. TELEMETRY & DIGITAL BALANCE SCORING
   // ============================================================================
 
   public computeTelemetry(screenMinutes: number, limitMinutes = 240) {
@@ -679,12 +973,6 @@ class DigitalWellbeingService {
       }
     }
 
-    // Realistic Category Breakdown based on screen time
-    const productivityMinutes = Math.round(screenMinutes * 0.45);
-    const socialMinutes = Math.round(screenMinutes * 0.30);
-    const mediaMinutes = Math.round(screenMinutes * 0.20);
-    const wellbeingMinutes = Math.max(0, screenMinutes - (productivityMinutes + socialMinutes + mediaMinutes));
-
     return {
       hours,
       mins,
@@ -695,36 +983,6 @@ class DigitalWellbeingService {
       balanceScore,
       statusLabel,
       statusBadgeColor,
-      categories: [
-        {
-          id: "productivity",
-          label: "💼 Productivity & Work",
-          minutes: productivityMinutes,
-          percent: 45,
-          color: "#10b981",
-        },
-        {
-          id: "social",
-          label: "💬 Social & Messaging",
-          minutes: socialMinutes,
-          percent: 30,
-          color: "#a855f7",
-        },
-        {
-          id: "media",
-          label: "🎬 Video & Streaming",
-          minutes: mediaMinutes,
-          percent: 20,
-          color: "#38bdf8",
-        },
-        {
-          id: "wellness",
-          label: "⚡ Lumen Health OS",
-          minutes: wellbeingMinutes,
-          percent: 5,
-          color: "#ec4899",
-        },
-      ],
     };
   }
 }

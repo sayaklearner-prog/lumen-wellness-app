@@ -7,6 +7,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(WearableBlePlugin.class);
+        registerPlugin(DigitalWellbeingPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

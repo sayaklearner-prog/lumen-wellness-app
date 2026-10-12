@@ -51,6 +51,8 @@ import {
   Play,
   Pause,
   RotateCcw,
+  RotateCw,
+  AlertCircle,
   Timer,
   BellOff,
   Wind,
@@ -95,6 +97,7 @@ import {
   FocusSessionType,
   getRandomMindfulQuote,
 } from "@/services/digitalWellbeingService";
+import { useScreenTime } from "@/hooks/useScreenTime";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -281,6 +284,21 @@ export default function DashboardScreen() {
   const [bedtimeHour, setBedtimeHour] = useState<string>("22:30");
   const [wakeHour, setWakeHour] = useState<string>("07:00");
   const [dndAutoToggle, setDndAutoToggle] = useState<boolean>(true);
+
+  // Native Screen Time & Digital Wellbeing telemetry hook (Mindful Engine)
+  const {
+    telemetry: screenTelemetry,
+    permissionGranted: usagePermissionGranted,
+    isRefreshing: isScreenRefreshing,
+    refreshScreenTime,
+    requestUsagePermission,
+  } = useScreenTime();
+
+  useEffect(() => {
+    if (screenTelemetry.totalScreenMinutes > 0) {
+      setScreenMinutesToday(screenTelemetry.totalScreenMinutes);
+    }
+  }, [screenTelemetry.totalScreenMinutes]);
 
   // Background app usage session tracking
   const appActiveTimestamp = useRef<number>(Date.now());
@@ -716,7 +734,8 @@ export default function DashboardScreen() {
     await digitalWellbeingService.startFocusSession(
       selectedFocusPreset,
       selectedFocusMinutes,
-      blockedCategories
+      blockedCategories,
+      dndAutoToggle
     );
   };
 
@@ -1518,7 +1537,14 @@ export default function DashboardScreen() {
                 <View>
                   {/* Today's Usage Banner */}
                   <View style={styles.screenUsageCard}>
-                    <Text style={styles.screenUsageLabel}>TODAY'S SCREEN TIME</Text>
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                      <Text style={styles.screenUsageLabel}>TODAY'S SCREEN TIME</Text>
+                      {screenTelemetry.unlockCount > 0 && (
+                        <Text style={{ fontSize: 11, color: "#94a3b8", fontWeight: "600" }}>
+                          🔓 {screenTelemetry.unlockCount} Unlocks Today
+                        </Text>
+                      )}
+                    </View>
                     <View style={styles.screenTimeLargeRow}>
                       <Text style={styles.screenTimeLarge}>
                         {Math.floor(screenMinutesToday / 60)}h {screenMinutesToday % 60}m
@@ -1574,68 +1600,100 @@ export default function DashboardScreen() {
                   </View>
 
                   {/* Android Native Permissions Center (Mindful Engine) */}
-                  <View style={styles.permissionCard}>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                      <ShieldCheck size={18} color="#a855f7" />
-                      <Text style={styles.permissionTitle}>Phone Usage & Accessibility Access</Text>
-                    </View>
-                    <Text style={styles.permissionDesc}>
-                      Lumen connects to Android's UsageStatsManager and Accessibility services to track real device screen time and enforce distraction shields.
-                    </Text>
-                    <View style={{ gap: 8 }}>
-                      <Pressable
-                        style={styles.permissionBtn}
-                        onPress={requestAccessibilityAndUsagePermission}
-                      >
-                        <Text style={styles.permissionBtnText}>🛡️ Guided Permission Setup (Wizard)</Text>
-                      </Pressable>
-                      <View style={{ flexDirection: "row", gap: 8 }}>
+                  {usagePermissionGranted ? (
+                    <View style={[styles.permissionCard, { borderColor: "rgba(16, 185, 129, 0.35)", backgroundColor: "rgba(16, 185, 129, 0.08)" }]}>
+                      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                          <CheckCircle2 size={17} color="#10b981" />
+                          <Text style={[styles.permissionTitle, { color: "#10b981" }]}>Android UsageStats Active</Text>
+                        </View>
                         <Pressable
-                          style={[styles.permissionBtnSecondary, { flex: 1 }]}
-                          onPress={openUsageAccessSettings}
+                          style={styles.syncSmallBtn}
+                          onPress={refreshScreenTime}
+                          disabled={isScreenRefreshing}
                         >
-                          <Text style={styles.permissionBtnSecondaryText}>Usage Access</Text>
-                        </Pressable>
-                        <Pressable
-                          style={[styles.permissionBtnSecondary, { flex: 1 }]}
-                          onPress={openAccessibilitySettings}
-                        >
-                          <Text style={styles.permissionBtnSecondaryText}>Accessibility</Text>
+                          <RotateCw size={11} color="#10b981" />
+                          <Text style={styles.syncSmallBtnText}>{isScreenRefreshing ? "Syncing..." : "Sync Live"}</Text>
                         </Pressable>
                       </View>
-                      <View style={{ flexDirection: "row", gap: 8 }}>
+                      <Text style={styles.permissionDesc}>
+                        Connected to Android UsageStatsManager. Reading live foreground screen time and app usage from your phone.
+                      </Text>
+                    </View>
+                  ) : (
+                    <View style={[styles.permissionCard, { borderColor: "rgba(245, 158, 11, 0.4)", backgroundColor: "rgba(245, 158, 11, 0.08)" }]}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                        <AlertCircle size={18} color="#f59e0b" />
+                        <Text style={[styles.permissionTitle, { color: "#f59e0b" }]}>Usage Access Required</Text>
+                      </View>
+                      <Text style={styles.permissionDesc}>
+                        Lumen needs Android Usage Access to read real screen time and show your installed app stats.
+                      </Text>
+                      <Pressable
+                        style={[styles.permissionBtn, { backgroundColor: "#f59e0b" }]}
+                        onPress={requestUsagePermission}
+                      >
+                        <Text style={[styles.permissionBtnText, { color: "#050b08" }]}>🛡️ Grant Usage Access (1-Tap)</Text>
+                      </Pressable>
+                      <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
+                        <Pressable
+                          style={[styles.permissionBtnSecondary, { flex: 1 }]}
+                          onPress={requestAccessibilityAndUsagePermission}
+                        >
+                          <Text style={styles.permissionBtnSecondaryText}>Guided Wizard</Text>
+                        </Pressable>
                         <Pressable
                           style={[styles.permissionBtnSecondary, { flex: 1 }]}
                           onPress={openDndSettings}
                         >
                           <Text style={styles.permissionBtnSecondaryText}>DND Policy</Text>
                         </Pressable>
-                        <Pressable
-                          style={[styles.permissionBtnSecondary, { flex: 1 }]}
-                          onPress={openOverlaySettings}
-                        >
-                          <Text style={styles.permissionBtnSecondaryText}>Display Overlay</Text>
-                        </Pressable>
                       </View>
                     </View>
-                  </View>
+                  )}
 
                   {/* App Category Breakdown */}
                   <Text style={styles.modalSectionLabel}>CATEGORY USAGE TELEMETRY</Text>
                   {screenMinutesToday === 0 ? (
                     <View style={styles.emptyCategoryCard}>
                       <Text style={styles.emptyCategoryText}>
-                        No screen time recorded yet today. Tap "Guided Permission Setup" above or use your phone apps to initialize usage stats.
+                        No screen time recorded yet today. Tap "Grant Usage Access" above to read actual phone stats.
                       </Text>
                     </View>
                   ) : (
                     <View style={styles.categoryList}>
                       {[
-                        { name: "💼 Productivity & Work", min: Math.round(screenMinutesToday * 0.45), pct: 45, color: "#10b981" },
-                        { name: "💬 Social & Messages", min: Math.round(screenMinutesToday * 0.30), pct: 30, color: "#a855f7" },
-                        { name: "🎬 Video & Media", min: Math.round(screenMinutesToday * 0.20), pct: 20, color: "#38bdf8" },
-                        { name: "⚡ Lumen Health OS", min: Math.max(1, Math.round(screenMinutesToday * 0.05)), pct: 5, color: "#ec4899" },
-                      ].map((cat, i) => (
+                        {
+                          name: "💼 Productivity & Work",
+                          min: screenTelemetry.categories.productivity.minutes || Math.round(screenMinutesToday * 0.45),
+                          pct: screenTelemetry.categories.productivity.percentage || 45,
+                          color: "#10b981",
+                        },
+                        {
+                          name: "💬 Social & Messages",
+                          min: screenTelemetry.categories.social.minutes || Math.round(screenMinutesToday * 0.30),
+                          pct: screenTelemetry.categories.social.percentage || 30,
+                          color: "#a855f7",
+                        },
+                        {
+                          name: "🎬 Video & Media",
+                          min: screenTelemetry.categories.entertainment.minutes || Math.round(screenMinutesToday * 0.20),
+                          pct: screenTelemetry.categories.entertainment.percentage || 20,
+                          color: "#38bdf8",
+                        },
+                        {
+                          name: "🎮 Gaming & Arcade",
+                          min: screenTelemetry.categories.gaming.minutes || 0,
+                          pct: screenTelemetry.categories.gaming.percentage || 0,
+                          color: "#ef4444",
+                        },
+                        {
+                          name: "⚡ Other & System",
+                          min: screenTelemetry.categories.other.minutes || Math.max(1, Math.round(screenMinutesToday * 0.05)),
+                          pct: screenTelemetry.categories.other.percentage || 5,
+                          color: "#ec4899",
+                        },
+                      ].filter(c => c.min > 0 || c.pct > 0).map((cat, i) => (
                         <View key={i} style={{ marginBottom: 6 }}>
                           <View style={styles.categoryRow}>
                             <Text style={styles.categoryName}>{cat.name}</Text>
@@ -1648,6 +1706,55 @@ export default function DashboardScreen() {
                           </View>
                         </View>
                       ))}
+                    </View>
+                  )}
+
+                  {/* Real Device Apps Telemetry (Mindful Engine) */}
+                  {screenTelemetry.apps && screenTelemetry.apps.length > 0 && (
+                    <View style={{ marginTop: 14 }}>
+                      <Text style={styles.modalSectionLabel}>TOP APPS USED TODAY</Text>
+                      <View style={{ gap: 8 }}>
+                        {screenTelemetry.apps.slice(0, 10).map((app, i) => (
+                          <View key={app.packageName || i} style={styles.realAppRow}>
+                            {app.icon ? (
+                              <Image source={{ uri: app.icon }} style={styles.realAppIcon} />
+                            ) : (
+                              <View style={styles.realAppIconPlaceholder}>
+                                <Text style={styles.realAppIconInitial}>{app.appName.charAt(0).toUpperCase()}</Text>
+                              </View>
+                            )}
+                            <View style={{ flex: 1, marginLeft: 10 }}>
+                              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                                <Text style={styles.realAppName} numberOfLines={1}>{app.appName}</Text>
+                                <Text style={styles.realAppTime}>
+                                  {Math.floor(app.screenMinutes / 60) > 0 ? `${Math.floor(app.screenMinutes / 60)}h ` : ""}
+                                  {app.screenMinutes % 60}m
+                                </Text>
+                              </View>
+                              <View style={styles.realAppTrack}>
+                                <View
+                                  style={[
+                                    styles.realAppFill,
+                                    {
+                                      width: `${Math.min(100, Math.max(4, (app.screenMinutes / (screenTelemetry.totalScreenMinutes || 1)) * 100))}%`,
+                                      backgroundColor:
+                                        app.category === "productivity"
+                                          ? "#10b981"
+                                          : app.category === "social"
+                                          ? "#a855f7"
+                                          : app.category === "entertainment"
+                                          ? "#38bdf8"
+                                          : app.category === "gaming"
+                                          ? "#ef4444"
+                                          : "#94a3b8",
+                                    },
+                                  ]}
+                                />
+                              </View>
+                            </View>
+                          </View>
+                        ))}
+                      </View>
                     </View>
                   )}
 
@@ -3435,5 +3542,70 @@ const styles = StyleSheet.create({
   reflectionChipTextActive: {
     color: "#10b981",
     fontWeight: "700",
+  },
+  syncSmallBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.3)",
+  },
+  syncSmallBtnText: {
+    color: "#10b981",
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  realAppRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.03)",
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.05)",
+  },
+  realAppIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+  },
+  realAppIconPlaceholder: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: "rgba(168, 85, 247, 0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  realAppIconInitial: {
+    color: "#a855f7",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  realAppName: {
+    color: "#f8fafc",
+    fontSize: 12,
+    fontWeight: "700",
+    maxWidth: 160,
+  },
+  realAppTime: {
+    color: "#cbd5e1",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  realAppTrack: {
+    height: 4,
+    backgroundColor: "rgba(255, 255, 255, 0.06)",
+    borderRadius: 2,
+    marginTop: 6,
+    overflow: "hidden",
+  },
+  realAppFill: {
+    height: 4,
+    borderRadius: 2,
   },
 });
