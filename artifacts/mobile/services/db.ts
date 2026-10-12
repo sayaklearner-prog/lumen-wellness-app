@@ -219,6 +219,13 @@ export async function getDb() {
         logged_at TEXT
       );
 
+      CREATE TABLE IF NOT EXISTS hydration_entries (
+        id TEXT PRIMARY KEY,
+        amount_ml INTEGER,
+        beverage_type TEXT,
+        logged_at TEXT
+      );
+
       CREATE TABLE IF NOT EXISTS screentime_logs (
         id TEXT PRIMARY KEY,
         screen_minutes INTEGER,
@@ -727,6 +734,78 @@ export async function setHydrationToday(cups: number): Promise<void> {
     );
   } catch (err) {
     console.warn("setHydrationToday error:", err);
+  }
+}
+
+export interface HydrationEntryRecord {
+  id: string;
+  amountMl: number;
+  beverageType: string;
+  loggedAt: string;
+}
+
+export async function addHydrationEntry(entry: HydrationEntryRecord): Promise<void> {
+  const store = getWebStore();
+  const entries: HydrationEntryRecord[] = store["hydration_entries"] || [];
+  entries.push(entry);
+  store["hydration_entries"] = entries;
+  saveWebStore(store);
+
+  const db = await getDb();
+  if (!db) return;
+
+  try {
+    await db.runAsync(
+      `INSERT INTO hydration_entries (id, amount_ml, beverage_type, logged_at) VALUES (?, ?, ?, ?)`,
+      entry.id,
+      entry.amountMl,
+      entry.beverageType,
+      entry.loggedAt
+    );
+  } catch (err) {
+    console.warn("addHydrationEntry error:", err);
+  }
+}
+
+export async function getHydrationEntriesToday(): Promise<HydrationEntryRecord[]> {
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const db = await getDb();
+
+  if (!db) {
+    const store = getWebStore();
+    const entries: HydrationEntryRecord[] = store["hydration_entries"] || [];
+    return entries.filter((e) => (e.loggedAt || "").startsWith(todayStr));
+  }
+
+  try {
+    const rows: any[] = await db.getAllAsync(
+      `SELECT id, amount_ml as amountMl, beverage_type as beverageType, logged_at as loggedAt
+       FROM hydration_entries
+       WHERE logged_at LIKE ?
+       ORDER BY logged_at ASC`,
+      `${todayStr}%`
+    );
+    return rows || [];
+  } catch {
+    const store = getWebStore();
+    const entries: HydrationEntryRecord[] = store["hydration_entries"] || [];
+    return entries.filter((e) => (e.loggedAt || "").startsWith(todayStr));
+  }
+}
+
+export async function deleteHydrationEntry(id: string): Promise<void> {
+  const store = getWebStore();
+  const entries: HydrationEntryRecord[] = store["hydration_entries"] || [];
+  store["hydration_entries"] = entries.filter((e) => e.id !== id);
+  saveWebStore(store);
+
+  const db = await getDb();
+  if (!db) return;
+
+  try {
+    await db.runAsync(`DELETE FROM hydration_entries WHERE id = ?`, id);
+  } catch (err) {
+    console.warn("deleteHydrationEntry error:", err);
   }
 }
 

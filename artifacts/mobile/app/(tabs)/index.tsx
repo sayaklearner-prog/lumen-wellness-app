@@ -15,6 +15,7 @@ import {
   AppStateStatus,
   Switch,
   Linking,
+  TextInput,
 } from "react-native";
 import { useRouter } from "expo-router";
 import {
@@ -58,6 +59,8 @@ import {
   Wind,
   Star,
   Layers,
+  Trash2,
+  Info,
 } from "lucide-react-native";
 import Svg, {
   Circle,
@@ -98,6 +101,7 @@ import {
   getRandomMindfulQuote,
 } from "@/services/digitalWellbeingService";
 import { useScreenTime } from "@/hooks/useScreenTime";
+import { useHydration } from "@/hooks/useHydration";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -246,6 +250,12 @@ export default function DashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [isSpeakingBriefing, setIsSpeakingBriefing] = useState(false);
   const [waterCups, setWaterCups] = useState(0);
+
+  // Hydration Mastery interactive state
+  const [showHydrationModal, setShowHydrationModal] = useState(false);
+  const [selectedHydrationBeverage, setSelectedHydrationBeverage] = useState("water");
+  const [customWaterInput, setCustomWaterInput] = useState("");
+  const [hydrationModalTab, setHydrationModalTab] = useState<"overview" | "roadmap" | "urine">("overview");
 
   // Wearable Health sync states
   const [syncStatus, setSyncStatus] = useState<HealthSyncStatus>({
@@ -487,6 +497,26 @@ export default function DashboardScreen() {
   const stepsTarget = profile?.dailyStepsTarget || 9000;
   const caloriesTarget = profile?.dailyCalorieTarget || 2100;
 
+  // Hydration Engine & Telemetry Hook
+  const {
+    hydration,
+    logDrink,
+    incrementCup,
+    decrementCup,
+    removeEntry,
+    refreshHydration,
+    presets: hydrationPresets,
+    beverageTypes: hydrationBeverageTypes,
+    schedule: hydrationSchedule,
+  } = useHydration(stepsCount, workouts?.length ? 45 : 0);
+
+  // Synchronize waterCups state with hydration hook
+  useEffect(() => {
+    if (hydration.todayCups >= 0) {
+      setWaterCups(Math.round(hydration.todayCups));
+    }
+  }, [hydration.todayCups]);
+
   // Real Consumed Calories (combine backend dashboard + local meals)
   const caloriesConsumed = Math.max(
     Number(dashboard?.caloriesConsumed || 0),
@@ -576,17 +606,19 @@ export default function DashboardScreen() {
 
   // 5. Dynamic Hydration Score & Label
   const dynamicHydrationScore = useMemo(() => {
+    if (hydration.score > 0) return hydration.score;
     if (waterCups === 0) return 0.0;
     const ratio = Math.min(1.25, waterCups / 8);
     return Number(Math.min(10.0, ratio * 8.5 + (waterCups >= 8 ? 1.5 : 0)).toFixed(1));
-  }, [waterCups]);
+  }, [hydration.score, waterCups]);
 
   const dynamicHydrationLabel = useMemo(() => {
+    if (hydration.statusLabel && hydration.todayMl > 0) return hydration.statusLabel;
     if (waterCups === 0) return "Not logged • Tap to log";
     if (waterCups >= 8) return `${waterCups} cups • Fully Hydrated`;
     if (waterCups >= 5) return `${waterCups} cups • Good Pace`;
     return `${waterCups} cups • Needs Water`;
-  }, [waterCups]);
+  }, [hydration.statusLabel, hydration.todayMl, waterCups]);
 
   // Composite Health Score: True average across all evaluated pillars (Nutrition, Hydration, Sleep, Activity, Screen Time)
   const dynamicOverallScore = useMemo(() => {
@@ -662,18 +694,14 @@ export default function DashboardScreen() {
     }
   };
 
-  const incrementWater = () => {
+  const incrementWater = async () => {
     triggerHaptic();
-    const nextVal = waterCups + 1;
-    setWaterCups(nextVal);
-    setHydrationToday(nextVal);
+    await incrementCup();
   };
 
-  const decrementWater = () => {
+  const decrementWater = async () => {
     triggerHaptic();
-    const nextVal = Math.max(0, waterCups - 1);
-    setWaterCups(nextVal);
-    setHydrationToday(nextVal);
+    await decrementCup();
   };
 
   // Sleep Modal save handler
@@ -1146,47 +1174,127 @@ export default function DashboardScreen() {
         </View>
 
         {/* ========================================================= */}
-        {/* HYDRATION WIDGET (Positioned below Nutrient, Sleep, Activity, Screen) */}
+        {/* HYDRATION & ELECTROLYTE WIDGET */}
         {/* ========================================================= */}
-        <View style={styles.hydrationCardWide}>
+        <Pressable
+          style={styles.hydrationCardWide}
+          onPress={() => {
+            triggerHaptic();
+            setShowHydrationModal(true);
+          }}
+        >
           <View style={styles.hydrationTopRow}>
             <View style={styles.dropCircle}>
               <Droplet size={18} color="#06b6d4" />
             </View>
             <View style={{ flex: 1, marginLeft: 12 }}>
               <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-                <Text style={styles.bioCardLabel}>Hydration</Text>
-                <Text style={[styles.pillarScore, { color: "#06b6d4" }]}>
-                  {dynamicHydrationScore > 0 ? dynamicHydrationScore.toFixed(1) : "0.0"}
-                </Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <Text style={styles.bioCardLabel}>Hydration & Electrolytes</Text>
+                  <View style={[styles.hydrationBadgePill, { backgroundColor: `${hydration.statusBadgeColor}22`, borderColor: `${hydration.statusBadgeColor}55` }]}>
+                    <Text style={[styles.hydrationBadgeText, { color: hydration.statusBadgeColor }]}>
+                      {hydration.percentUsed}%
+                    </Text>
+                  </View>
+                </View>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                  <Text style={[styles.pillarScore, { color: "#06b6d4" }]}>
+                    {dynamicHydrationScore > 0 ? dynamicHydrationScore.toFixed(1) : "0.0"}
+                  </Text>
+                  <ChevronRight size={16} color="#64748b" />
+                </View>
               </View>
-              <Text style={styles.bioCardValue}>{waterCups} / 8 cups ({waterCups * 250} ml)</Text>
+              <Text style={styles.bioCardValue}>
+                {hydration.todayMl > 0 ? `${hydration.todayMl.toLocaleString()} ml` : `${waterCups * 250} ml`}
+                <Text style={{ fontSize: 13, color: "#64748b", fontWeight: "600" }}>
+                  {" "}/ {hydration.targetMl.toLocaleString()} ml ({waterCups} / {hydration.targetCups} cups)
+                </Text>
+              </Text>
               <Text style={styles.pillarSubtitle}>{dynamicHydrationLabel}</Text>
             </View>
           </View>
 
-          {/* Quick Increment/Decrement Buttons & Progress Bar */}
-          <View style={styles.waterControlsRowWide}>
-            <View style={styles.waterBarTrack}>
-              <View
-                style={[
-                  styles.waterBarFill,
-                  { width: `${Math.min(100, (waterCups / 8) * 100)}%` },
-                ]}
-              />
-            </View>
+          {/* Progress Bar Track */}
+          <View style={styles.hydrationBarTrack}>
+            <View
+              style={[
+                styles.hydrationBarFill,
+                { width: `${Math.min(100, (hydration.todayMl / (hydration.targetMl || 2000)) * 100)}%` },
+              ]}
+            />
+          </View>
 
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-              <Pressable style={styles.waterBtn} onPress={decrementWater}>
+          {/* Quick Container Buttons Horizontal Carousel */}
+          <View style={styles.hydrationQuickRow}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hydrationPillsScroll}>
+              <Pressable
+                style={styles.hydrationQuickPill}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  logDrink(250, "water");
+                }}
+              >
+                <Text style={styles.hydrationQuickIcon}>🥛</Text>
+                <Text style={styles.hydrationQuickText}>+250ml</Text>
+              </Pressable>
+
+              <Pressable
+                style={styles.hydrationQuickPill}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  logDrink(500, "water");
+                }}
+              >
+                <Text style={styles.hydrationQuickIcon}>🍶</Text>
+                <Text style={styles.hydrationQuickText}>+500ml</Text>
+              </Pressable>
+
+              <Pressable
+                style={styles.hydrationQuickPill}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  logDrink(750, "water");
+                }}
+              >
+                <Text style={styles.hydrationQuickIcon}>🥤</Text>
+                <Text style={styles.hydrationQuickText}>+750ml</Text>
+              </Pressable>
+
+              <Pressable
+                style={[styles.hydrationQuickPill, { borderColor: "rgba(245, 158, 11, 0.4)", backgroundColor: "rgba(245, 158, 11, 0.1)" }]}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  logDrink(350, "electrolytes");
+                }}
+              >
+                <Text style={styles.hydrationQuickIcon}>⚡</Text>
+                <Text style={[styles.hydrationQuickText, { color: "#f59e0b" }]}>+350ml Electro</Text>
+              </Pressable>
+
+              <View style={styles.hydrationQuickDivider} />
+
+              <Pressable
+                style={styles.waterMiniBtn}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  decrementWater();
+                }}
+              >
                 <Minus size={14} color="#94a3b8" />
               </Pressable>
-              <Text style={styles.waterTargetText}>Target: 8 cups</Text>
-              <Pressable style={styles.waterBtn} onPress={incrementWater}>
+
+              <Pressable
+                style={styles.waterMiniBtn}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  incrementWater();
+                }}
+              >
                 <Plus size={14} color="#06b6d4" />
               </Pressable>
-            </View>
+            </ScrollView>
           </View>
-        </View>
+        </Pressable>
 
         {/* ========================================================= */}
         {/* ACTIVE STREAKS (Horizontal Carousel)                      */}
@@ -2178,6 +2286,470 @@ export default function DashboardScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* ========================================================= */}
+      {/* HYDRATION & ELECTROLYTE MASTERY MODAL                     */}
+      {/* ========================================================= */}
+      <Modal
+        visible={showHydrationModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowHydrationModal(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.modalPanel, { maxHeight: "90%" }]}>
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <View style={styles.hydrationHeaderIcon}>
+                    <Droplet size={18} color="#06b6d4" />
+                  </View>
+                  <Text style={styles.modalTitle}>Cellular Hydration Hub</Text>
+                </View>
+                <Text style={styles.modalSub}>
+                  Dynamic Target: {hydration.targetMl.toLocaleString()} ml • {hydration.targetCups} cups
+                </Text>
+              </View>
+              <Pressable
+                style={styles.modalCloseBtn}
+                onPress={() => {
+                  triggerHaptic();
+                  setShowHydrationModal(false);
+                }}
+              >
+                <X size={18} color="#cbd5e1" />
+              </Pressable>
+            </View>
+
+            {/* Segmented Navigation Tabs */}
+            <View style={styles.hydrationTabsRow}>
+              <Pressable
+                style={[
+                  styles.hydrationTabBtn,
+                  hydrationModalTab === "overview" && styles.hydrationTabBtnActive,
+                ]}
+                onPress={() => {
+                  triggerHaptic();
+                  setHydrationModalTab("overview");
+                }}
+              >
+                <Text
+                  style={[
+                    styles.hydrationTabBtnText,
+                    hydrationModalTab === "overview" && styles.hydrationTabBtnTextActive,
+                  ]}
+                >
+                  Overview & Log
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={[
+                  styles.hydrationTabBtn,
+                  hydrationModalTab === "roadmap" && styles.hydrationTabBtnActive,
+                ]}
+                onPress={() => {
+                  triggerHaptic();
+                  setHydrationModalTab("roadmap");
+                }}
+              >
+                <Text
+                  style={[
+                    styles.hydrationTabBtnText,
+                    hydrationModalTab === "roadmap" && styles.hydrationTabBtnTextActive,
+                  ]}
+                >
+                  Hourly Roadmap
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={[
+                  styles.hydrationTabBtn,
+                  hydrationModalTab === "urine" && styles.hydrationTabBtnActive,
+                ]}
+                onPress={() => {
+                  triggerHaptic();
+                  setHydrationModalTab("urine");
+                }}
+              >
+                <Text
+                  style={[
+                    styles.hydrationTabBtnText,
+                    hydrationModalTab === "urine" && styles.hydrationTabBtnTextActive,
+                  ]}
+                >
+                  Clinical Guide
+                </Text>
+              </Pressable>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 30 }}>
+              {/* TAB 1: OVERVIEW & QUICK LOG */}
+              {hydrationModalTab === "overview" && (
+                <View style={{ gap: 16 }}>
+                  {/* HERO RESERVOIR CARD */}
+                  <View style={styles.reservoirHeroCard}>
+                    <View style={styles.reservoirRow}>
+                      <View style={styles.reservoirLeftCol}>
+                        <Text style={styles.reservoirPercent}>{hydration.percentUsed}%</Text>
+                        <Text style={styles.reservoirSubtitle}>OF DAILY TARGET</Text>
+                        <View
+                          style={[
+                            styles.reservoirBadgePill,
+                            {
+                              backgroundColor: `${hydration.statusBadgeColor}22`,
+                              borderColor: `${hydration.statusBadgeColor}55`,
+                            },
+                          ]}
+                        >
+                          <Text style={[styles.reservoirBadgeText, { color: hydration.statusBadgeColor }]}>
+                            {hydration.statusLabel}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View style={styles.reservoirRightCol}>
+                        <Text style={styles.reservoirBigMl}>
+                          {hydration.todayMl.toLocaleString()}
+                          <Text style={styles.reservoirMlUnit}> ml</Text>
+                        </Text>
+                        <Text style={styles.reservoirCupsCount}>
+                          {hydration.todayCups.toFixed(1)} / {hydration.targetCups} cups logged
+                        </Text>
+                        <View style={styles.reservoirMetaBox}>
+                          <Sparkles size={12} color="#06b6d4" />
+                          <Text style={styles.reservoirMetaText}>
+                            Base 2,000ml + {Math.max(0, hydration.targetMl - 2000)}ml active burn
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+
+                    {/* Fluid Gauge Bar */}
+                    <View style={styles.reservoirGaugeTrack}>
+                      <View
+                        style={[
+                          styles.reservoirGaugeFill,
+                          {
+                            width: `${Math.min(100, (hydration.todayMl / (hydration.targetMl || 2000)) * 100)}%`,
+                          },
+                        ]}
+                      />
+                    </View>
+                  </View>
+
+                  {/* ACTIVE BEVERAGE TYPE SELECTOR */}
+                  <View style={styles.hydrationSectionBox}>
+                    <View style={styles.hydrationSectionHeader}>
+                      <Droplet size={14} color="#06b6d4" />
+                      <Text style={styles.hydrationSectionTitle}>Selected Beverage Type</Text>
+                    </View>
+                    <View style={styles.beverageChipsRow}>
+                      {Object.values(hydrationBeverageTypes).map((bev: any) => {
+                        const isSelected = selectedHydrationBeverage === bev.id;
+                        return (
+                          <Pressable
+                            key={bev.id}
+                            style={[
+                              styles.beverageChip,
+                              isSelected && {
+                                borderColor: bev.color,
+                                backgroundColor: `${bev.color}1a`,
+                              },
+                            ]}
+                            onPress={() => {
+                              triggerHaptic();
+                              setSelectedHydrationBeverage(bev.id);
+                            }}
+                          >
+                            <Text style={styles.beverageChipIcon}>{bev.icon}</Text>
+                            <View>
+                              <Text
+                                style={[
+                                  styles.beverageChipName,
+                                  isSelected && { color: bev.color, fontWeight: "800" },
+                                ]}
+                              >
+                                {bev.name}
+                              </Text>
+                              <Text style={styles.beverageChipFactor}>
+                                {bev.hydrationFactor}x factor
+                              </Text>
+                            </View>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </View>
+
+                  {/* QUICK CONTAINER PRESETS (6 TILES) */}
+                  <View style={styles.hydrationSectionBox}>
+                    <View style={styles.hydrationSectionHeader}>
+                      <Zap size={14} color="#10b981" />
+                      <Text style={styles.hydrationSectionTitle}>Quick Container Presets</Text>
+                    </View>
+                    <View style={styles.containerPresetsGrid}>
+                      {hydrationPresets.map((preset) => (
+                        <Pressable
+                          key={preset.id}
+                          style={styles.containerPresetCard}
+                          onPress={() => {
+                            logDrink(preset.amountMl, selectedHydrationBeverage);
+                          }}
+                        >
+                          <Text style={styles.presetIcon}>{preset.icon}</Text>
+                          <Text style={styles.presetLabel} numberOfLines={1}>
+                            {preset.label}
+                          </Text>
+                          <View
+                            style={[
+                              styles.presetBadge,
+                              { backgroundColor: `${preset.color}20`, borderColor: `${preset.color}40` },
+                            ]}
+                          >
+                            <Text style={[styles.presetBadgeText, { color: preset.color }]}>
+                              +{preset.amountMl} ml
+                            </Text>
+                          </View>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </View>
+
+                  {/* INTERACTIVE 10-CUP MATRIX */}
+                  <View style={styles.hydrationSectionBox}>
+                    <View style={styles.hydrationSectionHeader}>
+                      <Droplet size={14} color="#38bdf8" />
+                      <Text style={styles.hydrationSectionTitle}>Interactive Cups Matrix</Text>
+                      <Text style={styles.cupMatrixCount}>
+                        ({Math.round(hydration.todayCups)} / 10 cups)
+                      </Text>
+                    </View>
+                    <View style={styles.cupsMatrixGrid}>
+                      {Array.from({ length: 10 }).map((_, idx) => {
+                        const isFilled = idx < Math.floor(hydration.todayCups);
+                        return (
+                          <Pressable
+                            key={idx}
+                            style={[
+                              styles.cupMatrixItem,
+                              isFilled && styles.cupMatrixItemFilled,
+                            ]}
+                            onPress={() => {
+                              if (isFilled && idx === Math.floor(hydration.todayCups) - 1) {
+                                decrementWater();
+                              } else {
+                                logDrink(250, selectedHydrationBeverage);
+                              }
+                            }}
+                          >
+                            <Droplet
+                              size={20}
+                              color={isFilled ? "#06b6d4" : "#334155"}
+                              fill={isFilled ? "#06b6d4" : "transparent"}
+                            />
+                            <Text
+                              style={[
+                                styles.cupMatrixIndex,
+                                isFilled && { color: "#06b6d4", fontWeight: "800" },
+                              ]}
+                            >
+                              {idx + 1}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </View>
+
+                  {/* CUSTOM INTAKE VOLUME LOGGER */}
+                  <View style={styles.hydrationSectionBox}>
+                    <View style={styles.hydrationSectionHeader}>
+                      <Sliders size={14} color="#f59e0b" />
+                      <Text style={styles.hydrationSectionTitle}>Custom Volume Intake</Text>
+                    </View>
+                    <View style={styles.customIntakeRow}>
+                      {[100, 200, 300, 500].map((vol) => (
+                        <Pressable
+                          key={vol}
+                          style={styles.customVolChip}
+                          onPress={() => logDrink(vol, selectedHydrationBeverage)}
+                        >
+                          <Text style={styles.customVolText}>+{vol} ml</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </View>
+
+                  {/* TODAY'S INTAKE HISTORY LOG */}
+                  <View style={styles.hydrationSectionBox}>
+                    <View style={styles.hydrationSectionHeader}>
+                      <Clock size={14} color="#a855f7" />
+                      <Text style={styles.hydrationSectionTitle}>Today's Logged Intakes</Text>
+                      <Text style={styles.cupMatrixCount}>
+                        ({hydration.entries.length} entries)
+                      </Text>
+                    </View>
+
+                    {hydration.entries.length === 0 ? (
+                      <View style={styles.hydrationEmptyBox}>
+                        <Text style={styles.hydrationEmptyText}>
+                          No entries logged yet today. Tap any container or cup above to start!
+                        </Text>
+                      </View>
+                    ) : (
+                      <View style={{ gap: 8 }}>
+                        {hydration.entries.slice().reverse().map((entry) => {
+                          const bev = hydrationBeverageTypes[entry.beverageType || "water"] || {
+                            name: "Water",
+                            icon: "💧",
+                            color: "#06b6d4",
+                          };
+                          const timeStr = entry.loggedAt
+                            ? new Date(entry.loggedAt).toLocaleTimeString([], {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })
+                            : "Just now";
+
+                          return (
+                            <View key={entry.id} style={styles.hydrationEntryRow}>
+                              <View style={styles.hydrationEntryLeft}>
+                                <Text style={styles.hydrationEntryIcon}>{bev.icon}</Text>
+                                <View>
+                                  <Text style={styles.hydrationEntryName}>{bev.name}</Text>
+                                  <Text style={styles.hydrationEntryTime}>{timeStr}</Text>
+                                </View>
+                              </View>
+
+                              <View style={styles.hydrationEntryRight}>
+                                <Text style={styles.hydrationEntryAmount}>
+                                  +{entry.amountMl} ml
+                                </Text>
+                                <Pressable
+                                  style={styles.hydrationDeleteBtn}
+                                  onPress={() => removeEntry(entry.id)}
+                                >
+                                  <Trash2 size={14} color="#ef4444" />
+                                </Pressable>
+                              </View>
+                            </View>
+                          );
+                        })}
+                      </View>
+                    )}
+                  </View>
+                </View>
+              )}
+
+              {/* TAB 2: HOURLY ROADMAP */}
+              {hydrationModalTab === "roadmap" && (
+                <View style={{ gap: 12 }}>
+                  <View style={styles.roadmapIntroBox}>
+                    <Info size={16} color="#38bdf8" />
+                    <Text style={styles.roadmapIntroText}>
+                      Circadian fluid intake sustains cognitive peak without midnight sleep interruptions.
+                    </Text>
+                  </View>
+
+                  {hydrationSchedule.map((slot, sIdx) => (
+                    <View key={sIdx} style={styles.roadmapSlotCard}>
+                      <View style={styles.roadmapSlotHeader}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                          <Clock size={14} color="#06b6d4" />
+                          <Text style={styles.roadmapTime}>{slot.timeWindow}</Text>
+                        </View>
+                        <View style={styles.roadmapMlBadge}>
+                          <Text style={styles.roadmapMlText}>{slot.recommendedMl} ml</Text>
+                        </View>
+                      </View>
+                      <Text style={styles.roadmapPeriodName}>{slot.periodName}</Text>
+                      <Text style={styles.roadmapPurpose}>{slot.purpose}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {/* TAB 3: CLINICAL URINE GUIDE */}
+              {hydrationModalTab === "urine" && (
+                <View style={{ gap: 12 }}>
+                  <View style={styles.roadmapIntroBox}>
+                    <Info size={16} color="#10b981" />
+                    <Text style={styles.roadmapIntroText}>
+                      Clinical hydration monitoring scale based on metabolic solute concentration.
+                    </Text>
+                  </View>
+
+                  {[
+                    {
+                      level: "Level 1: Pale Straw / Lemon",
+                      color: "#fef08a",
+                      badge: "Optimal",
+                      badgeColor: "#10b981",
+                      description: "Ideal intracellular hydration equilibrium. Maintain normal sipping pace.",
+                    },
+                    {
+                      level: "Level 2: Completely Clear",
+                      color: "#f8fafc",
+                      badge: "High Hydration",
+                      badgeColor: "#38bdf8",
+                      description: "High fluid volume. Supplement with electrolytes to prevent sodium flushing.",
+                    },
+                    {
+                      level: "Level 3: Light Golden Yellow",
+                      color: "#fde047",
+                      badge: "Good",
+                      badgeColor: "#84cc16",
+                      description: "Healthy range. Drink 1 glass (250 ml) within the next hour.",
+                    },
+                    {
+                      level: "Level 4: Dark Amber / Honey",
+                      color: "#eab308",
+                      badge: "Dehydrated",
+                      badgeColor: "#f59e0b",
+                      description: "Cellular deficit. Drink 500 ml immediately and reduce caffeine intake.",
+                    },
+                    {
+                      level: "Level 5: Tea Brown / Dark Copper",
+                      color: "#b45309",
+                      badge: "Critical Deficit",
+                      badgeColor: "#ef4444",
+                      description: "Severe dehydration or high sweat loss. Rehydrate with electrolytes urgently.",
+                    },
+                  ].map((guide, gIdx) => (
+                    <View key={gIdx} style={styles.urineGuideCard}>
+                      <View style={styles.urineGuideTop}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                          <View
+                            style={[
+                              styles.urineColorSwatch,
+                              { backgroundColor: guide.color },
+                            ]}
+                          />
+                          <Text style={styles.urineGuideTitle}>{guide.level}</Text>
+                        </View>
+                        <View
+                          style={[
+                            styles.urineStatusBadge,
+                            { backgroundColor: `${guide.badgeColor}20`, borderColor: `${guide.badgeColor}40` },
+                          ]}
+                        >
+                          <Text style={[styles.urineStatusText, { color: guide.badgeColor }]}>
+                            {guide.badge}
+                          </Text>
+                        </View>
+                      </View>
+                      <Text style={styles.urineGuideDesc}>{guide.description}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -3009,24 +3581,475 @@ const styles = StyleSheet.create({
     borderColor: "rgba(6, 182, 212, 0.2)",
     marginBottom: 20,
   },
-  waterControlsRowWide: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: 14,
-    gap: 12,
+  hydrationBadgePill: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    borderWidth: 1,
   },
-  waterBarTrack: {
-    flex: 1,
+  hydrationBadgeText: {
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  hydrationBarTrack: {
     height: 6,
     backgroundColor: "rgba(255, 255, 255, 0.08)",
     borderRadius: 3,
+    marginTop: 14,
+    marginBottom: 10,
     overflow: "hidden",
   },
-  waterBarFill: {
+  hydrationBarFill: {
     height: 6,
     backgroundColor: "#06b6d4",
     borderRadius: 3,
+  },
+  hydrationQuickRow: {
+    marginTop: 4,
+  },
+  hydrationPillsScroll: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  hydrationQuickPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(6, 182, 212, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(6, 182, 212, 0.25)",
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  hydrationQuickIcon: {
+    fontSize: 13,
+  },
+  hydrationQuickText: {
+    color: "#06b6d4",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  hydrationQuickDivider: {
+    width: 1,
+    height: 20,
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    marginHorizontal: 4,
+  },
+  waterMiniBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: "#16232b",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.08)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  hydrationHeaderIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(6, 182, 212, 0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  hydrationTabsRow: {
+    flexDirection: "row",
+    backgroundColor: "rgba(255, 255, 255, 0.04)",
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 16,
+    gap: 4,
+  },
+  hydrationTabBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  hydrationTabBtnActive: {
+    backgroundColor: "rgba(6, 182, 212, 0.2)",
+    borderWidth: 1,
+    borderColor: "rgba(6, 182, 212, 0.4)",
+  },
+  hydrationTabBtnText: {
+    color: "#64748b",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  hydrationTabBtnTextActive: {
+    color: "#06b6d4",
+  },
+  reservoirHeroCard: {
+    backgroundColor: "#0d1a1f",
+    borderRadius: 18,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "rgba(6, 182, 212, 0.25)",
+  },
+  reservoirRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 14,
+  },
+  reservoirLeftCol: {
+    flex: 1,
+  },
+  reservoirPercent: {
+    fontSize: 34,
+    fontWeight: "900",
+    color: "#06b6d4",
+  },
+  reservoirSubtitle: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#64748b",
+    letterSpacing: 0.5,
+    marginTop: 2,
+    marginBottom: 6,
+  },
+  reservoirBadgePill: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  reservoirBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  reservoirRightCol: {
+    alignItems: "flex-end",
+  },
+  reservoirBigMl: {
+    fontSize: 26,
+    fontWeight: "900",
+    color: "#f8fafc",
+  },
+  reservoirMlUnit: {
+    fontSize: 14,
+    color: "#64748b",
+    fontWeight: "600",
+  },
+  reservoirCupsCount: {
+    fontSize: 12,
+    color: "#94a3b8",
+    fontWeight: "600",
+    marginTop: 2,
+  },
+  reservoirMetaBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 6,
+  },
+  reservoirMetaText: {
+    fontSize: 10,
+    color: "#64748b",
+  },
+  reservoirGaugeTrack: {
+    height: 8,
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    borderRadius: 4,
+    overflow: "hidden",
+  },
+  reservoirGaugeFill: {
+    height: 8,
+    backgroundColor: "#06b6d4",
+    borderRadius: 4,
+  },
+  hydrationSectionBox: {
+    backgroundColor: "rgba(255, 255, 255, 0.02)",
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.05)",
+  },
+  hydrationSectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 12,
+  },
+  hydrationSectionTitle: {
+    color: "#f8fafc",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  beverageChipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  beverageChip: {
+    flex: 1,
+    minWidth: "47%",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(255, 255, 255, 0.03)",
+    borderRadius: 12,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.08)",
+  },
+  beverageChipIcon: {
+    fontSize: 20,
+  },
+  beverageChipName: {
+    color: "#cbd5e1",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  beverageChipFactor: {
+    color: "#64748b",
+    fontSize: 10,
+  },
+  containerPresetsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  containerPresetCard: {
+    width: "31%",
+    backgroundColor: "rgba(255, 255, 255, 0.03)",
+    borderRadius: 14,
+    padding: 10,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.06)",
+  },
+  presetIcon: {
+    fontSize: 24,
+    marginBottom: 4,
+  },
+  presetLabel: {
+    color: "#f8fafc",
+    fontSize: 11,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  presetBadge: {
+    marginTop: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  presetBadgeText: {
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  cupMatrixCount: {
+    color: "#64748b",
+    fontSize: 11,
+    fontWeight: "600",
+    marginLeft: "auto",
+  },
+  cupsMatrixGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    justifyContent: "space-between",
+  },
+  cupMatrixItem: {
+    width: "18%",
+    aspectRatio: 1,
+    backgroundColor: "rgba(255, 255, 255, 0.02)",
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.06)",
+  },
+  cupMatrixItemFilled: {
+    backgroundColor: "rgba(6, 182, 212, 0.15)",
+    borderColor: "rgba(6, 182, 212, 0.4)",
+  },
+  cupMatrixIndex: {
+    color: "#64748b",
+    fontSize: 10,
+    fontWeight: "600",
+    marginTop: 2,
+  },
+  customIntakeRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  customVolChip: {
+    flex: 1,
+    backgroundColor: "rgba(245, 158, 11, 0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(245, 158, 11, 0.3)",
+    borderRadius: 10,
+    paddingVertical: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  customVolText: {
+    color: "#f59e0b",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  hydrationEmptyBox: {
+    padding: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  hydrationEmptyText: {
+    color: "#64748b",
+    fontSize: 12,
+    textAlign: "center",
+  },
+  hydrationEntryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(255, 255, 255, 0.03)",
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.05)",
+  },
+  hydrationEntryLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  hydrationEntryIcon: {
+    fontSize: 18,
+  },
+  hydrationEntryName: {
+    color: "#f8fafc",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  hydrationEntryTime: {
+    color: "#64748b",
+    fontSize: 10,
+    marginTop: 1,
+  },
+  hydrationEntryRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  hydrationEntryAmount: {
+    color: "#06b6d4",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  hydrationDeleteBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: "rgba(239, 68, 68, 0.1)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  roadmapIntroBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(56, 189, 248, 0.08)",
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(56, 189, 248, 0.2)",
+    marginBottom: 4,
+  },
+  roadmapIntroText: {
+    flex: 1,
+    color: "#94a3b8",
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  roadmapSlotCard: {
+    backgroundColor: "#0d1a1f",
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "rgba(6, 182, 212, 0.15)",
+  },
+  roadmapSlotHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  roadmapTime: {
+    color: "#06b6d4",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  roadmapMlBadge: {
+    backgroundColor: "rgba(6, 182, 212, 0.15)",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(6, 182, 212, 0.3)",
+  },
+  roadmapMlText: {
+    color: "#06b6d4",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  roadmapPeriodName: {
+    color: "#f8fafc",
+    fontSize: 13,
+    fontWeight: "800",
+    marginBottom: 2,
+  },
+  roadmapPurpose: {
+    color: "#94a3b8",
+    fontSize: 11,
+    lineHeight: 15,
+  },
+  urineGuideCard: {
+    backgroundColor: "rgba(255, 255, 255, 0.03)",
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.06)",
+  },
+  urineGuideTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  urineColorSwatch: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.2)",
+  },
+  urineGuideTitle: {
+    color: "#f8fafc",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  urineStatusBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  urineStatusText: {
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  urineGuideDesc: {
+    color: "#94a3b8",
+    fontSize: 11,
+    lineHeight: 15,
   },
   caloriesMacroCardWide: {
     backgroundColor: "#0c1511",
