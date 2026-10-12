@@ -358,3 +358,33 @@ class WorkoutInsightsResponse(BaseSchema):
 
 class WorkoutChallengesResponse(BaseSchema):
     challenges: List[str]
+
+# --- Wearable Sync Schemas ---
+class WearableSyncBase(BaseSchema):
+    device_id: str
+    device_name: str
+    brand: str
+    model: Optional[str] = None
+    steps: int = 0
+    active_calories: int = 0
+    total_calories: int = 0
+    distance_km: Optional[float] = None
+    sleep_duration_hours: Optional[float] = None
+    sleep_score: Optional[int] = None
+    deep_sleep_percent: Optional[int] = None
+    rem_sleep_percent: Optional[int] = None
+    heart_rate: Optional[int] = None
+    resting_heart_rate: Optional[int] = None
+    hrv_ms: Optional[int] = None
+    spo2_percent: Optional[int] = None
+    skin_temperature_c: Optional[float] = None
+    battery_level: Optional[int] = None
+    firmware_revision: Optional[str] = None
+
+class WearableSyncCreate(WearableSyncBase):
+    pass
+
+class WearableSyncResponse(WearableSyncBase):
+    id: str | uuid.UUID
+    synced_at: datetime
+

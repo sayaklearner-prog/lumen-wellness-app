@@ -186,3 +186,28 @@ class Medication(Base):
     taken: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     scheduled_for: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     taken_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+class WearableSync(Base):
+    __tablename__ = "wearable_syncs"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    device_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    device_name: Mapped[str] = mapped_column(String, nullable=False)
+    brand: Mapped[str] = mapped_column(String, nullable=False)
+    model: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    steps: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    active_calories: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    total_calories: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    distance_km: Mapped[Optional[float]] = mapped_column(Numeric(6, 2), nullable=True)
+    sleep_duration_hours: Mapped[Optional[float]] = mapped_column(Numeric(4, 2), nullable=True)
+    sleep_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    deep_sleep_percent: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    rem_sleep_percent: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    heart_rate: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    resting_heart_rate: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    hrv_ms: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    spo2_percent: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    skin_temperature_c: Mapped[Optional[float]] = mapped_column(Numeric(4, 2), nullable=True)
+    battery_level: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    firmware_revision: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    synced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=datetime.utcnow, index=True)
+

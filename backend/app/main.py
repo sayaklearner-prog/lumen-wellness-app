@@ -41,7 +41,7 @@ from app.api.routers import (
     dashboard, profiles, goals, workouts, meals,
     sleep, screentime, vitals, mentalwellness,
     bodymeasurements, hydration, medications,
-    anthropic, glucose, planner, reminders, intelligence, auth
+    anthropic, glucose, planner, reminders, intelligence, auth, wearables
 )
 from app.ai.memory_sync import register_listeners
 
@@ -71,6 +71,8 @@ app.include_router(glucose.router, prefix=settings.API_V1_STR)
 app.include_router(reminders.router, prefix=settings.API_V1_STR)
 app.include_router(intelligence.router, prefix=settings.API_V1_STR)
 app.include_router(auth.router, prefix=settings.API_V1_STR)
+app.include_router(wearables.router, prefix=settings.API_V1_STR)
+
 @app.get("/health")
 
 async def health_check():

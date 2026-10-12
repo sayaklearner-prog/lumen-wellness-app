@@ -18,6 +18,7 @@ import focusRouter from "./focus";
 import glucoseRouter from "./glucose";
 import onboardingRouter from "./onboarding";
 import authRouter from "./auth";
+import wearablesRouter from "./wearables";
 
 const router: IRouter = Router();
 
@@ -40,5 +41,7 @@ router.use(focusRouter);
 router.use(glucoseRouter);
 router.use(onboardingRouter);
 router.use(authRouter);
+router.use(wearablesRouter);
 
 export default router;
+

@@ -20,6 +20,7 @@ export function useWearableSync() {
   );
   const [isScanning, setIsScanning] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [permissionGranted, setPermissionGranted] = useState<boolean | null>(null);
 
   const triggerHaptic = (style: Haptics.ImpactFeedbackStyle = Haptics.ImpactFeedbackStyle.Light) => {
     if (Platform.OS !== "web") {
@@ -38,10 +39,22 @@ export function useWearableSync() {
       setConnectedDevice(newDev);
     });
 
+    // Check initial permission status
+    wearableSyncService.checkPermissions().then((res) => {
+      setPermissionGranted(res.granted);
+    });
+
     return () => {
       unsubTel();
       unsubDev();
     };
+  }, []);
+
+  const requestPermissions = useCallback(async () => {
+    triggerHaptic(Haptics.ImpactFeedbackStyle.Medium);
+    const res = await wearableSyncService.requestPermissions();
+    setPermissionGranted(res.granted);
+    return res.granted;
   }, []);
 
   const scanDevices = useCallback(async () => {
@@ -52,6 +65,8 @@ export function useWearableSync() {
       if (res.devices) {
         setDiscoveredDevices(res.devices);
       }
+      const perm = await wearableSyncService.checkPermissions();
+      setPermissionGranted(perm.granted);
     } finally {
       setIsScanning(false);
     }
@@ -92,6 +107,8 @@ export function useWearableSync() {
     discoveredDevices,
     isScanning,
     isSyncing,
+    permissionGranted,
+    requestPermissions,
     scanDevices,
     connectDevice,
     syncNow,

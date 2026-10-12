@@ -113,6 +113,8 @@ export default function ActivityScreen() {
     discoveredDevices,
     isScanning: isBleScanning,
     isSyncing: isBleSyncing,
+    permissionGranted: blePermissionGranted,
+    requestPermissions: requestBlePermissions,
     scanDevices: scanBleDevices,
     connectDevice: connectBleDevice,
     syncNow: syncBleNow,
@@ -120,6 +122,7 @@ export default function ActivityScreen() {
   } = useWearableSync();
 
   const [wearableFilter, setWearableFilter] = useState<"all" | "ring" | "watch" | "band" | "chest_strap">("all");
+
 
   useEffect(() => {
     if (params?.tab === "wearable") {
@@ -784,8 +787,36 @@ export default function ActivityScreen() {
         {/* ========================================================================= */}
         {activeMainTab === "wearable" && (
           <View style={{ gap: 16 }}>
+            {/* Native Android Bluetooth Permission Status Banner */}
+            {blePermissionGranted === false && (
+              <View style={styles.blePermissionBanner}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
+                  <View style={styles.bleAlertIconBox}>
+                    <Bluetooth size={18} color="#f59e0b" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.blePermTitle}>Bluetooth Permission Required</Text>
+                    <Text style={styles.blePermDesc}>
+                      Android requires Nearby Devices permission to scan and sync smart rings, watches, and bands.
+                    </Text>
+                  </View>
+                </View>
+                <Pressable style={styles.bleGrantBtn} onPress={requestBlePermissions}>
+                  <Text style={styles.bleGrantBtnText}>Grant Access</Text>
+                </Pressable>
+              </View>
+            )}
+
+            {blePermissionGranted === true && (
+              <View style={styles.bleReadyPillRow}>
+                <View style={styles.bleReadyDot} />
+                <Text style={styles.bleReadyText}>Android Bluetooth Hardware Access Granted • Ready to Pair</Text>
+              </View>
+            )}
+
             {/* Active Device Overview Card */}
             <View style={styles.wearableHeroCard}>
+
               <View style={styles.wearableHeroHeader}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
                   <View style={styles.wearableIconBadge}>
@@ -2921,4 +2952,68 @@ const styles = StyleSheet.create({
   pairActionBtnTextConnected: {
     color: "#94a3b8",
   },
+  blePermissionBanner: {
+    backgroundColor: "rgba(245, 158, 11, 0.1)",
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "rgba(245, 158, 11, 0.3)",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  bleAlertIconBox: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: "rgba(245, 158, 11, 0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  blePermTitle: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#f59e0b",
+  },
+  blePermDesc: {
+    fontSize: 10,
+    color: "#94a3b8",
+    marginTop: 2,
+    lineHeight: 14,
+  },
+  bleGrantBtn: {
+    backgroundColor: "#f59e0b",
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+  },
+  bleGrantBtnText: {
+    color: "#050b08",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  bleReadyPillRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(16, 185, 129, 0.08)",
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.2)",
+  },
+  bleReadyDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#10b981",
+  },
+  bleReadyText: {
+    fontSize: 10,
+    color: "#10b981",
+    fontWeight: "700",
+  },
 });
+
