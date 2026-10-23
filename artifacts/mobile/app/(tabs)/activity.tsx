@@ -267,8 +267,13 @@ export default function ActivityScreen() {
   );
 
   // FITNESS WATCH ACTION HANDLERS
+  const handleStartTreadmill = () => {
+    setSelectedWatchMode("treadmill");
+    startWorkout("treadmill");
+  };
+
   const handleStartWatch = () => {
-    startWorkout(selectedWatchMode);
+    handleStartTreadmill();
   };
 
   const handleFinishWatch = async () => {
@@ -594,28 +599,20 @@ export default function ActivityScreen() {
                   <Text style={[styles.watchStatusPill, isWearableActive && { backgroundColor: "rgba(56, 189, 248, 0.2)", borderColor: "rgba(56, 189, 248, 0.4)", color: "#38bdf8" }]}>
                     {isWearableActive
                       ? `⌚ WEARABLE EXTRACT (${connectedDevice?.name || "DEVICE"})`
-                      : watchMetrics.isPaused
-                        ? "SESSION PAUSED"
-                        : watchMetrics.isActive
-                          ? "● WORKOUT RECORDING LIVE"
-                          : "● STEP TRACKER ALWAYS ON"}
+                      : watchMetrics.detectedActivity === "running"
+                        ? "🏃 OUTDOOR RUNNING (AUTO-DETECTED)"
+                        : watchMetrics.detectedActivity === "walking"
+                          ? "🚶 OUTDOOR WALKING (AUTO-DETECTED)"
+                          : "● AUTONOMOUS MOTION SENSING ACTIVE"}
                   </Text>
 
                   {/* Dynamic primary counter based on workout mode */}
                   <View style={styles.primaryMetricBox}>
                     <Text style={styles.primaryMetricVal}>
-                      {watchMetrics.isActive
-                        ? (watchMetrics.mode === "strength_reps" ? watchMetrics.reps :
-                           watchMetrics.mode === "jumprope" ? watchMetrics.jumps :
-                           watchMetrics.mode === "sports_games" ? watchMetrics.swings :
-                           watchMetrics.mode === "cycling" ? watchMetrics.cadenceSpm :
-                           watchMetrics.steps.toLocaleString())
-                        : stepsToday.toLocaleString()}
+                      {stepsToday.toLocaleString()}
                     </Text>
                     <Text style={styles.primaryMetricUnit}>
-                      {watchMetrics.isActive
-                        ? WORKOUT_MODE_INFO[watchMetrics.mode].primaryUnit
-                        : "Daily Steps (Continuous)"}
+                      Daily Steps (Auto-Tracked 24/7)
                     </Text>
                   </View>
                 </View>
@@ -714,32 +711,12 @@ export default function ActivityScreen() {
                 </View>
               </View>
 
-              {/* Watch Session Control Buttons */}
-              <View style={styles.controlsRow}>
-                {!watchMetrics.isActive ? (
-                  <Pressable style={styles.startWorkoutBtn} onPress={handleStartWatch}>
-                    <Play size={18} color="#050b08" fill="#050b08" style={{ marginRight: 8 }} />
-                    <Text style={styles.startWorkoutText}>START FOCUSED {WORKOUT_MODE_INFO[selectedWatchMode].name.toUpperCase()} SESSION</Text>
-                  </Pressable>
-                ) : (
-                  <>
-                    {watchMetrics.isPaused ? (
-                      <Pressable style={styles.resumeWorkoutBtn} onPress={resumeWorkout}>
-                        <Play size={18} color="#050b08" fill="#050b08" style={{ marginRight: 6 }} />
-                        <Text style={styles.controlBtnTextDark}>RESUME</Text>
-                      </Pressable>
-                    ) : (
-                      <Pressable style={styles.pauseWorkoutBtn} onPress={pauseWorkout}>
-                        <Pause size={18} color="#f8fafc" style={{ marginRight: 6 }} />
-                        <Text style={styles.controlBtnTextLight}>PAUSE</Text>
-                      </Pressable>
-                    )}
-                    <Pressable style={styles.finishWorkoutBtn} onPress={handleFinishWatch}>
-                      <Square size={16} color="#050b08" fill="#050b08" style={{ marginRight: 6 }} />
-                      <Text style={styles.controlBtnTextDark}>FINISH & SAVE</Text>
-                    </Pressable>
-                  </>
-                )}
+              {/* Autonomous Motion Auto-Detection Info Footer */}
+              <View style={styles.autoMotionHintRow}>
+                <Sparkles size={14} color="#10b981" />
+                <Text style={styles.autoMotionHintText}>
+                  Outdoor walking & running strides are auto-detected 24/7. No manual start needed.
+                </Text>
               </View>
             </View>
 
@@ -800,44 +777,90 @@ export default function ActivityScreen() {
               </View>
             </View>
 
-            {/* Workout Mode Selector (Select exercise or game to track) */}
-            <View style={styles.modeSelectorCard}>
-              <View style={styles.modeSelectorHeader}>
-                <Text style={styles.modeSelectorTitle}>Select Exercise or Game</Text>
-                <Text style={styles.modeSelectorSub}>Sensors adapt physics algorithms automatically</Text>
+            {/* Dedicated Treadmill Machine Workout Session Card */}
+            <View style={styles.treadmillCard}>
+              <View style={styles.treadmillHeader}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
+                  <View style={styles.treadmillIconBox}>
+                    <Text style={{ fontSize: 24 }}>🏃‍♂️</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.treadmillTitle}>Treadmill Workout Session</Text>
+                    <Text style={styles.treadmillSub}>
+                      {watchMetrics.isActive && watchMetrics.mode === "treadmill"
+                        ? (watchMetrics.isPaused ? "Session Paused • Press Resume" : "Session Active • Recording Indoor Belt Run")
+                        : "Indoor gym machine workout • Dedicated session tracker"}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.indoorBadge}>
+                  <Text style={styles.indoorBadgeText}>GYM MACHINE</Text>
+                </View>
               </View>
 
-              <View style={styles.modeGrid}>
-                {(Object.keys(WORKOUT_MODE_INFO) as WorkoutMode[]).map((modeKey) => {
-                  const info = WORKOUT_MODE_INFO[modeKey];
-                  const isSelected = selectedWatchMode === modeKey;
-                  return (
-                    <Pressable
-                      key={modeKey}
-                      style={[styles.modeTile, isSelected && styles.modeTileActive]}
-                      onPress={() => {
-                        if (!watchMetrics.isActive) {
-                          setSelectedWatchMode(modeKey);
-                        } else {
-                          Alert.alert("Session Active", "Finish or pause current session before switching modes.");
-                        }
-                      }}
-                    >
-                      <View style={styles.modeTileTop}>
-                        <Text style={{ fontSize: 26 }}>{info.icon}</Text>
-                        <View style={[styles.metBadgeSmall, isSelected && { backgroundColor: "rgba(16, 185, 129, 0.25)" }]}>
-                          <Text style={[styles.metBadgeTextSmall, isSelected && { color: "#10b981" }]}>
-                            {info.baseMet} MET
-                          </Text>
-                        </View>
-                      </View>
-                      <Text style={[styles.modeTileTitle, isSelected && styles.modeTileTitleActive]}>
-                        {info.name}
+              {/* Treadmill Live Session View (When Active) */}
+              {watchMetrics.isActive && watchMetrics.mode === "treadmill" && (
+                <View style={styles.treadmillActiveBox}>
+                  <View style={styles.treadmillTimerRow}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <Timer size={18} color="#10b981" />
+                      <Text style={styles.treadmillTimerVal}>{formatTime(watchMetrics.elapsedSeconds)}</Text>
+                    </View>
+                    <View style={styles.treadmillLivePill}>
+                      <View style={styles.treadmillLiveDot} />
+                      <Text style={styles.treadmillLiveText}>
+                        {watchMetrics.isPaused ? "PAUSED" : "RECORDING"}
                       </Text>
-                      <Text style={styles.modeTileHint} numberOfLines={2}>{info.hint}</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.treadmillMetricsGrid}>
+                    <View style={styles.treadmillMetricCell}>
+                      <Text style={styles.treadmillMetricVal}>{watchMetrics.steps.toLocaleString()}</Text>
+                      <Text style={styles.treadmillMetricLabel}>Session Steps</Text>
+                    </View>
+                    <View style={styles.treadmillMetricCell}>
+                      <Text style={styles.treadmillMetricVal}>{watchMetrics.distanceKm} <Text style={{ fontSize: 11 }}>km</Text></Text>
+                      <Text style={styles.treadmillMetricLabel}>Distance</Text>
+                    </View>
+                    <View style={styles.treadmillMetricCell}>
+                      <Text style={styles.treadmillMetricVal}>{watchMetrics.activeCalories} <Text style={{ fontSize: 11 }}>kcal</Text></Text>
+                      <Text style={styles.treadmillMetricLabel}>Active Burn</Text>
+                    </View>
+                    <View style={styles.treadmillMetricCell}>
+                      <Text style={styles.treadmillMetricVal}>{watchMetrics.cadenceSpm} <Text style={{ fontSize: 11 }}>SPM</Text></Text>
+                      <Text style={styles.treadmillMetricLabel}>Pace: {watchMetrics.paceMinKm}</Text>
+                    </View>
+                  </View>
+                </View>
+              )}
+
+              {/* Treadmill Session Control Buttons */}
+              <View style={styles.treadmillControlsRow}>
+                {!(watchMetrics.isActive && watchMetrics.mode === "treadmill") ? (
+                  <Pressable style={styles.startTreadmillBtn} onPress={handleStartTreadmill}>
+                    <Play size={18} color="#050b08" fill="#050b08" style={{ marginRight: 8 }} />
+                    <Text style={styles.startTreadmillText}>START TREADMILL WORKOUT</Text>
+                  </Pressable>
+                ) : (
+                  <View style={{ flexDirection: "row", gap: 10, width: "100%" }}>
+                    {watchMetrics.isPaused ? (
+                      <Pressable style={styles.resumeWorkoutBtn} onPress={resumeWorkout}>
+                        <Play size={18} color="#050b08" fill="#050b08" style={{ marginRight: 6 }} />
+                        <Text style={styles.controlBtnTextDark}>RESUME</Text>
+                      </Pressable>
+                    ) : (
+                      <Pressable style={styles.pauseWorkoutBtn} onPress={pauseWorkout}>
+                        <Pause size={18} color="#f8fafc" style={{ marginRight: 6 }} />
+                        <Text style={styles.controlBtnTextLight}>PAUSE</Text>
+                      </Pressable>
+                    )}
+                    <Pressable style={styles.finishWorkoutBtn} onPress={handleFinishWatch}>
+                      <Square size={16} color="#050b08" fill="#050b08" style={{ marginRight: 6 }} />
+                      <Text style={styles.controlBtnTextDark}>FINISH & SAVE</Text>
                     </Pressable>
-                  );
-                })}
+                  </View>
+                )}
               </View>
             </View>
 
@@ -3217,6 +3240,149 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "700",
     color: "#64748b",
+  },
+  autoMotionHintRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(16, 185, 129, 0.08)",
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 8,
+    marginTop: 6,
+  },
+  autoMotionHintText: {
+    fontSize: 11,
+    color: "#94a3b8",
+    fontWeight: "600",
+    flex: 1,
+  },
+  treadmillCard: {
+    backgroundColor: "#0b1912",
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.25)",
+    gap: 12,
+  },
+  treadmillHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  treadmillIconBox: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  treadmillTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#f8fafc",
+  },
+  treadmillSub: {
+    fontSize: 11,
+    color: "#94a3b8",
+    marginTop: 2,
+  },
+  indoorBadge: {
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.3)",
+  },
+  indoorBadgeText: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: "#10b981",
+    letterSpacing: 0.5,
+  },
+  treadmillActiveBox: {
+    backgroundColor: "rgba(0, 0, 0, 0.35)",
+    borderRadius: 14,
+    padding: 12,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.2)",
+  },
+  treadmillTimerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  treadmillTimerVal: {
+    fontSize: 22,
+    fontWeight: "900",
+    color: "#f8fafc",
+    fontVariant: ["tabular-nums"],
+  },
+  treadmillLivePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  treadmillLiveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#10b981",
+  },
+  treadmillLiveText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#10b981",
+    letterSpacing: 0.5,
+  },
+  treadmillMetricsGrid: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 6,
+  },
+  treadmillMetricCell: {
+    flex: 1,
+    backgroundColor: "rgba(255, 255, 255, 0.04)",
+    borderRadius: 10,
+    padding: 8,
+    alignItems: "center",
+  },
+  treadmillMetricVal: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#f8fafc",
+  },
+  treadmillMetricLabel: {
+    fontSize: 9,
+    color: "#94a3b8",
+    marginTop: 2,
+    fontWeight: "600",
+  },
+  treadmillControlsRow: {
+    flexDirection: "row",
+    marginTop: 4,
+  },
+  startTreadmillBtn: {
+    flex: 1,
+    backgroundColor: "#10b981",
+    borderRadius: 12,
+    paddingVertical: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  startTreadmillText: {
+    fontSize: 13,
+    fontWeight: "900",
+    color: "#050b08",
+    letterSpacing: 0.5,
   },
 });
 

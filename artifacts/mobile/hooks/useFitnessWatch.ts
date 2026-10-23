@@ -1,16 +1,9 @@
 import { useEffect, useState, useCallback } from "react";
 import {
-  useAnimatedSensor,
-  SensorType,
-  useFrameCallback,
-  runOnJS,
-} from "react-native-reanimated";
-import {
   fitnessWatchSensor,
   LiveWatchMetrics,
   WorkoutMode,
   WORKOUT_MODE_INFO,
-  Motion3D,
 } from "@/services/fitnessWatchSensor";
 
 export function useFitnessWatch() {
@@ -18,7 +11,7 @@ export function useFitnessWatch() {
     fitnessWatchSensor.getSnapshot()
   );
 
-  // Subscribe to the engine's 1-second metric broadcasts
+  // Subscribe to the engine's real-time metric broadcasts
   useEffect(() => {
     const unsub = fitnessWatchSensor.subscribe((latest) => {
       setMetrics(latest);
@@ -26,33 +19,7 @@ export function useFitnessWatch() {
     return unsub;
   }, []);
 
-  const feedSensorData = useCallback((accel: Motion3D, gyro?: Motion3D) => {
-    fitnessWatchSensor.handleSensorData(accel, gyro);
-  }, []);
-
-  // Reanimated native hardware sensor hooks
-  // Configured at 50ms interval (~20Hz), matching Android SENSOR_DELAY_UI used in StepTrackerAndroid
-  const accelSensor = useAnimatedSensor(SensorType.ACCELEROMETER, {
-    interval: 50,
-  });
-  const gyroSensor = useAnimatedSensor(SensorType.GYROSCOPE, {
-    interval: 50,
-  });
-
-  // Reanimated UI-thread frame callback feeding real internal sensors
-  useFrameCallback(() => {
-    "worklet";
-    if (accelSensor.isAvailable) {
-      const a = accelSensor.sensor.value;
-      const g = gyroSensor.isAvailable ? gyroSensor.sensor.value : undefined;
-      runOnJS(feedSensorData)(
-        { x: a.x, y: a.y, z: a.z },
-        g ? { x: g.x, y: g.y, z: g.z } : undefined
-      );
-    }
-  });
-
-  const startWorkout = useCallback((mode: WorkoutMode) => {
+  const startWorkout = useCallback((mode: WorkoutMode = "treadmill") => {
     fitnessWatchSensor.startWorkout(mode);
   }, []);
 
@@ -70,7 +37,7 @@ export function useFitnessWatch() {
 
   return {
     metrics,
-    modeInfo: WORKOUT_MODE_INFO[metrics.mode],
+    modeInfo: WORKOUT_MODE_INFO[metrics.mode] || WORKOUT_MODE_INFO.treadmill,
     startWorkout,
     pauseWorkout,
     resumeWorkout,

@@ -17,12 +17,15 @@ import { getKV, setKV } from "./db";
 import { wearableSyncService } from "./wearableSyncService";
 
 export type WorkoutMode = 
+  | "treadmill"
   | "walk" 
   | "run" 
   | "jumprope" 
   | "strength_reps" 
   | "sports_games" 
   | "cycling";
+
+export type DetectedActivity = "stationary" | "walking" | "running";
 
 export interface Motion3D {
   x: number;
@@ -35,6 +38,11 @@ export interface LiveWatchMetrics {
   isPaused: boolean;
   mode: WorkoutMode;
   elapsedSeconds: number;
+  
+  // Auto-detection telemetry
+  detectedActivity: DetectedActivity;
+  detectedActivityLabel: string;
+  isAutoDetecting: boolean;
   
   // Counters based on active mode
   steps: number;
@@ -94,6 +102,14 @@ export const WORKOUT_MODE_INFO: Record<WorkoutMode, {
   primaryUnit: string;
   hint: string;
 }> = {
+  treadmill: {
+    name: "Treadmill Workout",
+    icon: "🏃‍♂️",
+    baseMet: 8.8,
+    primaryMetric: "steps",
+    primaryUnit: "Steps",
+    hint: "Indoor machine session with dedicated chronometer, speed & saved logs",
+  },
   walk: {
     name: "Outdoor / Indoor Walk",
     icon: "🚶",
@@ -222,8 +238,13 @@ class FitnessWatchSensorEngine {
   // Sports & Game swing DSP
   private lastSwingTimestamp = 0;
 
-  // Ambient steps counted when workout is not active
+  // Autonomous motion auto-detection & continuous step counting
+  private detectedActivity: DetectedActivity = "stationary";
+  private detectedActivityLabel = "Stationary • Ready";
+  private slidingNetMagHistory: number[] = [];
   private dailyAmbientSteps = 0;
+  private dailyAmbientDistanceKm = 0;
+  private dailyAmbientActiveCalories = 0;
 
   constructor() {
     this.initAmbientStepStorage();
@@ -250,6 +271,16 @@ class FitnessWatchSensorEngine {
       if (saved) {
         this.dailyAmbientSteps = parseInt(saved, 10) || 0;
       }
+      const calsKey = `lumen_daily_cals_${new Date().toISOString().slice(0, 10)}`;
+      const savedCals = await getKV(calsKey);
+      if (savedCals) {
+        this.dailyAmbientActiveCalories = parseFloat(savedCals) || 0;
+      }
+      const distKey = `lumen_daily_dist_${new Date().toISOString().slice(0, 10)}`;
+      const savedDist = await getKV(distKey);
+      if (savedDist) {
+        this.dailyAmbientDistanceKm = parseFloat(savedDist) || 0;
+      }
     } catch (e) {
       console.warn("Could not load ambient step storage:", e);
     }
@@ -258,7 +289,11 @@ class FitnessWatchSensorEngine {
   private async persistDailySteps() {
     try {
       const todayKey = `lumen_daily_steps_${new Date().toISOString().slice(0, 10)}`;
-      await setKV(todayKey, String(this.dailyAmbientSteps + this.steps));
+      await setKV(todayKey, String(this.dailyAmbientSteps));
+      const calsKey = `lumen_daily_cals_${new Date().toISOString().slice(0, 10)}`;
+      await setKV(calsKey, String(this.dailyAmbientActiveCalories));
+      const distKey = `lumen_daily_dist_${new Date().toISOString().slice(0, 10)}`;
+      await setKV(distKey, String(this.dailyAmbientDistanceKm));
     } catch {
       // Ignore background persistence hiccups
     }
@@ -275,7 +310,7 @@ class FitnessWatchSensorEngine {
         return wTel.steps;
       }
     }
-    return this.dailyAmbientSteps + this.steps;
+    return this.dailyAmbientSteps;
   }
 
   public getDailyActiveCalories(): number {
@@ -285,8 +320,7 @@ class FitnessWatchSensorEngine {
         return wTel.activeCalories;
       }
     }
-    const steps = this.dailyAmbientSteps + this.steps;
-    return Math.round(steps * 0.045) + this.activeCalories;
+    return Math.round(this.dailyAmbientActiveCalories || (this.dailyAmbientSteps * 0.045));
   }
 
   // Subscribe to live telemetry stream
@@ -364,11 +398,11 @@ class FitnessWatchSensorEngine {
 
     const resolvedDailySteps = isWearableActive && wearableTel && wearableTel.steps > 0
       ? wearableTel.steps
-      : (this.dailyAmbientSteps + this.steps);
+      : this.dailyAmbientSteps;
 
     const resolvedDailyActiveCalories = isWearableActive && wearableTel && wearableTel.activeCalories > 0
       ? wearableTel.activeCalories
-      : parseFloat(((this.dailyAmbientSteps + this.steps) * 0.045 + this.activeCalories).toFixed(1));
+      : parseFloat((this.dailyAmbientActiveCalories || (this.dailyAmbientSteps * 0.045)).toFixed(1));
 
     const resolvedCadence = isWearableActive && wearableTel && wearableTel.cadenceSpm > 0
       ? wearableTel.cadenceSpm
@@ -376,7 +410,7 @@ class FitnessWatchSensorEngine {
 
     const resolvedDistance = isWearableActive && wearableTel && wearableTel.distanceKm > 0
       ? wearableTel.distanceKm
-      : parseFloat((this.distanceKm + (this.dailyAmbientSteps * 0.00075)).toFixed(2));
+      : parseFloat((this.dailyAmbientDistanceKm || (this.dailyAmbientSteps * 0.00075)).toFixed(2));
 
     const resolvedHeartRate = wearableTel && wearableTel.heartRate > 0
       ? wearableTel.heartRate
@@ -387,6 +421,9 @@ class FitnessWatchSensorEngine {
       isPaused: this.isPaused,
       mode: this.mode,
       elapsedSeconds: this.elapsedSeconds,
+      detectedActivity: this.detectedActivity,
+      detectedActivityLabel: this.detectedActivityLabel,
+      isAutoDetecting: !this.isActive && !isWearableActive,
       steps: this.steps,
       dailySteps: resolvedDailySteps,
       dailyActiveCalories: resolvedDailyActiveCalories,
@@ -537,11 +574,21 @@ class FitnessWatchSensorEngine {
       return;
     }
 
+    // Auto-decay cadence and reset activity if stationary for > 3.2 seconds
+    if (now - this.lastStepTimestamp > 3200 && this.currentCadenceSpm > 0) {
+      this.currentCadenceSpm = 0;
+      this.currentSpeedKmh = 0;
+      this.detectedActivity = "stationary";
+      this.detectedActivityLabel = "Stationary • Ready";
+      this.notify();
+    }
+
     if (this.isActive && !this.isPaused) {
       switch (this.mode) {
+        case "treadmill":
         case "walk":
         case "run":
-          this.peakDetection(now);
+          this.processStepDetection(now, true);
           break;
         case "jumprope":
           this.processJumpRopeDetection(this.netMag, now);
@@ -557,137 +604,106 @@ class FitnessWatchSensorEngine {
           break;
       }
     } else {
-      // Continuous background step tracking is ALWAYS ON!
-      this.peakDetectionAmbient(now);
+      // Continuous background step tracking & auto-detection is ALWAYS ON!
+      this.processStepDetection(now, false);
     }
   }
 
   /**
-   * Peak detection algorithm derived from:
-   * "A Step Counter Service for Java-Enabled Devices Using a Built-In Accelerometer", Mladenov et al.
-   * Ported directly from StepTrackerAndroid DebugActivity.java
+   * High-accuracy sliding-window step peak detection & autonomous activity classifier.
+   * Tracks steps continuously with adaptive sensitivity (0.38 - 5.8 m/s^2),
+   * ensuring no steps are missed in pocket, hand, or on foot.
    */
-  private peakDetection(now: number) {
-    this.netMagHistory.push(this.netMag);
+  private processStepDetection(now: number, isTreadmillSession: boolean) {
+    this.slidingNetMagHistory.push(this.netMag);
+    if (this.slidingNetMagHistory.length > 20) {
+      this.slidingNetMagHistory.shift();
+    }
 
-    if (this.netMagHistory.length < this.windowSize + 1) {
+    if (this.slidingNetMagHistory.length < 5) {
       return;
     }
 
-    const isRunning = this.mode === "run";
-    const stepThreshold = isRunning ? 1.2 : 1.0;
-    const noiseThreshold = isRunning ? 4.8 : 3.2; // Extended from DebugActivity 2.0d for modern devices
-    const minStepIntervalMs = isRunning ? 230 : 280;
+    const mid = this.slidingNetMagHistory.length - 2;
+    const prev = this.slidingNetMagHistory[mid - 1];
+    const curr = this.slidingNetMagHistory[mid];
+    const next = this.slidingNetMagHistory[mid + 1];
 
-    let forwardSlope = 0;
-    let downwardSlope = 0;
+    // High sensitivity threshold: 0.38 m/s^2 detects gentle walking / pocket movement
+    // Upper ceiling: 5.8 m/s^2 avoids false drops
+    const stepThreshold = isTreadmillSession ? 0.60 : 0.38;
+    const noiseThreshold = 5.8;
+    const minStepIntervalMs = isTreadmillSession ? 210 : 230;
 
-    for (let i = 1; i < this.netMagHistory.length - 1; i++) {
-      forwardSlope = this.netMagHistory[i + 1] - this.netMagHistory[i];
-      downwardSlope = this.netMagHistory[i] - this.netMagHistory[i - 1];
+    if (
+      curr > prev &&
+      curr >= next &&
+      curr > stepThreshold &&
+      curr < noiseThreshold
+    ) {
+      if (now - this.lastStepTimestamp >= minStepIntervalMs) {
+        const deltaMs = this.lastStepTimestamp === 0 ? 550 : (now - this.lastStepTimestamp);
+        this.lastStepTimestamp = now;
 
-      if (
-        forwardSlope < 0 &&
-        downwardSlope > 0 &&
-        this.netMagHistory[i] > stepThreshold &&
-        this.netMagHistory[i] < noiseThreshold
-      ) {
-        if (now - this.lastStepTimestamp >= minStepIntervalMs) {
-          const deltaMs = this.lastStepTimestamp === 0 ? 600 : now - this.lastStepTimestamp;
-          this.lastStepTimestamp = now;
+        // Count daily continuous step
+        this.dailyAmbientSteps++;
+        if (isTreadmillSession) {
           this.steps++;
+        }
 
-          // Stride & Cadence calculation
-          if (deltaMs <= 2500) {
-            const instantSpm = Math.min(240, Math.max(45, Math.round(60000 / deltaMs)));
-            this.stepIntervalHistory.push(instantSpm);
-            if (this.stepIntervalHistory.length > 5) this.stepIntervalHistory.shift();
+        // Calculate Cadence (SPM)
+        if (deltaMs <= 2500) {
+          const instantSpm = Math.min(240, Math.max(45, Math.round(60000 / deltaMs)));
+          this.stepIntervalHistory.push(instantSpm);
+          if (this.stepIntervalHistory.length > 4) this.stepIntervalHistory.shift();
+          const avgSpm = Math.round(
+            this.stepIntervalHistory.reduce((a, b) => a + b, 0) / this.stepIntervalHistory.length
+          );
+          this.currentCadenceSpm = avgSpm;
 
-            const avgSpm = Math.round(
-              this.stepIntervalHistory.reduce((a, b) => a + b, 0) /
-              this.stepIntervalHistory.length
-            );
-            this.currentCadenceSpm = avgSpm;
+          // Auto-classify movement into Walking or Running autonomously
+          if (avgSpm > 125 || curr > 1.8) {
+            this.detectedActivity = "running";
+            this.detectedActivityLabel = isTreadmillSession
+              ? "Treadmill Running"
+              : "Outdoor Running (Auto-Detected)";
+          } else {
+            this.detectedActivity = "walking";
+            this.detectedActivityLabel = isTreadmillSession
+              ? "Treadmill Walking"
+              : "Outdoor Walking (Auto-Detected)";
+          }
 
-            // Biomechanical stride length based on height & cadence
-            const heightM = this.userBody.heightCm / 100;
-            const strideLengthM = heightM * (0.415 + (isRunning ? 0.0022 : 0.0012) * avgSpm);
+          // Biomechanical stride length based on height & cadence
+          const isRun = this.detectedActivity === "running" || this.mode === "treadmill";
+          const heightM = this.userBody.heightCm / 100;
+          const strideLengthM = heightM * (0.415 + (isRun ? 0.0022 : 0.0012) * avgSpm);
+
+          if (isTreadmillSession) {
             this.distanceKm = parseFloat((this.distanceKm + strideLengthM / 1000).toFixed(3));
-
-            // Speed in km/h
             this.currentSpeedKmh = parseFloat(((strideLengthM * avgSpm * 60) / 1000).toFixed(1));
-
-            // Heart rate exertion model based on cadence
-            const cadenceRatio = Math.min(1.0, (avgSpm - 50) / 140);
-            const targetHr = this.userBody.restingHr + cadenceRatio * (this.userBody.maxHr - this.userBody.restingHr);
-            this.estimatedHeartRate = Math.round(this.estimatedHeartRate + (targetHr - this.estimatedHeartRate) * 0.2);
+            const kcalPerStep = (isRun ? 0.055 : 0.042) * (this.userBody.weightKg / 70);
+            this.activeCalories = parseFloat((this.activeCalories + kcalPerStep).toFixed(1));
+          } else {
+            this.dailyAmbientDistanceKm = parseFloat((this.dailyAmbientDistanceKm + strideLengthM / 1000).toFixed(3));
+            this.currentSpeedKmh = parseFloat(((strideLengthM * avgSpm * 60) / 1000).toFixed(1));
+            const kcalPerStep = (isRun ? 0.055 : 0.042) * (this.userBody.weightKg / 70);
+            this.dailyAmbientActiveCalories = parseFloat((this.dailyAmbientActiveCalories + kcalPerStep).toFixed(1));
           }
 
-          // Real physical calorie burn per actual step taken:
-          // ~0.043 kcal per walk step, ~0.058 kcal per run step for 70kg human
-          const kcalPerStep = (isRunning ? 0.058 : 0.043) * (this.userBody.weightKg / 70);
-          this.activeCalories = parseFloat((this.activeCalories + kcalPerStep).toFixed(1));
-
-          // Haptic feedback on step milestone
-          if (this.steps % 250 === 0 && Platform.OS !== "web") {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          }
-
-          this.notify();
+          // Heart rate exertion model based on cadence
+          const cadenceRatio = Math.min(1.0, Math.max(0, (avgSpm - 50) / 140));
+          const targetHr = this.userBody.restingHr + cadenceRatio * (this.userBody.maxHr - this.userBody.restingHr);
+          this.estimatedHeartRate = Math.round(this.estimatedHeartRate + (targetHr - this.estimatedHeartRate) * 0.2);
         }
+
+        if (this.dailyAmbientSteps % 5 === 0) {
+          this.persistDailySteps();
+        }
+
+        this.notify();
       }
     }
-
-    // Slide window forward by keeping the last point as the start of the next window
-    this.netMagHistory = [this.netMagHistory[this.netMagHistory.length - 1]];
-  }
-
-  // Ambient steps counted when workout is not active (DebugActivity.java algorithm)
-  private peakDetectionAmbient(now: number) {
-    this.ambientNetMagHistory.push(this.netMag);
-
-    if (this.ambientNetMagHistory.length < this.windowSize + 1) {
-      return;
-    }
-
-    const stepThreshold = 1.0;
-    const noiseThreshold = 3.2;
-    const minStepIntervalMs = 280;
-
-    let forwardSlope = 0;
-    let downwardSlope = 0;
-
-    for (let i = 1; i < this.ambientNetMagHistory.length - 1; i++) {
-      forwardSlope = this.ambientNetMagHistory[i + 1] - this.ambientNetMagHistory[i];
-      downwardSlope = this.ambientNetMagHistory[i] - this.ambientNetMagHistory[i - 1];
-
-      if (
-        forwardSlope < 0 &&
-        downwardSlope > 0 &&
-        this.ambientNetMagHistory[i] > stepThreshold &&
-        this.ambientNetMagHistory[i] < noiseThreshold
-      ) {
-        if (now - this.lastAmbientStepTimestamp >= minStepIntervalMs) {
-          const deltaMs = this.lastAmbientStepTimestamp === 0 ? 600 : now - this.lastAmbientStepTimestamp;
-          this.lastAmbientStepTimestamp = now;
-          this.dailyAmbientSteps++;
-
-          if (deltaMs <= 2500) {
-            const instantSpm = Math.min(240, Math.max(45, Math.round(60000 / deltaMs)));
-            this.currentCadenceSpm = instantSpm;
-          }
-
-          if (this.dailyAmbientSteps % 5 === 0) {
-            this.persistDailySteps();
-          }
-
-          // Live real-time broadcast so phone step counter increments continuously
-          this.notify();
-        }
-      }
-    }
-
-    this.ambientNetMagHistory = [this.ambientNetMagHistory[this.ambientNetMagHistory.length - 1]];
   }
 
   // Jump Rope Detection: Dynamic magnitude impulse and cadence
@@ -831,7 +847,7 @@ class FitnessWatchSensorEngine {
   }
 
   // WORKOUT CONTROLS
-  public startWorkout(mode: WorkoutMode) {
+  public startWorkout(mode: WorkoutMode = "treadmill") {
     this.mode = mode;
     this.isActive = true;
     this.isPaused = false;
@@ -847,9 +863,10 @@ class FitnessWatchSensorEngine {
     this.currentCadenceSpm = 0;
     this.currentSpeedKmh = 0;
     this.estimatedHeartRate = this.userBody.restingHr;
-    this.currentMet = WORKOUT_MODE_INFO[mode].baseMet;
+    this.currentMet = WORKOUT_MODE_INFO[mode]?.baseMet || 8.8;
     this.lastStepTimestamp = 0;
     this.stepIntervalHistory = [];
+    this.slidingNetMagHistory = [];
     this.netMagHistory = [];
     this.mBufferInitialized = false;
     this.hasFedSample = false;
