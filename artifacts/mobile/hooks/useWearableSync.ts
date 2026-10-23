@@ -21,6 +21,9 @@ export function useWearableSync() {
   const [isScanning, setIsScanning] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [permissionGranted, setPermissionGranted] = useState<boolean | null>(null);
+  const [extractFromWearable, setExtractFromWearableState] = useState<boolean>(() =>
+    wearableSyncService.isExtractingStepsFromWearable()
+  );
 
   const triggerHaptic = (style: Haptics.ImpactFeedbackStyle = Haptics.ImpactFeedbackStyle.Light) => {
     if (Platform.OS !== "web") {
@@ -101,6 +104,12 @@ export function useWearableSync() {
     await wearableSyncService.disconnectDevice();
   }, []);
 
+  const toggleExtractFromWearable = useCallback(async (enabled: boolean) => {
+    triggerHaptic(Haptics.ImpactFeedbackStyle.Medium);
+    setExtractFromWearableState(enabled);
+    await wearableSyncService.setExtractStepsFromWearable(enabled);
+  }, []);
+
   return {
     connectedDevice,
     telemetry,
@@ -108,6 +117,9 @@ export function useWearableSync() {
     isScanning,
     isSyncing,
     permissionGranted,
+    extractFromWearable,
+    toggleExtractFromWearable,
+    isWearableActive: Boolean(connectedDevice?.isConnected && extractFromWearable),
     requestPermissions,
     scanDevices,
     connectDevice,

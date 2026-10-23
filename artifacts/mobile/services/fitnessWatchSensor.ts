@@ -38,6 +38,12 @@ export interface LiveWatchMetrics {
   
   // Counters based on active mode
   steps: number;
+  dailySteps: number;
+  dailyActiveCalories: number;
+  isPhoneStepCounterActive: boolean;
+  isWearableSourceActive: boolean;
+  activeSourceLabel: string;
+  wearableDeviceName: string | null;
   reps: number;
   jumps: number;
   swings: number;
@@ -222,6 +228,14 @@ class FitnessWatchSensorEngine {
   constructor() {
     this.initAmbientStepStorage();
     this.initNativeOrWebSensors();
+
+    // Re-evaluate telemetry snapshot whenever wearable connection or telemetry syncs
+    wearableSyncService.subscribeDevice(() => {
+      this.notify();
+    });
+    wearableSyncService.subscribeTelemetry(() => {
+      this.notify();
+    });
   }
 
   public setUserBody(body: Partial<UserBodyMetrics>) {
@@ -250,15 +264,29 @@ class FitnessWatchSensorEngine {
     }
   }
 
+  public isWearableExtracting(): boolean {
+    return wearableSyncService.isWearableStepSourceActive();
+  }
+
   public getDailySteps(): number {
-    const wearable = wearableSyncService.getConnectedDevice();
-    if (wearable?.isConnected) {
+    if (wearableSyncService.isWearableStepSourceActive()) {
       const wTel = wearableSyncService.getLatestTelemetry();
       if (wTel.steps > 0) {
-        return Math.max(wTel.steps, this.dailyAmbientSteps + this.steps);
+        return wTel.steps;
       }
     }
     return this.dailyAmbientSteps + this.steps;
+  }
+
+  public getDailyActiveCalories(): number {
+    if (wearableSyncService.isWearableStepSourceActive()) {
+      const wTel = wearableSyncService.getLatestTelemetry();
+      if (wTel.activeCalories > 0) {
+        return wTel.activeCalories;
+      }
+    }
+    const steps = this.dailyAmbientSteps + this.steps;
+    return Math.round(steps * 0.045) + this.activeCalories;
   }
 
   // Subscribe to live telemetry stream
@@ -330,8 +358,26 @@ class FitnessWatchSensorEngine {
       paceMinKm = `${mins}'${secs.toString().padStart(2, "0")}"`;
     }
 
+    const isWearableActive = wearableSyncService.isWearableStepSourceActive();
     const connectedWearable = wearableSyncService.getConnectedDevice();
-    const wearableTel = connectedWearable?.isConnected ? wearableSyncService.getLatestTelemetry() : null;
+    const wearableTel = isWearableActive ? wearableSyncService.getLatestTelemetry() : null;
+
+    const resolvedDailySteps = isWearableActive && wearableTel && wearableTel.steps > 0
+      ? wearableTel.steps
+      : (this.dailyAmbientSteps + this.steps);
+
+    const resolvedDailyActiveCalories = isWearableActive && wearableTel && wearableTel.activeCalories > 0
+      ? wearableTel.activeCalories
+      : parseFloat(((this.dailyAmbientSteps + this.steps) * 0.045 + this.activeCalories).toFixed(1));
+
+    const resolvedCadence = isWearableActive && wearableTel && wearableTel.cadenceSpm > 0
+      ? wearableTel.cadenceSpm
+      : this.currentCadenceSpm;
+
+    const resolvedDistance = isWearableActive && wearableTel && wearableTel.distanceKm > 0
+      ? wearableTel.distanceKm
+      : parseFloat((this.distanceKm + (this.dailyAmbientSteps * 0.00075)).toFixed(2));
+
     const resolvedHeartRate = wearableTel && wearableTel.heartRate > 0
       ? wearableTel.heartRate
       : (this.currentCadenceSpm > 0 ? Math.round(this.estimatedHeartRate) : this.userBody.restingHr);
@@ -342,15 +388,23 @@ class FitnessWatchSensorEngine {
       mode: this.mode,
       elapsedSeconds: this.elapsedSeconds,
       steps: this.steps,
+      dailySteps: resolvedDailySteps,
+      dailyActiveCalories: resolvedDailyActiveCalories,
+      isPhoneStepCounterActive: !isWearableActive,
+      isWearableSourceActive: isWearableActive,
+      activeSourceLabel: isWearableActive
+        ? `Wearable (${connectedWearable?.name || "Connected Device"})`
+        : "Phone Accelerometer (Always ON)",
+      wearableDeviceName: isWearableActive ? (connectedWearable?.name || null) : null,
       reps: this.reps,
       jumps: this.jumps,
       swings: this.swings,
       agilityBursts: this.agilityBursts,
-      cadenceSpm: this.currentCadenceSpm,
-      distanceKm: parseFloat(this.distanceKm.toFixed(2)),
+      cadenceSpm: resolvedCadence,
+      distanceKm: resolvedDistance,
       speedKmh: parseFloat(this.currentSpeedKmh.toFixed(1)),
       paceMinKm,
-      activeCalories: parseFloat(this.activeCalories.toFixed(1)),
+      activeCalories: resolvedDailyActiveCalories,
       estimatedHeartRate: resolvedHeartRate,
       heartRateZone: zone,
       heartRateZoneLabel: zoneLabel,
@@ -476,6 +530,13 @@ class FitnessWatchSensorEngine {
     const now = Date.now();
 
     // 5. Movement DSP based on active workout mode
+    const isWearableActive = wearableSyncService.isWearableStepSourceActive();
+    if (isWearableActive) {
+      // User has chosen to extract steps & calories from wearables!
+      // Stop usage of the phone step counter to prevent double counting.
+      return;
+    }
+
     if (this.isActive && !this.isPaused) {
       switch (this.mode) {
         case "walk":
@@ -496,6 +557,7 @@ class FitnessWatchSensorEngine {
           break;
       }
     } else {
+      // Continuous background step tracking is ALWAYS ON!
       this.peakDetectionAmbient(now);
     }
   }
@@ -606,11 +668,21 @@ class FitnessWatchSensorEngine {
         this.ambientNetMagHistory[i] < noiseThreshold
       ) {
         if (now - this.lastAmbientStepTimestamp >= minStepIntervalMs) {
+          const deltaMs = this.lastAmbientStepTimestamp === 0 ? 600 : now - this.lastAmbientStepTimestamp;
           this.lastAmbientStepTimestamp = now;
           this.dailyAmbientSteps++;
-          if (this.dailyAmbientSteps % 10 === 0) {
+
+          if (deltaMs <= 2500) {
+            const instantSpm = Math.min(240, Math.max(45, Math.round(60000 / deltaMs)));
+            this.currentCadenceSpm = instantSpm;
+          }
+
+          if (this.dailyAmbientSteps % 5 === 0) {
             this.persistDailySteps();
           }
+
+          // Live real-time broadcast so phone step counter increments continuously
+          this.notify();
         }
       }
     }

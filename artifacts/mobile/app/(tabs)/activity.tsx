@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, useRef } from "react";
 import { 
   View, Text, StyleSheet, ScrollView, Pressable, 
-  Platform, TextInput, ActivityIndicator, Alert, Modal 
+  Platform, TextInput, ActivityIndicator, Alert, Modal, Switch 
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { 
@@ -14,7 +14,7 @@ import {
   Activity, Timer, Zap, Trash2, Plus, 
   Sparkles, CheckCircle2, Trophy, Flame, Footprints, 
   Dumbbell, Bike, TrendingUp, Award, ChevronRight, X, Sliders,
-  Play, Pause, Square, RotateCcw, Compass, Gauge, Shield, Watch,
+  Play, Pause, Square, RotateCcw, Compass, Gauge, Shield, Watch, Smartphone,
   Bluetooth, RefreshCw, Moon, Heart, Radio, BatteryCharging, Check, Disc, ArrowUpRight
 } from "lucide-react-native";
 import Svg, { Circle, Defs, LinearGradient, Stop } from "react-native-svg";
@@ -114,6 +114,9 @@ export default function ActivityScreen() {
     isScanning: isBleScanning,
     isSyncing: isBleSyncing,
     permissionGranted: blePermissionGranted,
+    extractFromWearable,
+    toggleExtractFromWearable,
+    isWearableActive,
     requestPermissions: requestBlePermissions,
     scanDevices: scanBleDevices,
     connectDevice: connectBleDevice,
@@ -226,13 +229,20 @@ export default function ActivityScreen() {
   const workoutCaloriesBurned = useMemo(() => {
     const recordedTotal = combinedWorkouts.reduce((acc: number, w: WorkoutRecord) => acc + (Number(w.caloriesBurned) || 0), 0);
     // Add real-time active calories from the live Fitness Watch session
-    return recordedTotal + watchMetrics.activeCalories;
-  }, [combinedWorkouts, watchMetrics.activeCalories]);
+    return recordedTotal + (watchMetrics.isActive ? watchMetrics.activeCalories : 0);
+  }, [combinedWorkouts, watchMetrics.isActive, watchMetrics.activeCalories]);
 
-  // Hardware accelerometer steps (live + ambient) integrated with dashboard baseline
+  // Unified steps today: If wearable extraction is active, priority is given to wearable steps.
+  // Otherwise, phone internal accelerometer step counter is ALWAYS ON and primary.
   const sensorTodaySteps = getDailySteps();
-  const stepsToday = Math.max(sensorTodaySteps, dashboard?.steps ?? (readinessData as any)?.stepsCount ?? 0);
-  const stepsCaloriesBurned = Math.round(stepsToday * 0.045);
+  const stepsToday = isWearableActive && wearableTel?.steps > 0
+    ? wearableTel.steps
+    : Math.max(sensorTodaySteps, watchMetrics.dailySteps, dashboard?.steps ?? (readinessData as any)?.stepsCount ?? 0);
+
+  const stepsCaloriesBurned = isWearableActive && wearableTel?.activeCalories > 0
+    ? wearableTel.activeCalories
+    : Math.round(stepsToday * 0.045);
+
   const totalActiveCaloriesBurned = workoutCaloriesBurned + stepsCaloriesBurned;
 
   const totalActiveMinutes = useMemo(() => {
@@ -578,22 +588,34 @@ export default function ActivityScreen() {
 
                 {/* Big Chronometer & Live Primary Metric */}
                 <View style={styles.watchMainMetricsCol}>
-                  <Text style={styles.watchTimerText}>{formatTime(watchMetrics.elapsedSeconds)}</Text>
-                  <Text style={styles.watchStatusPill}>
-                    {watchMetrics.isPaused ? "SESSION PAUSED" : watchMetrics.isActive ? "● RECORDING LIVE" : "STANDBY • READY"}
+                  <Text style={styles.watchTimerText}>
+                    {watchMetrics.isActive ? formatTime(watchMetrics.elapsedSeconds) : "LIVE"}
+                  </Text>
+                  <Text style={[styles.watchStatusPill, isWearableActive && { backgroundColor: "rgba(56, 189, 248, 0.2)", borderColor: "rgba(56, 189, 248, 0.4)", color: "#38bdf8" }]}>
+                    {isWearableActive
+                      ? `⌚ WEARABLE EXTRACT (${connectedDevice?.name || "DEVICE"})`
+                      : watchMetrics.isPaused
+                        ? "SESSION PAUSED"
+                        : watchMetrics.isActive
+                          ? "● WORKOUT RECORDING LIVE"
+                          : "● STEP TRACKER ALWAYS ON"}
                   </Text>
 
                   {/* Dynamic primary counter based on workout mode */}
                   <View style={styles.primaryMetricBox}>
                     <Text style={styles.primaryMetricVal}>
-                      {watchMetrics.mode === "strength_reps" ? watchMetrics.reps :
-                       watchMetrics.mode === "jumprope" ? watchMetrics.jumps :
-                       watchMetrics.mode === "sports_games" ? watchMetrics.swings :
-                       watchMetrics.mode === "cycling" ? watchMetrics.cadenceSpm :
-                       watchMetrics.steps.toLocaleString()}
+                      {watchMetrics.isActive
+                        ? (watchMetrics.mode === "strength_reps" ? watchMetrics.reps :
+                           watchMetrics.mode === "jumprope" ? watchMetrics.jumps :
+                           watchMetrics.mode === "sports_games" ? watchMetrics.swings :
+                           watchMetrics.mode === "cycling" ? watchMetrics.cadenceSpm :
+                           watchMetrics.steps.toLocaleString())
+                        : stepsToday.toLocaleString()}
                     </Text>
                     <Text style={styles.primaryMetricUnit}>
-                      {WORKOUT_MODE_INFO[watchMetrics.mode].primaryUnit}
+                      {watchMetrics.isActive
+                        ? WORKOUT_MODE_INFO[watchMetrics.mode].primaryUnit
+                        : "Daily Steps (Continuous)"}
                     </Text>
                   </View>
                 </View>
@@ -609,13 +631,9 @@ export default function ActivityScreen() {
                   </View>
                   <Text style={styles.telemetryValue}>
                     {watchMetrics.cadenceSpm > 0 ? (
-                      <>
-                        {watchMetrics.currentIntensity.toUpperCase()}
-                      </>
+                      watchMetrics.currentIntensity.toUpperCase()
                     ) : (
-                      <>
-                        REST
-                      </>
+                      "REST"
                     )}
                   </Text>
                   <View style={[styles.zoneBadge, { backgroundColor: getZoneColor(watchMetrics.heartRateZone) + "20" }]}>
@@ -633,8 +651,12 @@ export default function ActivityScreen() {
                     <Flame size={14} color="#f59e0b" />
                     <Text style={styles.telemetryLabel}>Active Burn</Text>
                   </View>
-                  <Text style={styles.telemetryValue}>{watchMetrics.activeCalories} <Text style={styles.telemetryUnit}>kcal</Text></Text>
-                  <Text style={styles.telemetrySub}>{watchMetrics.currentMet} METs power</Text>
+                  <Text style={styles.telemetryValue}>
+                    {watchMetrics.isActive ? watchMetrics.activeCalories : stepsCaloriesBurned} <Text style={styles.telemetryUnit}>kcal</Text>
+                  </Text>
+                  <Text style={styles.telemetrySub}>
+                    {watchMetrics.isActive ? `${watchMetrics.currentMet} METs power` : `${totalActiveCaloriesBurned} total day kcal`}
+                  </Text>
                 </View>
 
                 {/* 3. Cadence / Tempo */}
@@ -644,8 +666,9 @@ export default function ActivityScreen() {
                     <Text style={styles.telemetryLabel}>Cadence / Tempo</Text>
                   </View>
                   <Text style={styles.telemetryValue}>
-                    {watchMetrics.mode === "strength_reps" ? `${watchMetrics.reps} reps` :
-                     `${watchMetrics.cadenceSpm}`} <Text style={styles.telemetryUnit}>SPM</Text>
+                    {watchMetrics.isActive && watchMetrics.mode === "strength_reps"
+                      ? `${watchMetrics.reps} reps`
+                      : `${watchMetrics.cadenceSpm}`} <Text style={styles.telemetryUnit}>SPM</Text>
                   </Text>
                   <Text style={styles.telemetrySub}>Peak G: {watchMetrics.peakGForce}G</Text>
                 </View>
@@ -656,8 +679,12 @@ export default function ActivityScreen() {
                     <Compass size={14} color="#3b82f6" />
                     <Text style={styles.telemetryLabel}>Distance & Pace</Text>
                   </View>
-                  <Text style={styles.telemetryValue}>{watchMetrics.distanceKm} <Text style={styles.telemetryUnit}>km</Text></Text>
-                  <Text style={styles.telemetrySub}>{watchMetrics.paceMinKm} pace</Text>
+                  <Text style={styles.telemetryValue}>
+                    {watchMetrics.isActive ? watchMetrics.distanceKm : (stepsToday * 0.00075).toFixed(2)} <Text style={styles.telemetryUnit}>km</Text>
+                  </Text>
+                  <Text style={styles.telemetrySub}>
+                    {watchMetrics.isActive ? `${watchMetrics.paceMinKm} pace` : `${stepsToday > 0 ? "Continuous daily walk" : "Stationary"}`}
+                  </Text>
                 </View>
               </View>
 
@@ -692,7 +719,7 @@ export default function ActivityScreen() {
                 {!watchMetrics.isActive ? (
                   <Pressable style={styles.startWorkoutBtn} onPress={handleStartWatch}>
                     <Play size={18} color="#050b08" fill="#050b08" style={{ marginRight: 8 }} />
-                    <Text style={styles.startWorkoutText}>START {WORKOUT_MODE_INFO[selectedWatchMode].name.toUpperCase()}</Text>
+                    <Text style={styles.startWorkoutText}>START FOCUSED {WORKOUT_MODE_INFO[selectedWatchMode].name.toUpperCase()} SESSION</Text>
                   </Pressable>
                 ) : (
                   <>
@@ -713,6 +740,63 @@ export default function ActivityScreen() {
                     </Pressable>
                   </>
                 )}
+              </View>
+            </View>
+
+            {/* Step & Calorie Motion Source Priority Control Card */}
+            <View style={styles.sourceControlCard}>
+              <View style={styles.sourceControlHeader}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
+                  <View style={[styles.sourceIconBox, isWearableActive && styles.sourceIconBoxWearable]}>
+                    {isWearableActive ? (
+                      <Watch size={20} color="#38bdf8" />
+                    ) : (
+                      <Smartphone size={20} color="#10b981" />
+                    )}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.sourceControlTitle}>Step & Calorie Source Priority</Text>
+                    <Text style={[styles.sourceControlStatus, isWearableActive && { color: "#38bdf8" }]}>
+                      {isWearableActive
+                        ? `⌚ Active: Wearable (${connectedDevice?.name || "Connected Device"})`
+                        : "📱 Active: Phone Accelerometer (Always ON)"}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Toggle Row */}
+              <View style={styles.sourceSwitchRow}>
+                <View style={{ flex: 1, paddingRight: 12 }}>
+                  <Text style={styles.sourceSwitchLabel}>Extract Steps & Calories from Wearables</Text>
+                  <Text style={styles.sourceSwitchDesc}>
+                    {extractFromWearable
+                      ? "When a wearable is connected, phone pedometer auto-pauses to prevent double-counting."
+                      : "Always track steps using phone hardware accelerometer regardless of wearable status."}
+                  </Text>
+                </View>
+                <Switch
+                  value={extractFromWearable}
+                  onValueChange={toggleExtractFromWearable}
+                  trackColor={{ false: "#1e293b", true: "#059669" }}
+                  thumbColor={extractFromWearable ? "#10b981" : "#94a3b8"}
+                />
+              </View>
+
+              {/* Status Indicator Pills */}
+              <View style={styles.sourceStatusPillsRow}>
+                <View style={[styles.sourceMiniPill, !isWearableActive && styles.sourceMiniPillActive]}>
+                  <View style={[styles.sourceMiniDot, !isWearableActive && { backgroundColor: "#10b981" }]} />
+                  <Text style={[styles.sourceMiniText, !isWearableActive && { color: "#10b981" }]}>
+                    Phone Pedometer: {!isWearableActive ? "Tracking 24/7" : "Paused"}
+                  </Text>
+                </View>
+                <View style={[styles.sourceMiniPill, isWearableActive && styles.sourceMiniPillActiveWearable]}>
+                  <View style={[styles.sourceMiniDot, isWearableActive && { backgroundColor: "#38bdf8" }]} />
+                  <Text style={[styles.sourceMiniText, isWearableActive && { color: "#38bdf8" }]}>
+                    Wearable: {connectedDevice ? (isWearableActive ? "Primary Source" : "Connected (Standby)") : "Not Paired"}
+                  </Text>
+                </View>
               </View>
             </View>
 
@@ -761,18 +845,28 @@ export default function ActivityScreen() {
             <View style={styles.allDayStepCard}>
               <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                  <View style={styles.pedometerIconBox}>
-                    <Footprints size={22} color="#10b981" />
+                  <View style={[styles.pedometerIconBox, isWearableActive && { backgroundColor: "rgba(56, 189, 248, 0.15)" }]}>
+                    {isWearableActive ? (
+                      <Watch size={22} color="#38bdf8" />
+                    ) : (
+                      <Footprints size={22} color="#10b981" />
+                    )}
                   </View>
                   <View>
-                    <Text style={styles.allDayStepsLabel}>Phone Pedometer (Daily Total)</Text>
-                    <Text style={styles.allDayStepsSub}>Continuously counted via phone accelerometer</Text>
+                    <Text style={styles.allDayStepsLabel}>
+                      {isWearableActive ? `Wearable Steps (${connectedDevice?.name || "Sync"})` : "Phone Pedometer (Daily Total)"}
+                    </Text>
+                    <Text style={styles.allDayStepsSub}>
+                      {isWearableActive
+                        ? "Extracted directly from connected BLE wearable"
+                        : "Continuously counted 24/7 via phone accelerometer"}
+                    </Text>
                   </View>
                 </View>
                 <Text style={styles.allDayStepsVal}>{stepsToday.toLocaleString()}</Text>
               </View>
               <View style={styles.pedometerProgressBar}>
-                <View style={[styles.pedometerProgressFill, { width: `${Math.min(100, Math.round((stepsToday / 9000) * 100))}%` }]} />
+                <View style={[styles.pedometerProgressFill, isWearableActive && { backgroundColor: "#38bdf8" }, { width: `${Math.min(100, Math.round((stepsToday / 9000) * 100))}%` }]} />
               </View>
               <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 4 }}>
                 <Text style={styles.pedometerFootnote}>{Math.round((stepsToday / 9000) * 100)}% of 9,000 goal</Text>
@@ -885,6 +979,24 @@ export default function ActivityScreen() {
                     </>
                   )}
                 </Pressable>
+              </View>
+
+              {/* Wearable Step & Calorie Extraction Switch */}
+              <View style={[styles.sourceSwitchRow, { marginTop: 12 }]}>
+                <View style={{ flex: 1, paddingRight: 10 }}>
+                  <Text style={styles.sourceSwitchLabel}>Extract Steps & Calories to Daily Total</Text>
+                  <Text style={styles.sourceSwitchDesc}>
+                    {extractFromWearable
+                      ? (connectedDevice ? "Active: Phone pedometer is paused while wearable is connected." : "Enabled: Will pause phone pedometer when connected.")
+                      : "Disabled: Phone accelerometer tracks steps 24/7 regardless of wearable."}
+                  </Text>
+                </View>
+                <Switch
+                  value={extractFromWearable}
+                  onValueChange={toggleExtractFromWearable}
+                  trackColor={{ false: "#1e293b", true: "#059669" }}
+                  thumbColor={extractFromWearable ? "#10b981" : "#94a3b8"}
+                />
               </View>
 
               {connectedDevice?.lastSyncedAt && (
@@ -3014,6 +3126,97 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: "#10b981",
     fontWeight: "700",
+  },
+  sourceControlCard: {
+    backgroundColor: "#0d1f17",
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.2)",
+    gap: 12,
+  },
+  sourceControlHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  sourceIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sourceIconBoxWearable: {
+    backgroundColor: "rgba(56, 189, 248, 0.15)",
+  },
+  sourceControlTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#f8fafc",
+  },
+  sourceControlStatus: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#10b981",
+    marginTop: 2,
+  },
+  sourceSwitchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(0, 0, 0, 0.2)",
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.05)",
+  },
+  sourceSwitchLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#f8fafc",
+  },
+  sourceSwitchDesc: {
+    fontSize: 11,
+    color: "#94a3b8",
+    marginTop: 3,
+    lineHeight: 15,
+  },
+  sourceStatusPillsRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  sourceMiniPill: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(255, 255, 255, 0.03)",
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.06)",
+  },
+  sourceMiniPillActive: {
+    backgroundColor: "rgba(16, 185, 129, 0.1)",
+    borderColor: "rgba(16, 185, 129, 0.3)",
+  },
+  sourceMiniPillActiveWearable: {
+    backgroundColor: "rgba(56, 189, 248, 0.1)",
+    borderColor: "rgba(56, 189, 248, 0.3)",
+  },
+  sourceMiniDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#64748b",
+  },
+  sourceMiniText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#64748b",
   },
 });
 

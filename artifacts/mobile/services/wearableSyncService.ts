@@ -369,6 +369,7 @@ class WearableSyncService {
   private liveInterval: any = null;
   private isScanning = false;
   private bleListenersInitialized = false;
+  private extractStepsFromWearable = true;
 
   constructor() {
     this.initFromStorage();
@@ -384,6 +385,12 @@ class WearableSyncService {
       const storedTel = await storage.getItem("lumen_wearable_telemetry");
       if (storedTel) {
         this.currentTelemetry = { ...DEFAULT_TELEMETRY, ...JSON.parse(storedTel) };
+      }
+      const storedPref = await storage.getItem("lumen_extract_wearable_steps_cals");
+      if (storedPref !== null) {
+        this.extractStepsFromWearable = storedPref === "true";
+      } else {
+        this.extractStepsFromWearable = true;
       }
       this.notifyTelemetry();
       this.notifyDevice();
@@ -1113,6 +1120,21 @@ class WearableSyncService {
 
   public getLatestTelemetry(): WearableTelemetry {
     return this.currentTelemetry;
+  }
+
+  public isExtractingStepsFromWearable(): boolean {
+    return this.extractStepsFromWearable;
+  }
+
+  public async setExtractStepsFromWearable(enabled: boolean): Promise<void> {
+    this.extractStepsFromWearable = enabled;
+    await storage.setItem("lumen_extract_wearable_steps_cals", String(enabled));
+    this.notifyDevice();
+    this.notifyTelemetry();
+  }
+
+  public isWearableStepSourceActive(): boolean {
+    return Boolean(this.connectedDevice?.isConnected && this.extractStepsFromWearable);
   }
 
   private detectBrandFromName(name: string): WearableBrand {

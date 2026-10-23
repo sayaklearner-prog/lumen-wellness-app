@@ -102,6 +102,7 @@ import {
 } from "@/services/digitalWellbeingService";
 import { useScreenTime } from "@/hooks/useScreenTime";
 import { useHydration } from "@/hooks/useHydration";
+import { fitnessWatchSensor } from "@/services/fitnessWatchSensor";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -487,12 +488,26 @@ export default function DashboardScreen() {
     }
   };
 
+  // Live continuous steps & active calories (from phone accelerometer pedometer or wearable)
+  const [liveSensorMetrics, setLiveSensorMetrics] = useState(() => fitnessWatchSensor.getSnapshot());
+
+  useEffect(() => {
+    const unsub = fitnessWatchSensor.subscribe((snap) => {
+      setLiveSensorMetrics(snap);
+    });
+    return unsub;
+  }, []);
+
   // Base metrics
   const workoutCaloriesBurned =
     workouts?.reduce((acc: number, w: any) => acc + (Number(w.caloriesBurned) || 0), 0) || 0;
-  const stepsCount = dashboard?.steps || 0;
-  const stepsCaloriesBurned = Math.round(stepsCount * 0.045);
-  const totalActiveCaloriesBurned = workoutCaloriesBurned + stepsCaloriesBurned;
+
+  // Use live continuous steps (wearable or phone pedometer), fall back to backend dashboard
+  const stepsCount = Math.max(liveSensorMetrics.dailySteps, dashboard?.steps || 0);
+  const stepsCaloriesBurned = liveSensorMetrics.dailyActiveCalories > 0
+    ? liveSensorMetrics.dailyActiveCalories
+    : Math.round(stepsCount * 0.045);
+  const totalActiveCaloriesBurned = workoutCaloriesBurned + (liveSensorMetrics.isActive ? liveSensorMetrics.activeCalories : stepsCaloriesBurned);
 
   const stepsTarget = profile?.dailyStepsTarget || 9000;
   const caloriesTarget = profile?.dailyCalorieTarget || 2100;
@@ -1427,7 +1442,7 @@ export default function DashboardScreen() {
 
           <View style={styles.burnBannerSubRow}>
             <Text style={styles.burnBannerSubText}>
-              🚶 Steps:{" "}
+              {liveSensorMetrics.isWearableSourceActive ? "⌚ Wearable: " : "🚶 Steps: "}
               <Text style={{ color: "#38bdf8", fontWeight: "bold" }}>
                 {stepsCaloriesBurned} kcal
               </Text>{" "}

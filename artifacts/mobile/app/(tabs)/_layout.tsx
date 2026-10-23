@@ -8,12 +8,16 @@ import {
 } from "lucide-react-native";
 import { SlideMenuProvider, useSlideMenu } from "@/context/SlideMenuContext";
 import { SlideMenuDrawer } from "@/components/SlideMenuDrawer";
+import { GlobalStepTracker } from "@/components/GlobalStepTracker";
 
 function TabsContent() {
   const { isLeftOpen, closeLeftMenu, isRightOpen, closeRightMenu } = useSlideMenu();
 
   return (
     <>
+      {/* 24/7 Continuous Internal Device Step & Motion Tracker */}
+      <GlobalStepTracker />
+
       <Tabs
         screenOptions={{
           tabBarActiveTintColor: "#10b981", // vibrant emerald
