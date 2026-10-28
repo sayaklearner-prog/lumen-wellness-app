@@ -54,7 +54,10 @@ jobs:
       - name: Setup Capacitor and Android platform
         run: |
           npx cap add android || true
-          npx --yes @capacitor/assets generate --android || true
+          npx --yes @capacitor/assets generate --android --iconBackgroundColor '#050b08' --iconBackgroundColorDark '#050b08' --splashBackgroundColor '#050b08' --splashBackgroundColorDark '#050b08' || true
+          # Guarantee adaptive icon background is obsidian black (#050b08) without white border
+          sed -i 's/#FFFFFF/#050b08/g' android/app/src/main/res/values/ic_launcher_background.xml || true
+          sed -i 's/#ffffff/#050b08/g' android/app/src/main/res/values/ic_launcher_background.xml || true
           npx cap sync android
 
       - name: Configure Android Permissions & Camera Access
