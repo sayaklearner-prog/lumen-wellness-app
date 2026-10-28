@@ -646,6 +646,8 @@ export async function getSleepSessions(): Promise<SleepRecord[]> {
   }
 }
 
+export const getSleepRecords = getSleepSessions;
+
 export async function getLatestSleep(): Promise<SleepRecord | null> {
   const sessions = await getSleepSessions();
   return sessions.length > 0 ? sessions[0] : null;
@@ -894,6 +896,41 @@ export async function saveScreenTime(st: ScreenTimeRecord): Promise<void> {
     );
   } catch (err) {
     console.warn("saveScreenTime error:", err);
+  }
+}
+
+export async function getScreenTimeRecords(): Promise<ScreenTimeRecord[]> {
+  const db = await getDb();
+  if (!db) {
+    const store = getWebStore();
+    const results: ScreenTimeRecord[] = [];
+    for (const key of Object.keys(store)) {
+      if (key.startsWith("screentime_") && store[key]) {
+        results.push(store[key]);
+      }
+    }
+    return results;
+  }
+
+  try {
+    const rows: any[] = await db.getAllAsync(
+      `SELECT * FROM screentime_logs ORDER BY logged_at DESC LIMIT 50`
+    );
+    return rows.map((row: any) => ({
+      id: row.id,
+      screenMinutes: Number(row.screen_minutes),
+      limitMinutes: Number(row.limit_minutes),
+      productivityMinutes: Number(row.productivity_minutes),
+      socialMinutes: Number(row.social_minutes),
+      mediaMinutes: Number(row.media_minutes),
+      wellbeingMinutes: Number(row.wellbeing_minutes),
+      focusMode: Boolean(row.focus_mode),
+      windDown: Boolean(row.wind_down),
+      loggedAt: row.logged_at,
+    }));
+  } catch (err) {
+    console.warn("getScreenTimeRecords error:", err);
+    return [];
   }
 }
 
