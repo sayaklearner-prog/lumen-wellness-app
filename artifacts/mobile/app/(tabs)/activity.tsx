@@ -603,7 +603,7 @@ export default function ActivityScreen() {
                         ? "🏃 OUTDOOR RUNNING (AUTO-DETECTED)"
                         : watchMetrics.detectedActivity === "walking"
                           ? "🚶 OUTDOOR WALKING (AUTO-DETECTED)"
-                          : "● AUTONOMOUS MOTION SENSING ACTIVE"}
+                          : "● 24/7 BACKGROUND TRACKING ACTIVE"}
                   </Text>
 
                   {/* Dynamic primary counter based on workout mode */}
@@ -715,7 +715,7 @@ export default function ActivityScreen() {
               <View style={styles.autoMotionHintRow}>
                 <Sparkles size={14} color="#10b981" />
                 <Text style={styles.autoMotionHintText}>
-                  Outdoor walking & running strides are auto-detected 24/7. No manual start needed.
+                  Outdoor strides are tracked 24/7 in the background — even when the app is closed or screen is off.
                 </Text>
               </View>
             </View>
@@ -765,7 +765,7 @@ export default function ActivityScreen() {
                 <View style={[styles.sourceMiniPill, !isWearableActive && styles.sourceMiniPillActive]}>
                   <View style={[styles.sourceMiniDot, !isWearableActive && { backgroundColor: "#10b981" }]} />
                   <Text style={[styles.sourceMiniText, !isWearableActive && { color: "#10b981" }]}>
-                    Phone Pedometer: {!isWearableActive ? "Tracking 24/7" : "Paused"}
+                    Phone Pedometer: {!isWearableActive ? "24/7 Background Active" : "Paused"}
                   </Text>
                 </View>
                 <View style={[styles.sourceMiniPill, isWearableActive && styles.sourceMiniPillActiveWearable]}>

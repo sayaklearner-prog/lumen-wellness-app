@@ -323,6 +323,24 @@ class FitnessWatchSensorEngine {
     return Math.round(this.dailyAmbientActiveCalories || (this.dailyAmbientSteps * 0.045));
   }
 
+  /**
+   * Synchronizes steps recorded by the 24/7 native Android Background Step Service
+   * when the app was closed, suspended, or screen was off.
+   */
+  public syncNativeBackgroundSteps(nativeSteps: number, nativeCals?: number, nativeDist?: number) {
+    if (nativeSteps > this.dailyAmbientSteps) {
+      this.dailyAmbientSteps = nativeSteps;
+      if (typeof nativeCals === "number" && nativeCals > this.dailyAmbientActiveCalories) {
+        this.dailyAmbientActiveCalories = nativeCals;
+      }
+      if (typeof nativeDist === "number" && nativeDist > this.dailyAmbientDistanceKm) {
+        this.dailyAmbientDistanceKm = nativeDist;
+      }
+      this.persistDailySteps();
+      this.notify();
+    }
+  }
+
   // Subscribe to live telemetry stream
   public subscribe(cb: (metrics: LiveWatchMetrics) => void): () => void {
     this.listeners.add(cb);
