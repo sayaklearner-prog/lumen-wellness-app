@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379/0"
 
     # AI API Keys (Optional here, loaded from env)
+    GEMINI_API_KEY: Optional[str] = None
     ANTHROPIC_API_KEY: Optional[str] = None
     OPENAI_API_KEY: Optional[str] = None
     FEATHERLESS_API_KEY: Optional[str] = None

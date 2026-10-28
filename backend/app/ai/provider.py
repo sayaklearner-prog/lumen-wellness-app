@@ -14,6 +14,98 @@ class AIProvider(ABC):
         pass
 
 
+class GeminiProvider(AIProvider):
+    def __init__(self):
+        self.api_key = settings.GEMINI_API_KEY
+        self.base_url = "https://generativelanguage.googleapis.com/v1beta/models"
+
+    async def stream_chat(self, system_prompt: str, messages: List[Dict[str, Any]], model: str = "gemini-1.5-flash") -> AsyncGenerator[str, None]:
+        if not self.api_key:
+            yield "Gemini API key not configured."
+            return
+
+        contents = []
+        for msg in messages:
+            role = "model" if msg.get("role") == "assistant" else "user"
+            contents.append({
+                "role": role,
+                "parts": [{"text": msg.get("content", "")}]
+            })
+
+        payload = {
+            "systemInstruction": {
+                "parts": [{"text": system_prompt}]
+            },
+            "contents": contents,
+            "generationConfig": {
+                "temperature": 0.7,
+                "maxOutputTokens": 2048,
+            }
+        }
+
+        url = f"{self.base_url}/{model}:streamGenerateContent?key={self.api_key}"
+        headers = {
+            "Content-Type": "application/json",
+            "x-goog-api-key": self.api_key
+        }
+
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            async with client.stream("POST", url, headers=headers, json=payload) as response:
+                response.raise_for_status()
+                async for line in response.aiter_lines():
+                    if line.startswith("data: "):
+                        data_str = line[6:]
+                        try:
+                            data = json.loads(data_str)
+                            candidates = data.get("candidates", [])
+                            if candidates:
+                                parts = candidates[0].get("content", {}).get("parts", [])
+                                for p in parts:
+                                    if "text" in p:
+                                        yield p["text"]
+                        except json.JSONDecodeError:
+                            pass
+
+    async def generate_chat(self, system_prompt: str, messages: List[Dict[str, Any]], model: str = "gemini-1.5-flash", json_mode: bool = False) -> str:
+        if not self.api_key:
+            return "Gemini API key not configured."
+
+        contents = []
+        for msg in messages:
+            role = "model" if msg.get("role") == "assistant" else "user"
+            contents.append({
+                "role": role,
+                "parts": [{"text": msg.get("content", "")}]
+            })
+
+        payload = {
+            "systemInstruction": {
+                "parts": [{"text": system_prompt}]
+            },
+            "contents": contents,
+            "generationConfig": {
+                "temperature": 0.7,
+                "maxOutputTokens": 2048,
+            }
+        }
+
+        url = f"{self.base_url}/{model}:generateContent?key={self.api_key}"
+        headers = {
+            "Content-Type": "application/json",
+            "x-goog-api-key": self.api_key
+        }
+
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(url, headers=headers, json=payload)
+            response.raise_for_status()
+            data = response.json()
+            candidates = data.get("candidates", [])
+            if candidates:
+                parts = candidates[0].get("content", {}).get("parts", [])
+                return "".join([p.get("text", "") for p in parts])
+            return ""
+
+
 class AnthropicProvider(AIProvider):
     def __init__(self):
         self.api_key = settings.ANTHROPIC_API_KEY
@@ -119,6 +211,7 @@ class OpenAICompatibleProvider(AIProvider):
 
 class FallbackAIProvider(AIProvider):
     def __init__(self):
+        self.gemini = GeminiProvider()
         self.openai = OpenAICompatibleProvider(
             base_url="https://api.openai.com/v1",
             api_key=settings.OPENAI_API_KEY or ""
@@ -134,6 +227,15 @@ class FallbackAIProvider(AIProvider):
         )
 
     async def stream_chat(self, system_prompt: str, messages: List[Dict[str, Any]], model: str = "gpt-4o-mini") -> AsyncGenerator[str, None]:
+        if settings.GEMINI_API_KEY:
+            try:
+                async for token in self.gemini.stream_chat(system_prompt, messages, "gemini-1.5-flash"):
+                    yield token
+                return
+            except Exception as e:
+                import logging
+                logging.getLogger("uvicorn").error(f"Gemini streaming failed: {e}")
+
         if settings.OPENAI_API_KEY:
             try:
                 # Always use gpt-4o-mini for speed and cost efficiency
@@ -173,6 +275,13 @@ class FallbackAIProvider(AIProvider):
         yield "Please configure an OpenAI or Anthropic API key in backend/.env to enable the AI Coach."
 
     async def generate_chat(self, system_prompt: str, messages: List[Dict[str, Any]], model: str = "gpt-4o-mini", json_mode: bool = False) -> str:
+        if settings.GEMINI_API_KEY:
+            try:
+                return await self.gemini.generate_chat(system_prompt, messages, "gemini-1.5-flash", json_mode=json_mode)
+            except Exception as e:
+                import logging
+                logging.getLogger("uvicorn").error(f"Gemini generation failed: {e}")
+
         if settings.OPENAI_API_KEY:
             try:
                 return await self.openai.generate_chat(system_prompt, messages, "gpt-4o-mini", json_mode=json_mode)

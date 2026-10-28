@@ -10,6 +10,7 @@ import {
   Platform,
   KeyboardAvoidingView,
   Alert,
+  Modal,
 } from "react-native";
 import {
   useGetProfile,
@@ -38,6 +39,9 @@ import {
   Plus,
   RefreshCw,
   Check,
+  Zap,
+  X,
+  Key,
 } from "lucide-react-native";
 import { speakText, stopSpeaking, parseVoiceCommand } from "@/services/voice";
 import { useSlideMenu } from "@/context/SlideMenuContext";
@@ -53,6 +57,13 @@ import {
   generateLocalCoachResponse,
   HealthContextModel,
 } from "@/services/coachMemory";
+import {
+  askGeminiCoach,
+  getGeminiApiKey,
+  setGeminiApiKey,
+  testGeminiApiKey,
+  DEFAULT_GEMINI_API_KEY,
+} from "@/services/geminiAi";
 
 function FormattedMessage({ content, isUser }: { content: string; isUser: boolean }) {
   if (isUser) {
@@ -116,10 +127,19 @@ export default function CoachScreen() {
   const [healthContext, setHealthContext] = useState<HealthContextModel | null>(null);
   const [showContextRadar, setShowContextRadar] = useState(false);
 
+  // Google Gemini AI Engine State
+  const [showGeminiModal, setShowGeminiModal] = useState(false);
+  const [geminiKeyInput, setGeminiKeyInput] = useState(DEFAULT_GEMINI_API_KEY);
+  const [isTestingGemini, setIsTestingGemini] = useState(false);
+  const [geminiTestFeedback, setGeminiTestFeedback] = useState<string | null>(null);
+
   // Initialize master SQLite chat history & telemetry context
   useEffect(() => {
     async function initChatAndContext() {
       try {
+        const currentKey = await getGeminiApiKey();
+        setGeminiKeyInput(currentKey);
+
         const ctx = await buildFullHealthContextModel();
         setHealthContext(ctx);
 
@@ -187,47 +207,44 @@ export default function CoachScreen() {
 
     let assistantResponseText = "";
 
-    // 4. Try online streaming from backend, fallback to Local Neural-Heuristic Context Model
+    // 4. Primary: Direct High-Intelligence Google Gemini AI Engine
     try {
-      let targetConvoId = activeConvoId;
-      if (!targetConvoId) {
-        try {
-          const res = await createConversation.mutateAsync({
-            data: { title: "Health Consultation" },
-          });
-          targetConvoId = (res as any).id;
-          setActiveConvoId(targetConvoId);
-        } catch {
-          targetConvoId = 1;
+      assistantResponseText = await askGeminiCoach(
+        text,
+        localMessages.map((m) => ({ role: m.role, content: m.content })),
+        currentContext
+      );
+    } catch (geminiErr: any) {
+      console.warn("Direct Gemini call returned error, attempting backend/local fallback:", geminiErr);
+      
+      // Secondary: Try backend server if reachable
+      try {
+        let targetConvoId = activeConvoId || 1;
+        const augmentedPrompt = `${text}\n\n[CURRENT USER BIO-METRICS CONTEXT]:\n${currentContext.compiledTelemetrySnapshot}`;
+
+        const res = await sendMessageMutation.mutateAsync({
+          conversationId: String(targetConvoId),
+          data: { content: augmentedPrompt },
+        });
+
+        if (res && (res as any).content) {
+          assistantResponseText = (res as any).content;
+        } else {
+          assistantResponseText = generateLocalCoachResponse(
+            text,
+            currentContext,
+            localMessages.map((m) => ({ role: m.role, content: m.content }))
+          );
         }
-      }
-
-      // Format prompt with compiled bio-intelligence telemetry snapshot
-      const augmentedPrompt = `${text}\n\n[CURRENT USER BIO-METRICS CONTEXT]:\n${currentContext.compiledTelemetrySnapshot}`;
-
-      const res = await sendMessageMutation.mutateAsync({
-        conversationId: String(targetConvoId),
-        data: { content: augmentedPrompt },
-      });
-
-      if (res && (res as any).content) {
-        assistantResponseText = (res as any).content;
-      } else {
-        // Use local heuristic engine if stream body isn't plain text
+      } catch (backendErr) {
+        // Tertiary offline fallback: Local Neural-Heuristic Context Model
+        console.log("Using Local Context Memory Model for coach answer:", backendErr);
         assistantResponseText = generateLocalCoachResponse(
           text,
           currentContext,
           localMessages.map((m) => ({ role: m.role, content: m.content }))
         );
       }
-    } catch (err) {
-      // Offline / standalone APK fallback: Instant Context Engine Response
-      console.log("Using Local Context Memory Model for coach answer:", err);
-      assistantResponseText = generateLocalCoachResponse(
-        text,
-        currentContext,
-        localMessages.map((m) => ({ role: m.role, content: m.content }))
-      );
     } finally {
       // 5. Persist Assistant Response to SQLite Master Database
       const assistantMsgId = `a-${Date.now()}`;
@@ -272,6 +289,32 @@ export default function CoachScreen() {
       setSpokenMessageId(messageId);
       speakText(content, () => setSpokenMessageId(null));
     }
+  };
+
+  const handleTestGeminiKey = async () => {
+    setIsTestingGemini(true);
+    setGeminiTestFeedback(null);
+    try {
+      const res = await testGeminiApiKey(geminiKeyInput);
+      setGeminiTestFeedback(res.message);
+      if (res.success) {
+        await setGeminiApiKey(geminiKeyInput);
+      }
+    } catch (e: any) {
+      setGeminiTestFeedback("Error: " + e.message);
+    } finally {
+      setIsTestingGemini(false);
+    }
+  };
+
+  const handleSaveGeminiKey = async () => {
+    if (!geminiKeyInput.trim()) {
+      Alert.alert("Empty Key", "Please enter a valid Gemini API key.");
+      return;
+    }
+    await setGeminiApiKey(geminiKeyInput);
+    Alert.alert("Gemini Key Activated", "Your Google Gemini API key has been securely saved and activated.");
+    setShowGeminiModal(false);
   };
 
   const handleClearHistory = () => {
@@ -329,7 +372,17 @@ export default function CoachScreen() {
             <Text style={styles.logoSub}>Ground-Truth Memory Engine & Context Model</Text>
           </View>
 
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Pressable
+              style={styles.geminiBadgePill}
+              onPress={() => setShowGeminiModal(true)}
+              accessibilityLabel="Gemini AI Settings"
+            >
+              <Sparkles size={11} color="#38bdf8" />
+              <Text style={styles.geminiBadgeText}>Gemini AI</Text>
+              <View style={styles.geminiActiveDot} />
+            </Pressable>
+
             <Pressable
               onPress={handleClearHistory}
               style={styles.clearBtn}
@@ -491,9 +544,9 @@ export default function CoachScreen() {
                 { flexDirection: "row", alignItems: "center", gap: 8, paddingBottom: 12 },
               ]}
             >
-              <Sparkles size={14} color="#10b981" />
+              <Sparkles size={14} color="#38bdf8" />
               <Text style={[styles.bubbleText, styles.coachBubbleText, { fontStyle: "italic", color: "#94a3b8" }]}>
-                Lumen Memory Engine is analyzing your live biometrics...
+                Lumen Coach is analyzing your live biometrics with Google Gemini AI...
               </Text>
             </View>
           </View>
@@ -546,6 +599,77 @@ export default function CoachScreen() {
           <Send size={16} color="#050b08" />
         </Pressable>
       </View>
+
+      {/* ========================================================= */}
+      {/* MODAL: GEMINI API KEY & MODEL SETTINGS                   */}
+      {/* ========================================================= */}
+      <Modal visible={showGeminiModal} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.geminiModalContent}>
+            <View style={styles.geminiModalHeader}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Sparkles size={18} color="#38bdf8" />
+                <Text style={styles.geminiModalTitle}>Google Gemini AI Advisor</Text>
+              </View>
+              <Pressable onPress={() => setShowGeminiModal(false)}>
+                <X size={20} color="#94a3b8" />
+              </Pressable>
+            </View>
+
+            <ScrollView contentContainerStyle={{ gap: 14, paddingVertical: 10 }}>
+              <Text style={styles.geminiModalDesc}>
+                Lumen Chatbot connects directly to Google Gemini to analyze your live nutrition, sleep, steps, and screen time to generate personalized clinical bio-advice.
+              </Text>
+
+              <View>
+                <Text style={styles.fieldLabel}>Active Gemini API Key</Text>
+                <TextInput
+                  style={styles.keyInput}
+                  value={geminiKeyInput}
+                  onChangeText={setGeminiKeyInput}
+                  placeholder="Paste Gemini API Key..."
+                  placeholderTextColor="#64748b"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              </View>
+
+              {geminiTestFeedback && (
+                <View style={[styles.testResultBox, geminiTestFeedback.includes("Connected") ? styles.testResultSuccess : styles.testResultInfo]}>
+                  <Text style={styles.testResultText}>{geminiTestFeedback}</Text>
+                </View>
+              )}
+
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                <Pressable
+                  style={styles.testKeyBtn}
+                  onPress={handleTestGeminiKey}
+                  disabled={isTestingGemini}
+                >
+                  <Zap size={14} color="#38bdf8" />
+                  <Text style={styles.testKeyBtnText}>
+                    {isTestingGemini ? "Testing..." : "Test API Connection"}
+                  </Text>
+                </Pressable>
+
+                <Pressable style={styles.saveKeyBtn} onPress={handleSaveGeminiKey}>
+                  <Check size={14} color="#050b08" strokeWidth={3} />
+                  <Text style={styles.saveKeyBtnText}>Save Key</Text>
+                </Pressable>
+              </View>
+
+              <View style={styles.modelBadgeRow}>
+                <View style={styles.modelChip}>
+                  <Text style={styles.modelChipText}>Model: gemini-1.5-flash</Text>
+                </View>
+                <View style={styles.modelChip}>
+                  <Text style={styles.modelChipText}>Multi-Turn Memory: Active</Text>
+                </View>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -877,5 +1001,149 @@ const styles = StyleSheet.create({
     backgroundColor: "#10b981",
     alignItems: "center",
     justifyContent: "center",
+  },
+
+  // Gemini AI Badge & Modal Styles
+  geminiBadgePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "rgba(56, 189, 248, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(56, 189, 248, 0.3)",
+    paddingVertical: 5,
+    paddingHorizontal: 9,
+    borderRadius: 12,
+  },
+  geminiBadgeText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#38bdf8",
+    letterSpacing: 0.3,
+  },
+  geminiActiveDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: "#38bdf8",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.75)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  geminiModalContent: {
+    backgroundColor: "#0b120f",
+    borderWidth: 1.5,
+    borderColor: "rgba(56, 189, 248, 0.35)",
+    borderRadius: 20,
+    padding: 20,
+    width: "100%",
+    maxHeight: "85%",
+  },
+  geminiModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255, 255, 255, 0.06)",
+    paddingBottom: 12,
+  },
+  geminiModalTitle: {
+    fontSize: 15,
+    fontWeight: "900",
+    color: "#f8fafc",
+  },
+  geminiModalDesc: {
+    fontSize: 11,
+    color: "#94a3b8",
+    lineHeight: 16,
+  },
+  fieldLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#94a3b8",
+    marginBottom: 4,
+  },
+  keyInput: {
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 12,
+    color: "#38bdf8",
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+  },
+  testResultBox: {
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  testResultSuccess: {
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    borderColor: "rgba(16, 185, 129, 0.3)",
+  },
+  testResultInfo: {
+    backgroundColor: "rgba(56, 189, 248, 0.1)",
+    borderColor: "rgba(56, 189, 248, 0.25)",
+  },
+  testResultText: {
+    fontSize: 11,
+    color: "#e2e8f0",
+    lineHeight: 15,
+  },
+  testKeyBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: "rgba(56, 189, 248, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(56, 189, 248, 0.3)",
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  testKeyBtnText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#38bdf8",
+  },
+  saveKeyBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: "#10b981",
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  saveKeyBtnText: {
+    fontSize: 11,
+    fontWeight: "900",
+    color: "#050b08",
+  },
+  modelBadgeRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 4,
+  },
+  modelChip: {
+    backgroundColor: "rgba(255, 255, 255, 0.04)",
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.06)",
+  },
+  modelChipText: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: "#94a3b8",
   },
 });
