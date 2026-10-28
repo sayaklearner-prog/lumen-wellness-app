@@ -55,7 +55,10 @@ import {
   Info,
   Zap,
   Check,
-  X
+  X,
+  Bell,
+  Clock,
+  Send
 } from "lucide-react-native";
 import { 
   getBiometricsEnabled, 
@@ -69,6 +72,18 @@ import { digitalWellbeingService } from "@/services/digitalWellbeingService";
 import { getStoredGoogleUser, GoogleUser } from "@/services/googleAuth";
 import { authService } from "@/services/authService";
 import { getMeals, getWorkouts, getSleepRecords, getScreenTimeRecords } from "@/services/db";
+import { 
+  NotificationPreferences, 
+  DEFAULT_NOTIFICATION_PREFERENCES, 
+  getNotificationPreferences, 
+  saveNotificationPreferences, 
+  checkNotificationPermissions, 
+  requestNotificationPermissions, 
+  openSystemNotificationSettings, 
+  sendTestNotification, 
+  syncNotificationSchedules,
+  NotificationChannelId
+} from "@/services/notifications";
 
 // Clinical & Lifestyle Bio-Protocol Presets
 const HEALTH_MODES = [
@@ -131,8 +146,14 @@ export default function SettingsScreen() {
   const { data: profile } = useGetProfile();
   const updateProfile = useUpdateProfile();
 
-  // Active Category Section: "targets" | "hardware" | "permissions" | "coach" | "data"
-  const [activeSection, setActiveSection] = useState<"targets" | "hardware" | "permissions" | "coach" | "data">("targets");
+  // Active Category Section: "targets" | "notifications" | "hardware" | "permissions" | "coach" | "data"
+  const [activeSection, setActiveSection] = useState<"targets" | "notifications" | "hardware" | "permissions" | "coach" | "data">("targets");
+
+  // Proactive Notifications & Smart Alarms State
+  const [notificationPrefs, setNotificationPrefs] = useState<NotificationPreferences>(DEFAULT_NOTIFICATION_PREFERENCES);
+  const [notifOsGranted, setNotifOsGranted] = useState(false);
+  const [isSendingTest, setIsSendingTest] = useState(false);
+  const [testFeedback, setTestFeedback] = useState<string | null>(null);
 
   // User Profile State
   const [name, setName] = useState("");
@@ -270,10 +291,68 @@ export default function SettingsScreen() {
           screen: screen?.length || 0,
         });
       } catch {}
+
+      // 7. Proactive Notifications & OS Alarms
+      try {
+        const notifSettings = await getNotificationPreferences();
+        setNotificationPrefs(notifSettings);
+        const permCheck = await checkNotificationPermissions();
+        setNotifOsGranted(permCheck.granted);
+        setNotifPerm(permCheck.granted);
+      } catch (e) {
+        console.warn("Notification prefs init error:", e);
+      }
     }
 
     initSettings();
   }, []);
+
+  // Proactive Notification Handlers
+  const handleToggleNotifPref = async <K extends keyof NotificationPreferences>(
+    key: K,
+    val: NotificationPreferences[K]
+  ) => {
+    const updated = { ...notificationPrefs, [key]: val };
+    setNotificationPrefs(updated);
+    await saveNotificationPreferences(updated);
+  };
+
+  const handleRequestNotifPermission = async () => {
+    const granted = await requestNotificationPermissions();
+    setNotifOsGranted(granted);
+    setNotifPerm(granted);
+    if (granted) {
+      Alert.alert("Permission Granted", "Proactive alerts and background reminders are now enabled.");
+      await syncNotificationSchedules(notificationPrefs);
+    } else {
+      Alert.alert(
+        "Permission Denied",
+        "Android notification permission is disabled. Would you like to open System Settings to allow notifications?",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Open Settings", onPress: openSystemNotificationSettings }
+        ]
+      );
+    }
+  };
+
+  const handleSendTestAlert = async (channelId: NotificationChannelId = "lumen_alerts") => {
+    setIsSendingTest(true);
+    setTestFeedback(null);
+    try {
+      const success = await sendTestNotification(channelId);
+      if (success) {
+        setTestFeedback("⚡ Test notification sent! Check your phone's notification bar.");
+      } else {
+        setTestFeedback("⚠️ Could not deliver notification. Check permissions.");
+      }
+    } catch (err: any) {
+      setTestFeedback("Error: " + err.message);
+    } finally {
+      setIsSendingTest(false);
+      setTimeout(() => setTestFeedback(null), 5000);
+    }
+  };
 
   // Sync profile data from server API
   useEffect(() => {
@@ -661,6 +740,19 @@ export default function SettingsScreen() {
           </Pressable>
 
           <Pressable
+            style={[styles.segmentBtn, activeSection === "notifications" && styles.segmentBtnActive]}
+            onPress={() => setActiveSection("notifications")}
+          >
+            <Bell size={14} color={activeSection === "notifications" ? "#10b981" : "#64748b"} />
+            <Text style={[styles.segmentBtnText, activeSection === "notifications" && styles.segmentBtnTextActive]}>
+              Proactive Alerts
+            </Text>
+            {notificationPrefs.masterEnabled && notifOsGranted && (
+              <View style={styles.segmentActiveDot} />
+            )}
+          </Pressable>
+
+          <Pressable
             style={[styles.segmentBtn, activeSection === "hardware" && styles.segmentBtnActive]}
             onPress={() => setActiveSection("hardware")}
           >
@@ -962,6 +1054,305 @@ export default function SettingsScreen() {
         )}
 
         {/* ========================================================================= */}
+        {/* SECTION: PROACTIVE NOTIFICATIONS & SMART ALERTS */}
+        {/* ========================================================================= */}
+        {activeSection === "notifications" && (
+          <View style={{ gap: 16 }}>
+            {/* Master Proactive Alert Engine Card */}
+            <View style={styles.card}>
+              <View style={styles.sectionHeaderRow}>
+                <View style={[styles.sectionIconBox, { backgroundColor: "rgba(16, 185, 129, 0.15)", borderColor: "rgba(16, 185, 129, 0.3)" }]}>
+                  <Bell size={18} color="#10b981" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.sectionTitle}>Proactive Alert Engine</Text>
+                  <Text style={styles.sectionSub}>Continuous biomarker surveillance & smart background reminders</Text>
+                </View>
+                <Switch
+                  value={notificationPrefs.masterEnabled}
+                  onValueChange={(val) => handleToggleNotifPref("masterEnabled", val)}
+                  trackColor={{ false: "#1e293b", true: "#059669" }}
+                  thumbColor={notificationPrefs.masterEnabled ? "#10b981" : "#94a3b8"}
+                />
+              </View>
+
+              {/* Permission Status Pill */}
+              <View style={{ marginTop: 14 }}>
+                <Pressable 
+                  style={[
+                    styles.statusPillLarge,
+                    notifOsGranted ? styles.statusPillGreen : styles.statusPillAmber
+                  ]}
+                  onPress={handleRequestNotifPermission}
+                >
+                  {notifOsGranted ? (
+                    <CheckCircle2 size={16} color="#10b981" />
+                  ) : (
+                    <AlertCircle size={16} color="#f59e0b" />
+                  )}
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <Text style={[styles.statusPillTitle, { color: notifOsGranted ? "#10b981" : "#f59e0b" }]}>
+                      {notifOsGranted ? "OS NOTIFICATION PERMISSION ACTIVE" : "PERMISSION REQUIRED BY ANDROID"}
+                    </Text>
+                    <Text style={styles.statusPillDesc}>
+                      {notifOsGranted 
+                        ? "Heads-up banners, sound alerts, and scheduled alarms are operational."
+                        : "Tap to grant Android notification permissions or open System Settings."}
+                    </Text>
+                  </View>
+                  <ChevronRight size={16} color={notifOsGranted ? "#10b981" : "#f59e0b"} />
+                </Pressable>
+              </View>
+
+              {/* Instant Test Alert Verification */}
+              <View style={styles.testAlertBox}>
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <Zap size={14} color="#38bdf8" />
+                    <Text style={styles.testAlertTitle}>Instant Alert Verification</Text>
+                  </View>
+                  {isSendingTest && <ActivityIndicator size="small" color="#38bdf8" />}
+                </View>
+                <Text style={styles.testAlertDesc}>
+                  Tap any channel below to immediately test native sound, vibration, and banner delivery to your phone.
+                </Text>
+
+                <View style={styles.testButtonsGrid}>
+                  <Pressable 
+                    style={styles.testBtn} 
+                    onPress={() => handleSendTestAlert("lumen_alerts")}
+                    disabled={isSendingTest}
+                  >
+                    <Text style={styles.testBtnText}>⚡ Critical Alert</Text>
+                  </Pressable>
+                  <Pressable 
+                    style={styles.testBtn} 
+                    onPress={() => handleSendTestAlert("lumen_hydration")}
+                    disabled={isSendingTest}
+                  >
+                    <Text style={styles.testBtnText}>💧 Hydration</Text>
+                  </Pressable>
+                  <Pressable 
+                    style={styles.testBtn} 
+                    onPress={() => handleSendTestAlert("lumen_movement")}
+                    disabled={isSendingTest}
+                  >
+                    <Text style={styles.testBtnText}>🏃 Movement</Text>
+                  </Pressable>
+                  <Pressable 
+                    style={styles.testBtn} 
+                    onPress={() => handleSendTestAlert("lumen_briefing")}
+                    disabled={isSendingTest}
+                  >
+                    <Text style={styles.testBtnText}>🌅 Morning</Text>
+                  </Pressable>
+                  <Pressable 
+                    style={styles.testBtn} 
+                    onPress={() => handleSendTestAlert("lumen_screentime")}
+                    disabled={isSendingTest}
+                  >
+                    <Text style={styles.testBtnText}>📱 Screen Limit</Text>
+                  </Pressable>
+                  <Pressable 
+                    style={styles.testBtn} 
+                    onPress={() => handleSendTestAlert("lumen_nutrition")}
+                    disabled={isSendingTest}
+                  >
+                    <Text style={styles.testBtnText}>🥗 Meal Prompt</Text>
+                  </Pressable>
+                </View>
+
+                {testFeedback && (
+                  <View style={styles.feedbackBanner}>
+                    <Text style={styles.feedbackBannerText}>{testFeedback}</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+
+            {/* Granular Proactive Categories */}
+            <View style={styles.card}>
+              <Text style={styles.cardSectionLabel}>PROACTIVE NOTIFICATION SCHEDULES</Text>
+
+              {/* 1. Cellular Hydration Prompts */}
+              <View style={styles.alertCategoryRow}>
+                <View style={[styles.categoryIconCircle, { backgroundColor: "rgba(56, 189, 248, 0.12)" }]}>
+                  <Droplets size={16} color="#38bdf8" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.alertCategoryTitle}>Cellular Hydration Prompts</Text>
+                  <Text style={styles.alertCategoryDesc}>Periodic reminders to drink 250ml water and avoid cellular hypovolemia</Text>
+                  
+                  {notificationPrefs.hydrationEnabled && (
+                    <View style={styles.intervalRow}>
+                      {[2, 3, 4].map((hrs) => (
+                        <Pressable
+                          key={hrs}
+                          style={[
+                            styles.intervalChip,
+                            notificationPrefs.hydrationIntervalHours === hrs && styles.intervalChipActive
+                          ]}
+                          onPress={() => handleToggleNotifPref("hydrationIntervalHours", hrs)}
+                        >
+                          <Text style={[
+                            styles.intervalChipText,
+                            notificationPrefs.hydrationIntervalHours === hrs && styles.intervalChipTextActive
+                          ]}>
+                            Every {hrs}h
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  )}
+                </View>
+                <Switch
+                  value={notificationPrefs.hydrationEnabled}
+                  onValueChange={(val) => handleToggleNotifPref("hydrationEnabled", val)}
+                  disabled={!notificationPrefs.masterEnabled}
+                  trackColor={{ false: "#1e293b", true: "#0284c7" }}
+                  thumbColor={notificationPrefs.hydrationEnabled ? "#38bdf8" : "#94a3b8"}
+                />
+              </View>
+
+              <View style={styles.divider} />
+
+              {/* 2. Movement & Inactivity */}
+              <View style={styles.alertCategoryRow}>
+                <View style={[styles.categoryIconCircle, { backgroundColor: "rgba(16, 185, 129, 0.12)" }]}>
+                  <Footprints size={16} color="#10b981" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.alertCategoryTitle}>Sedentary & Movement Alerts</Text>
+                  <Text style={styles.alertCategoryDesc}>Fires during daytime if step sensor detects prolonged physical stillness</Text>
+                </View>
+                <Switch
+                  value={notificationPrefs.movementAlertsEnabled}
+                  onValueChange={(val) => handleToggleNotifPref("movementAlertsEnabled", val)}
+                  disabled={!notificationPrefs.masterEnabled}
+                  trackColor={{ false: "#1e293b", true: "#059669" }}
+                  thumbColor={notificationPrefs.movementAlertsEnabled ? "#10b981" : "#94a3b8"}
+                />
+              </View>
+
+              <View style={styles.divider} />
+
+              {/* 3. Morning Readiness Briefing */}
+              <View style={styles.alertCategoryRow}>
+                <View style={[styles.categoryIconCircle, { backgroundColor: "rgba(245, 158, 11, 0.12)" }]}>
+                  <Clock size={16} color="#f59e0b" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.alertCategoryTitle}>Morning Bio-Readiness Briefing</Text>
+                  <Text style={styles.alertCategoryDesc}>Daily 8:00 AM summary of recovery readiness score, sleep, and today's targets</Text>
+                </View>
+                <Switch
+                  value={notificationPrefs.morningBriefingEnabled}
+                  onValueChange={(val) => handleToggleNotifPref("morningBriefingEnabled", val)}
+                  disabled={!notificationPrefs.masterEnabled}
+                  trackColor={{ false: "#1e293b", true: "#d97706" }}
+                  thumbColor={notificationPrefs.morningBriefingEnabled ? "#f59e0b" : "#94a3b8"}
+                />
+              </View>
+
+              <View style={styles.divider} />
+
+              {/* 4. Evening Sleep Wind-Down */}
+              <View style={styles.alertCategoryRow}>
+                <View style={[styles.categoryIconCircle, { backgroundColor: "rgba(168, 85, 247, 0.12)" }]}>
+                  <Moon size={16} color="#a855f7" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.alertCategoryTitle}>Evening Sleep Wind-Down</Text>
+                  <Text style={styles.alertCategoryDesc}>Circadian cue at 10:00 PM to disconnect from screens and prepare for REM sleep</Text>
+                </View>
+                <Switch
+                  value={notificationPrefs.eveningWindDownEnabled}
+                  onValueChange={(val) => handleToggleNotifPref("eveningWindDownEnabled", val)}
+                  disabled={!notificationPrefs.masterEnabled}
+                  trackColor={{ false: "#1e293b", true: "#9333ea" }}
+                  thumbColor={notificationPrefs.eveningWindDownEnabled ? "#a855f7" : "#94a3b8"}
+                />
+              </View>
+
+              <View style={styles.divider} />
+
+              {/* 5. Nutrition & Meal Logging Prompts */}
+              <View style={styles.alertCategoryRow}>
+                <View style={[styles.categoryIconCircle, { backgroundColor: "rgba(236, 72, 153, 0.12)" }]}>
+                  <Flame size={16} color="#ec4899" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.alertCategoryTitle}>Meal & Calorie Check-ins</Text>
+                  <Text style={styles.alertCategoryDesc}>Lunch (1:00 PM) & Dinner (7:30 PM) nutrition logging prompts</Text>
+                </View>
+                <Switch
+                  value={notificationPrefs.mealPromptsEnabled}
+                  onValueChange={(val) => handleToggleNotifPref("mealPromptsEnabled", val)}
+                  disabled={!notificationPrefs.masterEnabled}
+                  trackColor={{ false: "#1e293b", true: "#db2777" }}
+                  thumbColor={notificationPrefs.mealPromptsEnabled ? "#ec4899" : "#94a3b8"}
+                />
+              </View>
+
+              <View style={styles.divider} />
+
+              {/* 6. Digital Wellbeing Screen Limits */}
+              <View style={styles.alertCategoryRow}>
+                <View style={[styles.categoryIconCircle, { backgroundColor: "rgba(59, 130, 246, 0.12)" }]}>
+                  <Smartphone size={16} color="#3b82f6" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.alertCategoryTitle}>Mindful Screen Time Warnings</Text>
+                  <Text style={styles.alertCategoryDesc}>Fires when screen time reaches 80% or 100% of your daily mindful limit</Text>
+                </View>
+                <Switch
+                  value={notificationPrefs.screenTimeAlertsEnabled}
+                  onValueChange={(val) => handleToggleNotifPref("screenTimeAlertsEnabled", val)}
+                  disabled={!notificationPrefs.masterEnabled}
+                  trackColor={{ false: "#1e293b", true: "#2563eb" }}
+                  thumbColor={notificationPrefs.screenTimeAlertsEnabled ? "#3b82f6" : "#94a3b8"}
+                />
+              </View>
+            </View>
+
+            {/* Device OS Integration Card */}
+            <View style={styles.card}>
+              <Text style={styles.cardSectionLabel}>DEVICE OS INTEGRATION</Text>
+              
+              <Pressable style={styles.actionBtnRow} onPress={openSystemNotificationSettings}>
+                <View style={styles.actionIcon}>
+                  <Settings size={16} color="#94a3b8" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.actionBtnTitle}>Open Android Notification Settings</Text>
+                  <Text style={styles.actionBtnSub}>Configure notification categories, lock screen visibility & DND overrides</Text>
+                </View>
+                <ExternalLink size={16} color="#64748b" />
+              </Pressable>
+
+              <View style={styles.divider} />
+
+              <Pressable 
+                style={styles.actionBtnRow} 
+                onPress={async () => {
+                  await syncNotificationSchedules(notificationPrefs);
+                  Alert.alert("Alarms Synchronized", "All proactive notification alarms have been re-armed with the Android AlarmManager.");
+                }}
+              >
+                <View style={styles.actionIcon}>
+                  <RefreshCw size={16} color="#10b981" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.actionBtnTitle}>Resync All Background Alarms</Text>
+                  <Text style={styles.actionBtnSub}>Forces re-arming of all daily scheduled wake-locks and alarms</Text>
+                </View>
+                <ChevronRight size={16} color="#64748b" />
+              </Pressable>
+            </View>
+          </View>
+        )}
+
+        {/* ========================================================================= */}
         {/* SECTION 2: HARDWARE, SENSORS & BACKGROUND DURABILITY */}
         {/* ========================================================================= */}
         {activeSection === "hardware" && (
@@ -1207,19 +1598,27 @@ export default function SettingsScreen() {
 
               {/* Push Notifications & Alarms */}
               <View style={styles.permissionItemRow}>
-                <View style={styles.permIconCircle}>
-                  <AlertCircle size={18} color="#ec4899" />
+                <View style={[styles.permIconCircle, { backgroundColor: "rgba(16, 185, 129, 0.12)" }]}>
+                  <Bell size={18} color="#10b981" />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.permTitle}>Notifications & Smart Alarms</Text>
-                  <Text style={styles.permSub}>Hydration reminders, bedtime nudges & recovery alarms</Text>
+                  <Text style={styles.permSub}>Hydration prompts, movement nudges & recovery alarms</Text>
                 </View>
-                <Switch
-                  value={notifPerm}
-                  onValueChange={setNotifPerm}
-                  trackColor={{ false: "#1e293b", true: "#059669" }}
-                  thumbColor={notifPerm ? "#10b981" : "#94a3b8"}
-                />
+                <Pressable
+                  style={[
+                    styles.permStatusBadge,
+                    notifOsGranted && styles.permStatusBadgeGranted
+                  ]}
+                  onPress={handleRequestNotifPermission}
+                >
+                  <Text style={[
+                    styles.permStatusText,
+                    notifOsGranted && styles.permStatusTextGranted
+                  ]}>
+                    {notifOsGranted ? "GRANTED" : "ENABLE"}
+                  </Text>
+                </Pressable>
               </View>
 
               {/* Master System Settings Button */}
@@ -1802,6 +2201,11 @@ const styles = StyleSheet.create({
     height: 20,
     backgroundColor: "rgba(255, 255, 255, 0.08)",
   },
+  divider: {
+    height: 1,
+    backgroundColor: "rgba(255, 255, 255, 0.06)",
+    marginVertical: 12,
+  },
 
   // Segmented Pill Navigation Bar
   segmentBar: {
@@ -2319,5 +2723,175 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "900",
     color: "#050b08",
+  },
+
+  // Proactive Notifications Styles
+  segmentActiveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#10b981",
+    marginLeft: 6,
+  },
+  statusPillLarge: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  statusPillGreen: {
+    backgroundColor: "rgba(16, 185, 129, 0.08)",
+    borderColor: "rgba(16, 185, 129, 0.25)",
+  },
+  statusPillAmber: {
+    backgroundColor: "rgba(245, 158, 11, 0.08)",
+    borderColor: "rgba(245, 158, 11, 0.25)",
+  },
+  statusPillTitle: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
+  statusPillDesc: {
+    fontSize: 11,
+    color: "#94a3b8",
+    lineHeight: 15,
+    marginTop: 2,
+  },
+  testAlertBox: {
+    marginTop: 14,
+    backgroundColor: "rgba(0, 0, 0, 0.35)",
+    borderWidth: 1,
+    borderColor: "rgba(56, 189, 248, 0.2)",
+    borderRadius: 14,
+    padding: 14,
+  },
+  testAlertTitle: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#38bdf8",
+    letterSpacing: 0.3,
+  },
+  testAlertDesc: {
+    fontSize: 11,
+    color: "#94a3b8",
+    lineHeight: 16,
+    marginBottom: 10,
+  },
+  testButtonsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  testBtn: {
+    backgroundColor: "rgba(56, 189, 248, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(56, 189, 248, 0.3)",
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+  },
+  testBtnText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#e0f2fe",
+  },
+  feedbackBanner: {
+    marginTop: 10,
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.3)",
+    borderRadius: 8,
+    padding: 8,
+    alignItems: "center",
+  },
+  feedbackBannerText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#34d399",
+  },
+  cardSectionLabel: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#64748b",
+    letterSpacing: 0.8,
+    marginBottom: 12,
+  },
+  alertCategoryRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    paddingVertical: 4,
+  },
+  categoryIconCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 2,
+  },
+  alertCategoryTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#f8fafc",
+  },
+  alertCategoryDesc: {
+    fontSize: 11,
+    color: "#94a3b8",
+    lineHeight: 16,
+    marginTop: 2,
+  },
+  intervalRow: {
+    flexDirection: "row",
+    gap: 6,
+    marginTop: 8,
+  },
+  intervalChip: {
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+    borderRadius: 6,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  intervalChipActive: {
+    backgroundColor: "rgba(56, 189, 248, 0.2)",
+    borderColor: "#38bdf8",
+  },
+  intervalChipText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#94a3b8",
+  },
+  intervalChipTextActive: {
+    color: "#38bdf8",
+    fontWeight: "800",
+  },
+  actionBtnRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 6,
+  },
+  actionIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  actionBtnTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#f8fafc",
+  },
+  actionBtnSub: {
+    fontSize: 11,
+    color: "#94a3b8",
+    lineHeight: 15,
+    marginTop: 1,
   },
 });

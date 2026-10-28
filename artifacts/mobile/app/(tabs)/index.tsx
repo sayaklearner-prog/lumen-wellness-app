@@ -75,6 +75,8 @@ import { speakText, stopSpeaking } from "@/services/voice";
 import { syncHealthData, getLastSyncStatus, HealthSyncStatus } from "@/services/health";
 import { storage } from "@/services/storage";
 import { useSlideMenu } from "@/context/SlideMenuContext";
+import { syncNotificationSchedules } from "@/services/notifications";
+import { proactiveAlertEngine } from "@/services/proactiveAlertEngine";
 import {
   getMeals,
   getWorkouts,
@@ -308,8 +310,12 @@ export default function DashboardScreen() {
   useEffect(() => {
     if (screenTelemetry.totalScreenMinutes > 0) {
       setScreenMinutesToday(screenTelemetry.totalScreenMinutes);
+      proactiveAlertEngine.evaluateScreenTime(
+        screenTelemetry.totalScreenMinutes,
+        screenLimitMinutes || 240
+      );
     }
-  }, [screenTelemetry.totalScreenMinutes]);
+  }, [screenTelemetry.totalScreenMinutes, screenLimitMinutes]);
 
   // Background app usage session tracking
   const appActiveTimestamp = useRef<number>(Date.now());
@@ -394,6 +400,13 @@ export default function DashboardScreen() {
         const cups = await getHydrationToday();
         if (cups !== undefined) setWaterCups(cups);
       } catch {}
+
+      // 5. Arm & synchronize proactive background notification alarms
+      try {
+        await syncNotificationSchedules();
+      } catch (e) {
+        console.warn("Notification schedules sync error:", e);
+      }
     }
     loadLocalHealthState();
   }, []);

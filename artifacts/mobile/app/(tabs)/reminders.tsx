@@ -31,6 +31,7 @@ import {
 import { useSlideMenu } from "@/context/SlideMenuContext";
 
 import { getAlarms, saveAlarm, deleteAlarm as deleteAlarmDb } from "@/services/db";
+import { sendLocalNotification } from "@/services/notifications";
 
 export interface AlarmReminder {
   id: string;
@@ -170,6 +171,12 @@ export default function RemindersScreen() {
     if (reminder.soundEnabled) {
       activeAlarmController.current = playAlarmSound(15);
     }
+    // Proactive native heads-up notification
+    sendLocalNotification({
+      title: `⏰ ${reminder.title}`,
+      body: `Scheduled alarm for ${reminder.time} is active.`,
+      channelId: "lumen_alerts",
+    });
   };
 
   // Stop current ringing alarm

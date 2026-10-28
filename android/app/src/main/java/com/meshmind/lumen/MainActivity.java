@@ -9,6 +9,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(WearableBlePlugin.class);
         registerPlugin(DigitalWellbeingPlugin.class);
         registerPlugin(StepCounterPlugin.class);
+        registerPlugin(LumenNotificationPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }
