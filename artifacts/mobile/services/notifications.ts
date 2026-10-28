@@ -32,6 +32,7 @@ export interface NotificationScheduleOptions {
 
 export interface NotificationPreferences {
   masterEnabled: boolean;
+  achievementAlertsEnabled: boolean; // Instant alerts when new badges & milestones are unlocked
   hydrationEnabled: boolean;
   hydrationIntervalHours: number; // 2, 3, or 4
   movementAlertsEnabled: boolean;
@@ -48,6 +49,7 @@ export interface NotificationPreferences {
 
 export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   masterEnabled: true,
+  achievementAlertsEnabled: true,
   hydrationEnabled: true,
   hydrationIntervalHours: 2,
   movementAlertsEnabled: true,

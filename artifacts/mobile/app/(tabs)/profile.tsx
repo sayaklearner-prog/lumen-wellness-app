@@ -58,7 +58,8 @@ import {
   X,
   Bell,
   Clock,
-  Send
+  Send,
+  Trophy,
 } from "lucide-react-native";
 import { 
   getBiometricsEnabled, 
@@ -1311,6 +1312,26 @@ export default function SettingsScreen() {
                   disabled={!notificationPrefs.masterEnabled}
                   trackColor={{ false: "#1e293b", true: "#2563eb" }}
                   thumbColor={notificationPrefs.screenTimeAlertsEnabled ? "#3b82f6" : "#94a3b8"}
+                />
+              </View>
+
+              <View style={styles.divider} />
+
+              {/* 7. Achievements & Badges Alerts */}
+              <View style={styles.alertCategoryRow}>
+                <View style={[styles.categoryIconCircle, { backgroundColor: "rgba(245, 158, 11, 0.12)" }]}>
+                  <Trophy size={16} color="#f59e0b" />
+                </View>
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <Text style={styles.alertCategoryTitle}>Achievements & Streak Milestones</Text>
+                  <Text style={styles.alertCategoryDesc}>Instant proactive notification alerts when streaks, step targets, and badges are unlocked</Text>
+                </View>
+                <Switch
+                  value={notificationPrefs.achievementAlertsEnabled !== false}
+                  onValueChange={(val) => handleToggleNotifPref("achievementAlertsEnabled", val)}
+                  disabled={!notificationPrefs.masterEnabled}
+                  trackColor={{ false: "#1e293b", true: "rgba(245, 158, 11, 0.4)" }}
+                  thumbColor={notificationPrefs.achievementAlertsEnabled !== false ? "#f59e0b" : "#94a3b8"}
                 />
               </View>
             </View>

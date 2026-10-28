@@ -90,6 +90,12 @@ function TabsContent() {
             href: null, // accessed via slide drawer
           }}
         />
+        <Tabs.Screen
+          name="achievements"
+          options={{
+            href: null, // accessed via slide drawer and home screen badges card
+          }}
+        />
       </Tabs>
 
       {/* Primary Left Slide Drawer */}

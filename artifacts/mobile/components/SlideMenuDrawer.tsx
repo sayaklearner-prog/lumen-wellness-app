@@ -35,6 +35,7 @@ import {
   Clock,
   Bluetooth,
   Watch,
+  Trophy,
 } from "lucide-react-native";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -289,6 +290,29 @@ export function SlideMenuDrawer({ isOpen, onClose, side = "left" }: SlideMenuDra
             <View style={{ flex: 1 }}>
               <Text style={styles.navTitle}>Medical & Safety ID</Text>
               <Text style={styles.navSub}>Emergency profile, allergies & protocols</Text>
+            </View>
+            <ChevronRight size={16} color="#475569" />
+          </Pressable>
+
+          {/* Achievements & Badges Item */}
+          <Pressable
+            style={[
+              styles.navItemCard,
+              pathname?.includes("achievements") && styles.navItemCardActive,
+            ]}
+            onPress={() => handleNavigate("/(tabs)/achievements")}
+          >
+            <View style={[styles.navIconBox, { backgroundColor: "rgba(245, 158, 11, 0.15)" }]}>
+              <Trophy size={18} color="#f59e0b" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Text style={styles.navTitle}>Achievements & Badges</Text>
+                <View style={{ backgroundColor: "rgba(245, 158, 11, 0.2)", paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4 }}>
+                  <Text style={{ fontSize: 9, fontWeight: "900", color: "#f59e0b" }}>XP</Text>
+                </View>
+              </View>
+              <Text style={styles.navSub}>Consistency streaks, tiers & rewards</Text>
             </View>
             <ChevronRight size={16} color="#475569" />
           </Pressable>

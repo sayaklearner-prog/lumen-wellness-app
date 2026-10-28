@@ -61,6 +61,7 @@ import {
   Layers,
   Trash2,
   Info,
+  Trophy,
 } from "lucide-react-native";
 import Svg, {
   Circle,
@@ -105,6 +106,7 @@ import {
 import { useScreenTime } from "@/hooks/useScreenTime";
 import { useHydration } from "@/hooks/useHydration";
 import { fitnessWatchSensor } from "@/services/fitnessWatchSensor";
+import { evaluateAchievements, GamificationProfile } from "@/services/achievements";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -297,6 +299,7 @@ export default function DashboardScreen() {
   const [bedtimeHour, setBedtimeHour] = useState<string>("22:30");
   const [wakeHour, setWakeHour] = useState<string>("07:00");
   const [dndAutoToggle, setDndAutoToggle] = useState<boolean>(true);
+  const [gamification, setGamification] = useState<GamificationProfile | null>(null);
 
   // Native Screen Time & Digital Wellbeing telemetry hook (Mindful Engine)
   const {
@@ -406,6 +409,14 @@ export default function DashboardScreen() {
         await syncNotificationSchedules();
       } catch (e) {
         console.warn("Notification schedules sync error:", e);
+      }
+
+      // 6. Evaluate Achievements & Gamification Engine
+      try {
+        const achRes = await evaluateAchievements();
+        setGamification(achRes.gamification);
+      } catch (e) {
+        console.warn("Achievements evaluate error:", e);
       }
     }
     loadLocalHealthState();
@@ -1385,6 +1396,53 @@ export default function DashboardScreen() {
             </View>
           </View>
         </ScrollView>
+
+        {/* ========================================================= */}
+        {/* ACHIEVEMENTS & GAMIFICATION SPOTLIGHT                     */}
+        {/* ========================================================= */}
+        <Pressable
+          style={styles.achievementsSpotlightCard}
+          onPress={() => router.push("/(tabs)/achievements" as any)}
+        >
+          <View style={styles.achievementsSpotlightHeader}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <View style={styles.achievementsTrophyIcon}>
+                <Trophy size={18} color="#f59e0b" />
+              </View>
+              <View>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <Text style={styles.achievementsSpotlightTitle}>Achievements & Badges</Text>
+                  <View style={styles.xpMiniPill}>
+                    <Text style={styles.xpMiniText}>+{gamification?.totalXp || 0} XP</Text>
+                  </View>
+                </View>
+                <Text style={styles.achievementsSpotlightSub}>
+                  {gamification ? `Level ${gamification.currentLevel} • ${gamification.levelTitle}` : "Milestones & consistency rewards"}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.viewBadgesBtn}>
+              <Text style={styles.viewBadgesText}>View</Text>
+              <ChevronRight size={14} color="#10b981" />
+            </View>
+          </View>
+
+          {gamification && (
+            <View style={styles.achievementsSpotlightProgress}>
+              <View style={styles.spotlightTrack}>
+                <View style={[styles.spotlightFill, { width: `${gamification.levelProgressPercent}%` }]} />
+              </View>
+              <View style={styles.spotlightRatioRow}>
+                <Text style={styles.spotlightRatioText}>
+                  {gamification.unlockedCount} / {gamification.totalCount} Badges Unlocked
+                </Text>
+                <Text style={styles.spotlightNextText}>
+                  {gamification.levelProgressPercent}% to Lvl {gamification.currentLevel + 1}
+                </Text>
+              </View>
+            </View>
+          )}
+        </Pressable>
 
         {/* ========================================================= */}
         {/* 7-DAY SCORE TREND CHART (Matching Reference)              */}
@@ -3110,6 +3168,99 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 2,
     lineHeight: 14,
+  },
+
+  // ACHIEVEMENTS & GAMIFICATION SPOTLIGHT
+  achievementsSpotlightCard: {
+    backgroundColor: "rgba(245, 158, 11, 0.05)",
+    borderWidth: 1,
+    borderColor: "rgba(245, 158, 11, 0.25)",
+    borderRadius: 18,
+    padding: 14,
+    marginBottom: 20,
+  },
+  achievementsSpotlightHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  achievementsTrophyIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: "rgba(245, 158, 11, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(245, 158, 11, 0.3)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  achievementsSpotlightTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#f8fafc",
+  },
+  xpMiniPill: {
+    backgroundColor: "rgba(245, 158, 11, 0.2)",
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  xpMiniText: {
+    fontSize: 9,
+    fontWeight: "900",
+    color: "#f59e0b",
+  },
+  achievementsSpotlightSub: {
+    fontSize: 11,
+    color: "#94a3b8",
+    fontWeight: "500",
+    marginTop: 2,
+  },
+  viewBadgesBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  viewBadgesText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#10b981",
+  },
+  achievementsSpotlightProgress: {
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255, 255, 255, 0.06)",
+  },
+  spotlightTrack: {
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    overflow: "hidden",
+  },
+  spotlightFill: {
+    height: "100%",
+    backgroundColor: "#f59e0b",
+    borderRadius: 3,
+  },
+  spotlightRatioRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 6,
+  },
+  spotlightRatioText: {
+    fontSize: 10,
+    color: "#94a3b8",
+    fontWeight: "600",
+  },
+  spotlightNextText: {
+    fontSize: 10,
+    color: "#f59e0b",
+    fontWeight: "800",
   },
 
   // 7-DAY SCORE TREND CHART
