@@ -342,8 +342,10 @@ public class StepCounterService extends Service implements SensorEventListener {
         float netMag = Math.abs(mag - mAvgMag);
 
         long now = System.currentTimeMillis();
-        if (netMag > 0.42f && netMag < 5.5f) {
-            if (mag > mLastMag && (now - mLastStepTime) >= 230) {
+        // Calibrated gait thresholds: 1.20 m/s^2 dynamic peak and 380ms minimum step interval
+        // Prevents over-counting from hand sway, micro-vibrations, or foot recoil
+        if (netMag > 1.20f && netMag < 8.5f) {
+            if (mag > mLastMag && (now - mLastStepTime) >= 380) {
                 mLastStepTime = now;
                 incrementTodaySteps(1);
             }

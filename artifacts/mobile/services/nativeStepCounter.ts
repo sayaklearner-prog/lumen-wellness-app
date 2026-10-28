@@ -62,6 +62,8 @@ class NativeStepCounterService {
       return;
     }
 
+    fitnessWatchSensor.setNativeServiceActive(true);
+
     const plugin = getNativePlugin();
     if (!plugin) return;
 

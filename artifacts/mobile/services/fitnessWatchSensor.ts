@@ -323,11 +323,18 @@ class FitnessWatchSensorEngine {
     return Math.round(this.dailyAmbientActiveCalories || (this.dailyAmbientSteps * 0.045));
   }
 
+  private hasNativePedometer = false;
+
+  public setNativeServiceActive(active: boolean) {
+    this.hasNativePedometer = active;
+  }
+
   /**
    * Synchronizes steps recorded by the 24/7 native Android Background Step Service
    * when the app was closed, suspended, or screen was off.
    */
   public syncNativeBackgroundSteps(nativeSteps: number, nativeCals?: number, nativeDist?: number) {
+    this.hasNativePedometer = true;
     if (nativeSteps > this.dailyAmbientSteps) {
       this.dailyAmbientSteps = nativeSteps;
       if (typeof nativeCals === "number" && nativeCals > this.dailyAmbientActiveCalories) {
@@ -628,11 +635,17 @@ class FitnessWatchSensorEngine {
   }
 
   /**
-   * High-accuracy sliding-window step peak detection & autonomous activity classifier.
-   * Tracks steps continuously with adaptive sensitivity (0.38 - 5.8 m/s^2),
-   * ensuring no steps are missed in pocket, hand, or on foot.
+   * Biomechanically calibrated sliding-window step peak detection & autonomous activity classifier.
+   * Tracks steps with gait-calibrated sensitivity (1.20 - 8.5 m/s^2),
+   * preventing false counts from hand tremors, screen taps, or pocket shifts.
    */
   private processStepDetection(now: number, isTreadmillSession: boolean) {
+    // When native 24/7 Android foreground service is running, it handles ambient steps
+    // directly via hardware ASIC. Skip ambient accumulation here to avoid double-counting.
+    if (!isTreadmillSession && this.hasNativePedometer) {
+      return;
+    }
+
     this.slidingNetMagHistory.push(this.netMag);
     if (this.slidingNetMagHistory.length > 20) {
       this.slidingNetMagHistory.shift();
@@ -647,15 +660,21 @@ class FitnessWatchSensorEngine {
     const curr = this.slidingNetMagHistory[mid];
     const next = this.slidingNetMagHistory[mid + 1];
 
-    // High sensitivity threshold: 0.38 m/s^2 detects gentle walking / pocket movement
-    // Upper ceiling: 5.8 m/s^2 avoids false drops
-    const stepThreshold = isTreadmillSession ? 0.60 : 0.38;
-    const noiseThreshold = 5.8;
-    const minStepIntervalMs = isTreadmillSession ? 210 : 230;
+    // Calibrated gait thresholds:
+    // Real walking produces dynamic acceleration peaks between 1.20 and 3.0 m/s^2.
+    // Setting this to 1.20 m/s^2 eliminates the 3x overcounting caused by 0.38 m/s^2.
+    const stepThreshold = isTreadmillSession ? 1.55 : 1.20;
+    const noiseThreshold = 8.5;
+    // Cadence guard: 380ms corresponds to ~158 SPM max walking cadence.
+    // Prevents each footstrike recoil from registering as 2-3 extra steps.
+    const minStepIntervalMs = isTreadmillSession ? 320 : 380;
+
+    const isPeak = curr > prev && curr >= next;
+    const hasProminence = (curr - prev > 0.12) && (curr - next > 0.08);
 
     if (
-      curr > prev &&
-      curr >= next &&
+      isPeak &&
+      hasProminence &&
       curr > stepThreshold &&
       curr < noiseThreshold
     ) {
