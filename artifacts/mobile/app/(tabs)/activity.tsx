@@ -28,6 +28,7 @@ import {
   WorkoutMode, 
   LiveWatchMetrics 
 } from "@/services/fitnessWatchSensor";
+import { nativeStepCounter } from "@/services/nativeStepCounter";
 
 // Standard MET table for manual logging catalog
 interface WorkoutPreset {
@@ -174,6 +175,74 @@ export default function ActivityScreen() {
     }
     loadDbWorkouts();
   }, []);
+
+  // 24/7 Background Step Tracking state
+  const [bgTrackingInfo, setBgTrackingInfo] = useState<{
+    isNative: boolean;
+    hasPermission: boolean;
+    isBatteryIgnored: boolean;
+    hasHardwareSensor: boolean;
+    isRequesting: boolean;
+  }>({
+    isNative: false,
+    hasPermission: true,
+    isBatteryIgnored: true,
+    hasHardwareSensor: true,
+    isRequesting: false,
+  });
+
+  const checkBgStatus = async () => {
+    const isNative = nativeStepCounter.isAvailable();
+    if (!isNative) {
+      setBgTrackingInfo(prev => ({ ...prev, isNative: false }));
+      return;
+    }
+    const perm = await nativeStepCounter.checkPermissions();
+    const batt = await nativeStepCounter.isBatteryOptimizationIgnored();
+    setBgTrackingInfo({
+      isNative: true,
+      hasPermission: perm.granted,
+      isBatteryIgnored: batt,
+      hasHardwareSensor: perm.hasHardwareSensor ?? true,
+      isRequesting: false,
+    });
+  };
+
+  useEffect(() => {
+    checkBgStatus();
+  }, []);
+
+  const handleEnableBackgroundTracking = async () => {
+    setBgTrackingInfo(prev => ({ ...prev, isRequesting: true }));
+    try {
+      const res = await nativeStepCounter.requestPermissions();
+      const batt = await nativeStepCounter.isBatteryOptimizationIgnored();
+      setBgTrackingInfo(prev => ({
+        ...prev,
+        hasPermission: res.granted,
+        isBatteryIgnored: batt,
+        isRequesting: false,
+      }));
+      if (res.granted) {
+        Alert.alert("24/7 Tracking Active", "Background Step Tracking is now enabled. Your steps will continue counting when Lumen is closed or the screen is turned off.");
+      } else {
+        Alert.alert("Permission Required", "Activity Recognition permission was not granted. Please enable Physical Activity in Android Settings > Apps > Lumen > Permissions.");
+      }
+    } catch (e: any) {
+      setBgTrackingInfo(prev => ({ ...prev, isRequesting: false }));
+      Alert.alert("Error", e?.message || "Failed to request permission.");
+    }
+  };
+
+  const handleRequestBatteryOptimization = async () => {
+    try {
+      await nativeStepCounter.requestIgnoreBatteryOptimizations();
+      const batt = await nativeStepCounter.isBatteryOptimizationIgnored();
+      setBgTrackingInfo(prev => ({ ...prev, isBatteryIgnored: batt }));
+    } catch (e: any) {
+      console.warn("Battery opt request error:", e);
+    }
+  };
 
   // Queries
   const { data: workouts } = useListWorkouts();
@@ -507,6 +576,37 @@ export default function ActivityScreen() {
         {/* ========================================================================= */}
         {activeMainTab === "watch" && (
           <View style={{ gap: 16 }}>
+            {/* Background Step Tracking Permission Alert Card */}
+            {bgTrackingInfo.isNative && !bgTrackingInfo.hasPermission && (
+              <View style={styles.bgPermissionAlertCard}>
+                <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}>
+                  <View style={styles.bgAlertIconBox}>
+                    <Shield size={22} color="#f59e0b" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.bgAlertTitle}>Enable 24/7 Background Step Tracking</Text>
+                    <Text style={styles.bgAlertDesc}>
+                      Lumen requires Physical Activity recognition to track steps and calories non-stop while your phone is locked or Lumen is closed.
+                    </Text>
+                    <Pressable
+                      style={styles.bgAlertBtn}
+                      onPress={handleEnableBackgroundTracking}
+                      disabled={bgTrackingInfo.isRequesting}
+                    >
+                      {bgTrackingInfo.isRequesting ? (
+                        <ActivityIndicator size="small" color="#050b08" />
+                      ) : (
+                        <>
+                          <Footprints size={16} color="#050b08" />
+                          <Text style={styles.bgAlertBtnText}>Grant Permission & Start 24/7 Tracking</Text>
+                        </>
+                      )}
+                    </Pressable>
+                  </View>
+                </View>
+              </View>
+            )}
+
             {/* Live Watch Telemetry Banner & Triple Rings */}
             <View style={styles.watchHudCard}>
               <View style={styles.watchHeaderRow}>
@@ -596,14 +696,20 @@ export default function ActivityScreen() {
                   <Text style={styles.watchTimerText}>
                     {watchMetrics.isActive ? formatTime(watchMetrics.elapsedSeconds) : "LIVE"}
                   </Text>
-                  <Text style={[styles.watchStatusPill, isWearableActive && { backgroundColor: "rgba(56, 189, 248, 0.2)", borderColor: "rgba(56, 189, 248, 0.4)", color: "#38bdf8" }]}>
+                  <Text style={[
+                    styles.watchStatusPill, 
+                    isWearableActive && { backgroundColor: "rgba(56, 189, 248, 0.2)", borderColor: "rgba(56, 189, 248, 0.4)", color: "#38bdf8" },
+                    !bgTrackingInfo.hasPermission && { backgroundColor: "rgba(245, 158, 11, 0.2)", borderColor: "rgba(245, 158, 11, 0.4)", color: "#fbbf24" }
+                  ]}>
                     {isWearableActive
                       ? `⌚ WEARABLE EXTRACT (${connectedDevice?.name || "DEVICE"})`
-                      : watchMetrics.detectedActivity === "running"
-                        ? "🏃 OUTDOOR RUNNING (AUTO-DETECTED)"
-                        : watchMetrics.detectedActivity === "walking"
-                          ? "🚶 OUTDOOR WALKING (AUTO-DETECTED)"
-                          : "● 24/7 BACKGROUND TRACKING ACTIVE"}
+                      : !bgTrackingInfo.hasPermission
+                        ? "⚠️ BACKGROUND PERMISSION REQUIRED"
+                        : watchMetrics.detectedActivity === "running"
+                          ? "🏃 OUTDOOR RUNNING (AUTO-DETECTED)"
+                          : watchMetrics.detectedActivity === "walking"
+                            ? "🚶 OUTDOOR WALKING (AUTO-DETECTED)"
+                            : "● 24/7 BACKGROUND TRACKING ACTIVE"}
                   </Text>
 
                   {/* Dynamic primary counter based on workout mode */}
@@ -719,6 +825,22 @@ export default function ActivityScreen() {
                 </Text>
               </View>
             </View>
+
+            {/* Battery Optimization Exemption Banner (Android 24/7 background durability) */}
+            {bgTrackingInfo.isNative && bgTrackingInfo.hasPermission && !bgTrackingInfo.isBatteryIgnored && (
+              <Pressable style={styles.batteryOptBanner} onPress={handleRequestBatteryOptimization}>
+                <View style={styles.batteryOptIconBox}>
+                  <BatteryCharging size={18} color="#f59e0b" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.batteryOptTitle}>Allow Unrestricted Background Battery</Text>
+                  <Text style={styles.batteryOptSub}>
+                    Tap to prevent Android from suspending the hardware step counter when your screen is locked.
+                  </Text>
+                </View>
+                <ChevronRight size={18} color="#94a3b8" />
+              </Pressable>
+            )}
 
             {/* Step & Calorie Motion Source Priority Control Card */}
             <View style={styles.sourceControlCard}>
@@ -3383,6 +3505,79 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     color: "#050b08",
     letterSpacing: 0.5,
+  },
+  bgPermissionAlertCard: {
+    backgroundColor: "rgba(245, 158, 11, 0.08)",
+    borderWidth: 1.5,
+    borderColor: "rgba(245, 158, 11, 0.35)",
+    borderRadius: 16,
+    padding: 16,
+  },
+  bgAlertIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: "rgba(245, 158, 11, 0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  bgAlertTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#fbbf24",
+    marginBottom: 4,
+  },
+  bgAlertDesc: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: "#cbd5e1",
+    marginBottom: 12,
+  },
+  bgAlertBtn: {
+    backgroundColor: "#10b981",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    alignSelf: "flex-start",
+  },
+  bgAlertBtnText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#050b08",
+    letterSpacing: 0.3,
+  },
+  batteryOptBanner: {
+    backgroundColor: "rgba(255, 255, 255, 0.03)",
+    borderWidth: 1,
+    borderColor: "rgba(245, 158, 11, 0.25)",
+    borderRadius: 14,
+    padding: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  batteryOptIconBox: {
+    width: 34,
+    height: 34,
+    borderRadius: 9,
+    backgroundColor: "rgba(245, 158, 11, 0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  batteryOptTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#f8fafc",
+    marginBottom: 2,
+  },
+  batteryOptSub: {
+    fontSize: 11,
+    color: "#94a3b8",
+    lineHeight: 15,
   },
 });
 

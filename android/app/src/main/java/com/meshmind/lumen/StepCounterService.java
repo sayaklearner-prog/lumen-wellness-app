@@ -1,5 +1,6 @@
 package com.meshmind.lumen;
 
+import android.Manifest;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -8,6 +9,7 @@ import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.content.pm.ServiceInfo;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
@@ -15,10 +17,12 @@ import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.os.Build;
 import android.os.IBinder;
+import android.os.PowerManager;
 import android.util.Log;
 
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
+import androidx.core.content.ContextCompat;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -67,17 +71,19 @@ public class StepCounterService extends Service implements SensorEventListener {
     private boolean mUsingStepDetector = false;
     private boolean mUsingAccelerometer = false;
 
+    private PowerManager.WakeLock mWakeLock = null;
+
     // Accelerometer peak detection fallback state
     private float mLastMag = 0f;
     private float mAvgMag = 9.81f;
     private long mLastStepTime = 0;
-    private int mRunningSteps = 0;
     private int mLastNotifiedSteps = 0;
 
     @Override
     public void onCreate() {
         super.onCreate();
         Log.i(TAG, "Creating StepCounterService (24/7 background pedometer)");
+        acquireWakeLock();
         createNotificationChannel();
         startForegroundWithNotification(getTodaySteps(this));
 
@@ -90,6 +96,7 @@ public class StepCounterService extends Service implements SensorEventListener {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         setTrackingEnabled(this, true);
+        acquireWakeLock();
         startForegroundWithNotification(getTodaySteps(this));
         if (mSensorManager != null) {
             registerSensors();
@@ -101,6 +108,32 @@ public class StepCounterService extends Service implements SensorEventListener {
     @Override
     public IBinder onBind(Intent intent) {
         return null;
+    }
+
+    private void acquireWakeLock() {
+        if (mWakeLock == null) {
+            try {
+                PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+                if (pm != null) {
+                    mWakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Lumen:StepCounterWakeLock");
+                    mWakeLock.setReferenceCounted(false);
+                    mWakeLock.acquire(10 * 60 * 1000L); // 10 min window, re-acquired on events
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "Could not acquire partial WakeLock: " + e.getMessage());
+            }
+        }
+    }
+
+    private void releaseWakeLock() {
+        try {
+            if (mWakeLock != null && mWakeLock.isHeld()) {
+                mWakeLock.release();
+            }
+        } catch (Exception ignored) {
+        } finally {
+            mWakeLock = null;
+        }
     }
 
     private void createNotificationChannel() {
@@ -124,17 +157,25 @@ public class StepCounterService extends Service implements SensorEventListener {
     private void startForegroundWithNotification(int steps) {
         Notification notification = buildNotification(steps);
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) { // API 34
-                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) { // Android 14+ (API 34)
+                boolean hasActivityRecognition = ContextCompat.checkSelfPermission(
+                    this, Manifest.permission.ACTIVITY_RECOGNITION
+                ) == PackageManager.PERMISSION_GRANTED;
+
+                int fgsType = hasActivityRecognition 
+                    ? ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH 
+                    : ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC;
+
+                startForeground(NOTIFICATION_ID, notification, fgsType);
             } else {
                 startForeground(NOTIFICATION_ID, notification);
             }
         } catch (Exception e) {
-            Log.w(TAG, "Could not startForeground with HEALTH type, falling back: " + e.getMessage());
+            Log.w(TAG, "startForeground with specific type failed, falling back: " + e.getMessage());
             try {
                 startForeground(NOTIFICATION_ID, notification);
             } catch (Exception ex) {
-                Log.e(TAG, "Failed startForeground: " + ex.getMessage());
+                Log.e(TAG, "Failed startForeground entirely: " + ex.getMessage());
             }
         }
     }
@@ -171,7 +212,7 @@ public class StepCounterService extends Service implements SensorEventListener {
     }
 
     private void updateNotification(int steps) {
-        if (Math.abs(steps - mLastNotifiedSteps) >= 30) {
+        if (Math.abs(steps - mLastNotifiedSteps) >= 10) {
             mLastNotifiedSteps = steps;
             NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
             if (nm != null) {
@@ -183,7 +224,7 @@ public class StepCounterService extends Service implements SensorEventListener {
     private void registerSensors() {
         if (mSensorManager == null) return;
 
-        // 1. Hardware Step Counter (counts total steps since boot, lowest power)
+        // 1. Hardware Step Counter (counts total cumulative steps since phone boot - lowest power)
         mStepCounterSensor = mSensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER);
         if (mStepCounterSensor != null) {
             boolean ok = mSensorManager.registerListener(this, mStepCounterSensor, SensorManager.SENSOR_DELAY_UI);
@@ -194,7 +235,7 @@ public class StepCounterService extends Service implements SensorEventListener {
             }
         }
 
-        // 2. Hardware Step Detector (triggers per step)
+        // 2. Hardware Step Detector (triggers event per detected step)
         mStepDetectorSensor = mSensorManager.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR);
         if (mStepDetectorSensor != null) {
             boolean ok = mSensorManager.registerListener(this, mStepDetectorSensor, SensorManager.SENSOR_DELAY_UI);
@@ -241,23 +282,22 @@ public class StepCounterService extends Service implements SensorEventListener {
         String savedDate = prefs.getString(KEY_PREF_DATE, "");
         int baseBootSteps = prefs.getInt(KEY_BASE_BOOT_STEPS, -1);
         int rebootOffset = prefs.getInt(KEY_REBOOT_OFFSET, 0);
+        int currentTodaySteps = prefs.getInt(KEY_TODAY_STEPS, 0);
 
         if (!today.equals(savedDate) || baseBootSteps == -1) {
-            // New day or first run: set today's baseline to current hardware steps
+            // New day or first run: set today's baseline, preserving any prior steps logged today
             prefs.edit()
                 .putString(KEY_PREF_DATE, today)
                 .putInt(KEY_BASE_BOOT_STEPS, rawBootSteps)
-                .putInt(KEY_REBOOT_OFFSET, 0)
-                .putInt(KEY_TODAY_STEPS, 0)
+                .putInt(KEY_REBOOT_OFFSET, currentTodaySteps)
                 .apply();
-            notifySteps(0);
+            notifySteps(currentTodaySteps);
             return;
         }
 
         // Check if device rebooted today (rawBootSteps resets to 0 upon phone reboot)
         if (rawBootSteps < baseBootSteps) {
-            int previousSteps = prefs.getInt(KEY_TODAY_STEPS, 0);
-            rebootOffset += previousSteps;
+            rebootOffset += currentTodaySteps;
             baseBootSteps = rawBootSteps;
             prefs.edit()
                 .putInt(KEY_BASE_BOOT_STEPS, baseBootSteps)
@@ -265,10 +305,12 @@ public class StepCounterService extends Service implements SensorEventListener {
                 .apply();
         }
 
-        int todaySteps = Math.max(0, (rawBootSteps - baseBootSteps) + rebootOffset);
-        prefs.edit().putInt(KEY_TODAY_STEPS, todaySteps).apply();
+        int calculatedSteps = Math.max(0, (rawBootSteps - baseBootSteps) + rebootOffset);
+        // Ensure steps never decrease below current today steps
+        int finalSteps = Math.max(calculatedSteps, currentTodaySteps);
+        prefs.edit().putInt(KEY_TODAY_STEPS, finalSteps).apply();
 
-        notifySteps(todaySteps);
+        notifySteps(finalSteps);
     }
 
     private synchronized void incrementTodaySteps(int delta) {
@@ -334,6 +376,7 @@ public class StepCounterService extends Service implements SensorEventListener {
     public void onDestroy() {
         super.onDestroy();
         Log.i(TAG, "Destroying StepCounterService");
+        releaseWakeLock();
         if (mSensorManager != null) {
             mSensorManager.unregisterListener(this);
         }
@@ -360,6 +403,24 @@ public class StepCounterService extends Service implements SensorEventListener {
             return prefs.getInt(KEY_TODAY_STEPS, 0);
         }
         return 0;
+    }
+
+    // Static helper to baseline or synchronize today's steps from external tracker
+    public static void setInitialStepsToday(Context context, int initialSteps) {
+        if (context == null || initialSteps <= 0) return;
+        SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        String today = getTodayDateString();
+        String savedDate = prefs.getString(KEY_PREF_DATE, "");
+        int currentSteps = 0;
+        if (today.equals(savedDate)) {
+            currentSteps = prefs.getInt(KEY_TODAY_STEPS, 0);
+        }
+        if (initialSteps > currentSteps) {
+            prefs.edit()
+                .putString(KEY_PREF_DATE, today)
+                .putInt(KEY_TODAY_STEPS, initialSteps)
+                .apply();
+        }
     }
 
     public static boolean isTrackingEnabled(Context context) {

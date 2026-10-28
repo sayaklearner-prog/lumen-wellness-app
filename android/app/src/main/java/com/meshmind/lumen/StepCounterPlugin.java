@@ -6,7 +6,10 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.hardware.Sensor;
 import android.hardware.SensorManager;
+import android.net.Uri;
 import android.os.Build;
+import android.os.PowerManager;
+import android.provider.Settings;
 import android.util.Log;
 
 import androidx.core.content.ContextCompat;
@@ -31,6 +34,10 @@ import com.getcapacitor.annotation.PermissionCallback;
         @Permission(
             alias = "activityRecognition",
             strings = { Manifest.permission.ACTIVITY_RECOGNITION }
+        ),
+        @Permission(
+            alias = "notifications",
+            strings = { Manifest.permission.POST_NOTIFICATIONS }
         )
     }
 )
@@ -54,7 +61,7 @@ public class StepCounterPlugin extends Plugin {
             notifyListeners("stepUpdate", data);
         });
 
-        // Auto-start service if enabled
+        // Auto-start service if enabled and permission granted
         Context context = getContext();
         if (context != null && StepCounterService.isTrackingEnabled(context) && hasStepPermission()) {
             startServiceInternal(context);
@@ -134,6 +141,11 @@ public class StepCounterPlugin extends Plugin {
             return;
         }
 
+        Integer initialSteps = call.getInt("initialSteps");
+        if (initialSteps != null && initialSteps > 0) {
+            StepCounterService.setInitialStepsToday(context, initialSteps);
+        }
+
         if (!hasStepPermission()) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 requestPermissionForAlias("activityRecognition", call, "startTrackingAfterPermissionCallback");
@@ -158,7 +170,11 @@ public class StepCounterPlugin extends Plugin {
     @PermissionCallback
     private void startTrackingAfterPermissionCallback(PluginCall call) {
         Context context = getContext();
-        if (hasStepPermission() && context != null) {
+        if (context != null) {
+            Integer initialSteps = call.getInt("initialSteps");
+            if (initialSteps != null && initialSteps > 0) {
+                StepCounterService.setInitialStepsToday(context, initialSteps);
+            }
             StepCounterService.setTrackingEnabled(context, true);
             startServiceInternal(context);
             int steps = StepCounterService.getTodaySteps(context);
@@ -166,12 +182,12 @@ public class StepCounterPlugin extends Plugin {
             ret.put("success", true);
             ret.put("isTracking", true);
             ret.put("steps", steps);
+            ret.put("granted", hasStepPermission());
             call.resolve(ret);
         } else {
             JSObject ret = new JSObject();
             ret.put("success", false);
             ret.put("isTracking", false);
-            ret.put("error", "ACTIVITY_RECOGNITION permission was denied");
             call.resolve(ret);
         }
     }
@@ -204,6 +220,53 @@ public class StepCounterPlugin extends Plugin {
         ret.put("isTracking", isTracking);
         ret.put("hasHardwareSensor", hasHardwareStepSensor());
         ret.put("date", StepCounterService.getTodayDateString());
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void isBatteryOptimizationIgnored(PluginCall call) {
+        Context context = getContext();
+        boolean isIgnoring = true;
+        if (context != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            PowerManager pm = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
+            if (pm != null) {
+                isIgnoring = pm.isIgnoringBatteryOptimizations(context.getPackageName());
+            }
+        }
+        JSObject ret = new JSObject();
+        ret.put("isIgnoring", isIgnoring);
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void requestIgnoreBatteryOptimizations(PluginCall call) {
+        Context context = getContext();
+        if (context == null) {
+            call.reject("Context is null");
+            return;
+        }
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                PowerManager pm = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
+                String packageName = context.getPackageName();
+                boolean isIgnoring = pm != null && pm.isIgnoringBatteryOptimizations(packageName);
+                if (!isIgnoring) {
+                    Intent intent = new Intent();
+                    intent.setAction(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                    intent.setData(Uri.parse("package:" + packageName));
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    context.startActivity(intent);
+                }
+                JSObject ret = new JSObject();
+                ret.put("isIgnoringBatteryOptimizations", isIgnoring);
+                call.resolve(ret);
+                return;
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Battery opt intent failed: " + e.getMessage());
+        }
+        JSObject ret = new JSObject();
+        ret.put("isIgnoringBatteryOptimizations", true);
         call.resolve(ret);
     }
 
