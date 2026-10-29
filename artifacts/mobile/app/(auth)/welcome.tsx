@@ -32,6 +32,7 @@ import {
 import { authService } from "@/services/authService";
 import THEME from "@/constants/theme";
 import Svg, { Defs, LinearGradient, Stop, Rect } from "react-native-svg";
+import { LiveBioCore3D } from "@/components/LiveBioCore3D";
 import {
   ArrowRight,
   ShieldCheck,
@@ -44,6 +45,7 @@ import {
   AlertCircle,
   Lock,
   Plus,
+  Sparkles,
 } from "lucide-react-native";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -399,7 +401,10 @@ export default function WelcomeScreen() {
       <View style={styles.content}>
         {/* Top Minimalist Luxury Header */}
         <View style={styles.topHeader}>
-          <Text style={styles.luxuryBrandTitle}>v i t a</Text>
+          <View style={styles.brandTitleRow}>
+            <Text style={styles.luxuryBrandTitle}>l u m e n</Text>
+            <View style={styles.brandDot} />
+          </View>
           <Pressable
             style={styles.menuTriggerBtn}
             onPress={handleOpenManualSignIn}
@@ -410,7 +415,7 @@ export default function WelcomeScreen() {
           </Pressable>
         </View>
 
-        {/* Center/Left Hero Headline & Action Pill */}
+        {/* Center/Left Hero Headline & Action Buttons */}
         <View style={styles.heroTextContainer}>
           <Text style={styles.heroHeadline}>
             A{"\n"}Healthier{"\n"}Happier{"\n"}You.
@@ -419,46 +424,54 @@ export default function WelcomeScreen() {
             Small steps.{"\n"}Big changes.
           </Text>
 
-          {/* Iconic Frosted Champagne "Get Started ->" Action Pill */}
-          <Pressable
-            style={({ pressed }) => [
-              styles.getStartedPill,
-              pressed && { opacity: 0.92, transform: [{ scale: 0.98 }] },
-            ]}
-            onPress={() => {
-              triggerHaptic();
-              setShowOtpModal(true);
-            }}
-          >
-            <Text style={styles.getStartedText}>Get Started</Text>
-            <View style={styles.arrowCircle}>
-              <ArrowRight size={18} color="#ffffff" strokeWidth={2.6} />
-            </View>
-          </Pressable>
+          {/* Action Buttons: Google Connect above Get Started */}
+          <View style={styles.actionsColumn}>
+            {/* 1-Tap Google Connect Button */}
+            <Pressable
+              style={({ pressed }) => [
+                styles.coverGoogleBtn,
+                pressed && { opacity: 0.88, transform: [{ scale: 0.98 }] },
+              ]}
+              onPress={() => {
+                triggerHaptic();
+                handleGoogleAuthPress();
+              }}
+              disabled={isLoading}
+            >
+              <GoogleIcon size={18} />
+              <Text style={styles.coverGoogleBtnText}>Connect with Google</Text>
+            </Pressable>
+
+            {/* Iconic Frosted Champagne "Get Started ->" Action Pill */}
+            <Pressable
+              style={({ pressed }) => [
+                styles.getStartedPill,
+                pressed && { opacity: 0.92, transform: [{ scale: 0.98 }] },
+              ]}
+              onPress={() => {
+                triggerHaptic();
+                setAuthMode("signup");
+                setShowOtpModal(true);
+              }}
+            >
+              <Text style={styles.getStartedText}>Get Started</Text>
+              <View style={styles.arrowCircle}>
+                <ArrowRight size={18} color="#ffffff" strokeWidth={2.6} />
+              </View>
+            </Pressable>
+          </View>
         </View>
 
-        {/* Bottom Section: Social Proof & 4 Wellness Pillars */}
+        {/* Bottom Section: 3D Living Bio-Core Animation & 4 Wellness Pillars */}
         <View style={styles.bottomSection}>
-          {/* Left: Overlapping Avatars + Social Proof */}
-          <View style={styles.socialProofCol}>
-            <View style={styles.avatarRow}>
-              <View style={[styles.miniAvatarCircle, { zIndex: 4, backgroundColor: "#685044" }]}>
-                <Text style={styles.avatarInitials}>S</Text>
-              </View>
-              <View style={[styles.miniAvatarCircle, { marginLeft: -10, zIndex: 3, backgroundColor: "#3d5345" }]}>
-                <Text style={styles.avatarInitials}>M</Text>
-              </View>
-              <View style={[styles.miniAvatarCircle, { marginLeft: -10, zIndex: 2, backgroundColor: "#524436" }]}>
-                <Text style={styles.avatarInitials}>A</Text>
-              </View>
-              <View style={[styles.miniAvatarCircle, styles.miniAvatarPlus, { marginLeft: -10, zIndex: 1 }]}>
-                <Plus size={11} color="#ffffff" strokeWidth={3} />
-              </View>
-            </View>
-            <Text style={styles.socialProofText}>
-              Join 50K+ on their{"\n"}wellness journey
-            </Text>
-          </View>
+          {/* Left: Unique 3D Living Bio-Core Animation (replaces Join 50K) */}
+          <LiveBioCore3D
+            onPress={() => {
+              triggerHaptic();
+              setAuthMode("signup");
+              setShowOtpModal(true);
+            }}
+          />
 
           {/* Right: Vertical Line + 4 Wellness Pillars */}
           <View style={styles.pillarsCol}>
@@ -493,6 +506,53 @@ export default function WelcomeScreen() {
               keyboardShouldPersistTaps="handled"
               contentContainerStyle={styles.modalScrollContent}
             >
+              {/* TWO SECTIONS: Sign Up vs Already Signed Up (Member Sign In) */}
+              <View style={styles.authModeSegment}>
+                <Pressable
+                  style={[
+                    styles.segmentTab,
+                    authMode === "signup" && styles.segmentTabActive,
+                  ]}
+                  onPress={() => {
+                    triggerHaptic();
+                    setAuthMode("signup");
+                    if (otpErrorMessage) setOtpErrorMessage("");
+                  }}
+                >
+                  <Sparkles size={14} color={authMode === "signup" ? "#0b1612" : "#9cb6ae"} />
+                  <Text
+                    style={[
+                      styles.segmentTabText,
+                      authMode === "signup" && styles.segmentTabTextActive,
+                    ]}
+                  >
+                    New Member (Sign Up)
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  style={[
+                    styles.segmentTab,
+                    authMode === "signin" && styles.segmentTabActive,
+                  ]}
+                  onPress={() => {
+                    triggerHaptic();
+                    setAuthMode("signin");
+                    if (otpErrorMessage) setOtpErrorMessage("");
+                  }}
+                >
+                  <KeyRound size={14} color={authMode === "signin" ? "#0b1612" : "#9cb6ae"} />
+                  <Text
+                    style={[
+                      styles.segmentTabText,
+                      authMode === "signin" && styles.segmentTabTextActive,
+                    ]}
+                  >
+                    Already Member (Sign In)
+                  </Text>
+                </Pressable>
+              </View>
+
               {/* Modal Header */}
               <View style={styles.modalHeader}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
@@ -505,7 +565,9 @@ export default function WelcomeScreen() {
                     </Text>
                     <Text style={styles.modalHeaderSub}>
                       {otpStage === "enter_email"
-                        ? "Step 1 of 2: Confirm your email address"
+                        ? authMode === "signup"
+                          ? "Step 1 of 2: Confirm email to begin your bio-journey"
+                          : "Step 1 of 2: Enter registered email to access vitals"
                         : otpStage === "enter_otp"
                         ? "Step 2 of 2: Enter 6-digit verification code"
                         : "Verification Confirmed"}
@@ -607,10 +669,29 @@ export default function WelcomeScreen() {
                     <ActivityIndicator size="small" color="#161b18" />
                   ) : (
                     <>
-                      <Text style={styles.modalActionPillText}>Send Verification Code</Text>
+                      <Text style={styles.modalActionPillText}>
+                        {authMode === "signup" ? "Send Sign Up Code" : "Send Login Code"}
+                      </Text>
                       <ArrowRight size={18} color="#161b18" strokeWidth={2.4} />
                     </>
                   )}
+                </Pressable>
+
+                {/* Switch Section Link */}
+                <Pressable
+                  style={styles.switchSectionBtn}
+                  onPress={() => {
+                    triggerHaptic();
+                    setAuthMode(authMode === "signup" ? "signin" : "signup");
+                    if (otpErrorMessage) setOtpErrorMessage("");
+                  }}
+                >
+                  <Text style={styles.switchSectionPrompt}>
+                    {authMode === "signup" ? "Already have an account? " : "New to Lumen? "}
+                    <Text style={styles.switchSectionLink}>
+                      {authMode === "signup" ? "Member Sign In" : "Create Account"}
+                    </Text>
+                  </Text>
                 </Pressable>
 
                 {/* Guest Offline Link */}
@@ -838,11 +919,28 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingTop: 6,
   },
+  brandTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+  },
   luxuryBrandTitle: {
     fontSize: 20,
-    fontWeight: "700",
+    fontWeight: "800",
     color: "#ffffff",
     letterSpacing: 6,
+    textTransform: "uppercase",
+  },
+  brandDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#10b981",
+    shadowColor: "#10b981",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.9,
+    shadowRadius: 6,
+    elevation: 3,
   },
   menuTriggerBtn: {
     width: 36,
@@ -864,7 +962,7 @@ const styles = StyleSheet.create({
     borderRadius: 1,
   },
 
-  // Hero Headline & "Get Started ->" Action Pill
+  // Hero Headline & Action Buttons
   heroTextContainer: {
     marginTop: "auto",
     marginBottom: "auto",
@@ -886,6 +984,35 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
 
+  actionsColumn: {
+    gap: 12,
+    marginTop: 20,
+  },
+
+  // 1-Tap Google Connect Button on Cover Page
+  coverGoogleBtn: {
+    height: 46,
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    borderRadius: 23,
+    paddingHorizontal: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    alignSelf: "flex-start",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  coverGoogleBtnText: {
+    color: "#0b1612",
+    fontSize: 14,
+    fontWeight: "800",
+    letterSpacing: -0.2,
+  },
+
   // Iconic Frosted Champagne Action Pill from Reference
   getStartedPill: {
     backgroundColor: "#f5ede4",
@@ -897,7 +1024,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 14,
     alignSelf: "flex-start",
-    marginTop: 20,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.35,
@@ -919,42 +1045,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
-  // Bottom Section: Social Proof & Pillars
+  // Bottom Section: 3D Bio-Core & Pillars
   bottomSection: {
     flexDirection: "row",
     alignItems: "flex-end",
     justifyContent: "space-between",
     paddingBottom: 4,
-  },
-  socialProofCol: {
-    gap: 8,
-  },
-  avatarRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  miniAvatarCircle: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    borderWidth: 1.5,
-    borderColor: "rgba(255, 255, 255, 0.85)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarInitials: {
-    color: "#ffffff",
-    fontSize: 11,
-    fontWeight: "800",
-  },
-  miniAvatarPlus: {
-    backgroundColor: "rgba(255, 255, 255, 0.28)",
-  },
-  socialProofText: {
-    color: "rgba(255, 255, 255, 0.92)",
-    fontSize: 11,
-    fontWeight: "600",
-    lineHeight: 15,
   },
 
   pillarsCol: {
@@ -1006,6 +1102,60 @@ const styles = StyleSheet.create({
   modalScrollContent: {
     gap: 14,
     paddingBottom: 12,
+  },
+
+  // Two Section Switcher: Sign Up vs Already Signed Up
+  authModeSegment: {
+    flexDirection: "row",
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    borderRadius: 22,
+    padding: 4,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.12)",
+    marginBottom: 4,
+  },
+  segmentTab: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 9,
+    borderRadius: 18,
+    gap: 6,
+  },
+  segmentTabActive: {
+    backgroundColor: "#ffffff",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.16,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  segmentTabText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#a3c2b6",
+  },
+  segmentTabTextActive: {
+    color: "#0b1612",
+    fontWeight: "900",
+  },
+
+  switchSectionBtn: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 6,
+  },
+  switchSectionPrompt: {
+    color: "#b4cbbf",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  switchSectionLink: {
+    color: "#10b981",
+    fontWeight: "800",
+    textDecorationLine: "underline",
   },
   modalHeader: {
     flexDirection: "row",
