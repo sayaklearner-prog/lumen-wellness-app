@@ -29,6 +29,7 @@ import {
   LiveWatchMetrics 
 } from "@/services/fitnessWatchSensor";
 import { nativeStepCounter } from "@/services/nativeStepCounter";
+import THEME from "@/constants/theme";
 
 // Standard MET table for manual logging catalog
 interface WorkoutPreset {
@@ -1790,7 +1791,7 @@ function getZoneColor(zone: number): string {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#050b08",
+    backgroundColor: THEME.colors.bgSolid,
     paddingTop: Platform.OS === "ios" ? 60 : 40,
   },
   header: {
@@ -1804,14 +1805,14 @@ const styles = StyleSheet.create({
     backgroundColor: "#64748b",
   },
   headerSub: {
-    color: "#64748b",
+    color: THEME.colors.textOnDarkSecondary,
     fontSize: 11,
     fontWeight: "bold",
     textTransform: "uppercase",
     letterSpacing: 0.8,
   },
   headerTitle: {
-    color: "#f8fafc",
+    color: THEME.colors.textOnDarkPrimary,
     fontSize: 26,
     fontWeight: "900",
     marginTop: 2,
@@ -1820,26 +1821,26 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: "#13231c",
+    backgroundColor: THEME.colors.cardBg,
     borderWidth: 1.5,
-    borderColor: "#10b981",
+    borderColor: THEME.colors.cardBorder,
     alignItems: "center",
     justifyContent: "center",
   },
   avatarInitialSmall: {
-    color: "#10b981",
+    color: THEME.colors.accentTeal,
     fontSize: 13,
     fontWeight: "bold",
   },
   // Tab Bar Switcher
   tabBar: {
     flexDirection: "row",
-    backgroundColor: "#0b1612",
-    borderRadius: 14,
+    backgroundColor: "rgba(11, 22, 19, 0.6)",
+    borderRadius: 20,
     padding: 4,
     marginTop: 14,
     borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.15)",
+    borderColor: "rgba(200, 218, 210, 0.2)",
   },
   tabItem: {
     flex: 1,
@@ -1851,18 +1852,22 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   tabItemActive: {
-    backgroundColor: "rgba(16, 185, 129, 0.15)",
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.3)",
+    backgroundColor: "#ffffff",
+    borderRadius: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
   },
   tabText: {
-    color: "#64748b",
+    color: THEME.colors.textOnDarkSecondary,
     fontSize: 12,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   tabTextActive: {
-    color: "#f8fafc",
-    fontWeight: "bold",
+    color: "#0e1c18",
+    fontWeight: "900",
   },
   scrollContent: {
     paddingHorizontal: 20,
@@ -1872,10 +1877,10 @@ const styles = StyleSheet.create({
   // FITNESS WATCH HUD STYLES
   // ==========================================
   watchHudCard: {
-    backgroundColor: "#0b1612",
+    backgroundColor: THEME.colors.cardBg,
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.25)",
+    borderColor: THEME.colors.cardBorder,
     padding: 18,
     gap: 16,
   },
@@ -1885,7 +1890,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   watchHudTitle: {
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 16,
     fontWeight: "900",
   },
@@ -1907,7 +1912,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#64748b",
   },
   sensorStatusText: {
-    color: "#10b981",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 9,
     fontWeight: "900",
   },
@@ -1930,7 +1935,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   watchTimerText: {
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 32,
     fontWeight: "900",
     letterSpacing: 1,
@@ -1944,20 +1949,20 @@ const styles = StyleSheet.create({
   },
   primaryMetricBox: {
     marginTop: 6,
-    backgroundColor: "rgba(255, 255, 255, 0.03)",
+    backgroundColor: "#ffffff",
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: "rgba(200, 218, 210, 0.55)",
   },
   primaryMetricVal: {
-    color: "#10b981",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 22,
     fontWeight: "900",
   },
   primaryMetricUnit: {
-    color: "#94a3b8",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 11,
     fontWeight: "600",
     textTransform: "uppercase",
@@ -1971,25 +1976,25 @@ const styles = StyleSheet.create({
   telemetryCell: {
     flex: 1,
     minWidth: "46%",
-    backgroundColor: "rgba(255, 255, 255, 0.03)",
+    backgroundColor: "#ffffff",
     borderRadius: 14,
     padding: 12,
     gap: 4,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.05)",
+    borderColor: "rgba(200, 218, 210, 0.55)",
   },
   telemetryLabel: {
-    color: "#94a3b8",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 11,
     fontWeight: "600",
   },
   telemetryValue: {
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 18,
     fontWeight: "900",
   },
   telemetryUnit: {
-    color: "#64748b",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 12,
     fontWeight: "600",
   },
@@ -2011,12 +2016,12 @@ const styles = StyleSheet.create({
   },
   // Sensor Oscilloscope
   sensorStreamCard: {
-    backgroundColor: "rgba(0, 0, 0, 0.4)",
-    borderRadius: 14,
+    backgroundColor: THEME.colors.cardBg,
+    borderRadius: 24,
     padding: 12,
     gap: 8,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.05)",
+    borderColor: THEME.colors.cardBorder,
   },
   sensorStreamHeader: {
     flexDirection: "row",
@@ -2024,7 +2029,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   streamTitle: {
-    color: "#64748b",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 10,
     fontWeight: "bold",
     textTransform: "uppercase",
@@ -2048,7 +2053,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   streamAxisVal: {
-    color: "#10b981",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 12,
     fontWeight: "bold",
     fontVariant: ["tabular-nums"],
@@ -2138,12 +2143,12 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   modeSelectorTitle: {
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 14,
     fontWeight: "bold",
   },
   modeSelectorSub: {
-    color: "#64748b",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 11,
   },
   modeGrid: {
@@ -2153,12 +2158,12 @@ const styles = StyleSheet.create({
   },
   modeTile: {
     width: "48%",
-    backgroundColor: "rgba(255, 255, 255, 0.02)",
+    backgroundColor: "#ffffff",
     borderRadius: 14,
     padding: 12,
     gap: 6,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: "rgba(200, 218, 210, 0.55)",
   },
   modeTileActive: {
     backgroundColor: "rgba(16, 185, 129, 0.08)",
@@ -2181,7 +2186,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   modeTileTitle: {
-    color: "#cbd5e1",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 12,
     fontWeight: "bold",
   },
@@ -2189,18 +2194,18 @@ const styles = StyleSheet.create({
     color: "#10b981",
   },
   modeTileHint: {
-    color: "#64748b",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 10,
     lineHeight: 14,
   },
   // All-Day Pedometer Card
   allDayStepCard: {
-    backgroundColor: "#0b1612",
-    borderRadius: 20,
+    backgroundColor: THEME.colors.cardBg,
+    borderRadius: 24,
     padding: 16,
     gap: 10,
     borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.15)",
+    borderColor: THEME.colors.cardBorder,
   },
   pedometerIconBox: {
     width: 38,
@@ -2211,7 +2216,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   allDayStepsLabel: {
-    color: "#f8fafc",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 13,
     fontWeight: "bold",
   },
@@ -2220,23 +2225,23 @@ const styles = StyleSheet.create({
     fontSize: 10,
   },
   allDayStepsVal: {
-    color: "#10b981",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 20,
     fontWeight: "900",
   },
   pedometerProgressBar: {
-    height: 6,
-    backgroundColor: "#1e293b",
-    borderRadius: 3,
+    height: 8,
+    backgroundColor: "rgba(180, 205, 195, 0.35)",
+    borderRadius: 4,
     overflow: "hidden",
   },
   pedometerProgressFill: {
     height: "100%",
-    backgroundColor: "#10b981",
-    borderRadius: 3,
+    backgroundColor: THEME.colors.accentOrange,
+    borderRadius: 4,
   },
   pedometerFootnote: {
-    color: "#64748b",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 10,
   },
   // ==========================================
@@ -2276,33 +2281,36 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   categoryPill: {
-    backgroundColor: "#0b1612",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
     paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 14,
+    borderRadius: 18,
+    backgroundColor: "rgba(232, 241, 237, 0.12)",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.08)",
+    borderColor: "rgba(200, 218, 210, 0.25)",
   },
   categoryPillActive: {
-    backgroundColor: "rgba(16, 185, 129, 0.15)",
-    borderColor: "#10b981",
+    backgroundColor: "#ffffff",
+    borderColor: "#ffffff",
   },
   categoryPillText: {
-    color: "#64748b",
+    color: THEME.colors.textOnDarkSecondary,
     fontSize: 12,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   categoryPillTextActive: {
-    color: "#10b981",
-    fontWeight: "bold",
+    color: "#0e1c18",
+    fontWeight: "900",
   },
   categorySectionCard: {
-    backgroundColor: "#0b1612",
-    borderRadius: 20,
+    backgroundColor: THEME.colors.cardBg,
+    borderRadius: 24,
     padding: 16,
     gap: 12,
     borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.12)",
+    borderColor: THEME.colors.cardBorder,
   },
   secTitleRow: {
     flexDirection: "row",
@@ -2310,7 +2318,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   secTitleText: {
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 14,
     fontWeight: "bold",
   },
@@ -2326,12 +2334,12 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   presetTile: {
-    backgroundColor: "rgba(255, 255, 255, 0.02)",
+    backgroundColor: "#ffffff",
     borderRadius: 12,
     padding: 12,
     gap: 6,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.04)",
+    borderColor: "rgba(200, 218, 210, 0.55)",
   },
   presetTileTop: {
     flexDirection: "row",
@@ -2353,12 +2361,12 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   presetTileName: {
-    color: "#cbd5e1",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 13,
     fontWeight: "bold",
   },
   presetTileHint: {
-    color: "#64748b",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 11,
     lineHeight: 15,
   },
@@ -2377,9 +2385,9 @@ const styles = StyleSheet.create({
   // STRAIN & READINESS STYLES
   // ==========================================
   unifiedBurnCard: {
-    backgroundColor: "#0b1612",
+    backgroundColor: THEME.colors.cardBg,
     borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.2)",
+    borderColor: THEME.colors.cardBorder,
     borderRadius: 24,
     padding: 20,
     gap: 16,
@@ -2390,7 +2398,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   unifiedTitle: {
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 15,
     fontWeight: "bold",
   },
@@ -2422,12 +2430,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   bigBurnValue: {
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 36,
     fontWeight: "900",
   },
   bigBurnLabel: {
-    color: "#64748b",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 11,
   },
   burnTargetCol: {
@@ -2442,13 +2450,14 @@ const styles = StyleSheet.create({
   },
   targetProgressBar: {
     height: 8,
-    backgroundColor: "#1e293b",
+    backgroundColor: "rgba(180, 205, 195, 0.35)",
     borderRadius: 4,
     overflow: "hidden",
+    marginTop: 6,
   },
   targetProgressFill: {
     height: "100%",
-    backgroundColor: "#10b981",
+    backgroundColor: THEME.colors.accentOrange,
     borderRadius: 4,
   },
   burnBreakdownGrid: {
@@ -2457,13 +2466,13 @@ const styles = StyleSheet.create({
   },
   burnBreakdownBox: {
     flex: 1,
-    backgroundColor: "rgba(255, 255, 255, 0.03)",
+    backgroundColor: "#ffffff",
     padding: 10,
     borderRadius: 12,
     gap: 2,
   },
   breakdownSub: {
-    color: "#94a3b8",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 10,
     fontWeight: "bold",
   },
@@ -2476,12 +2485,12 @@ const styles = StyleSheet.create({
     fontSize: 9,
   },
   dualGaugeCard: {
-    backgroundColor: "#0b1612",
+    backgroundColor: THEME.colors.cardBg,
     borderRadius: 24,
     padding: 18,
     gap: 14,
     borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.15)",
+    borderColor: THEME.colors.cardBorder,
   },
   dualGaugeRow: {
     flexDirection: "row",
@@ -2501,7 +2510,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   gaugeScoreVal: {
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 22,
     fontWeight: "900",
   },
@@ -2510,12 +2519,12 @@ const styles = StyleSheet.create({
     fontSize: 9,
   },
   gaugeLabel: {
-    color: "#cbd5e1",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 11,
     fontWeight: "bold",
   },
   gaugeStatusText: {
-    color: "#10b981",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 10,
     fontWeight: "600",
   },
@@ -2527,22 +2536,22 @@ const styles = StyleSheet.create({
   gaugeExplanationBox: {
     flexDirection: "row",
     gap: 8,
-    backgroundColor: "rgba(16, 185, 129, 0.05)",
+    backgroundColor: "#ffffff",
     padding: 10,
     borderRadius: 12,
   },
   gaugeExplanationText: {
     flex: 1,
-    color: "#94a3b8",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 11,
     lineHeight: 16,
   },
   insightsCard: {
-    backgroundColor: "#0b1612",
-    borderRadius: 20,
+    backgroundColor: THEME.colors.cardBg,
+    borderRadius: 24,
     padding: 16,
     borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.2)",
+    borderColor: THEME.colors.cardBorder,
   },
   insightsHeader: {
     color: "#f8fafc",
@@ -2562,7 +2571,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#10b981",
   },
   insightText: {
-    color: "#94a3b8",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 11,
   },
   // ==========================================
@@ -2591,11 +2600,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "#0b1612",
+    backgroundColor: "#ffffff",
     padding: 14,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.05)",
+    borderColor: "rgba(200, 218, 210, 0.55)",
   },
   workoutLeft: {
     flexDirection: "row",
@@ -2612,12 +2621,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   activityName: {
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 13,
     fontWeight: "bold",
   },
   activityTime: {
-    color: "#94a3b8",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 11,
     marginTop: 2,
   },
@@ -2645,22 +2654,22 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   emptyCard: {
-    backgroundColor: "#0b1310",
-    borderRadius: 20,
+    backgroundColor: THEME.colors.cardBg,
+    borderRadius: 24,
     padding: 24,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: THEME.colors.cardBorder,
     gap: 6,
   },
   emptyTitle: {
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 13,
     fontWeight: "bold",
   },
   emptyText: {
-    color: "#64748b",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 11,
     textAlign: "center",
     lineHeight: 16,
@@ -2683,25 +2692,25 @@ const styles = StyleSheet.create({
   summaryModalCard: {
     width: "100%",
     maxWidth: 380,
-    backgroundColor: "#0b1612",
+    backgroundColor: THEME.colors.cardBgSolid,
     borderRadius: 24,
     padding: 20,
     gap: 16,
     borderWidth: 1.5,
-    borderColor: "#10b981",
+    borderColor: THEME.colors.cardBorder,
   },
   celebrateHeader: {
     alignItems: "center",
     gap: 6,
   },
   celebrateTitle: {
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 20,
     fontWeight: "900",
     textAlign: "center",
   },
   celebrateSub: {
-    color: "#94a3b8",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 12,
     textAlign: "center",
     lineHeight: 16,
@@ -2719,13 +2728,13 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   summaryCellLabel: {
-    color: "#64748b",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 10,
     fontWeight: "bold",
     textTransform: "uppercase",
   },
   summaryCellVal: {
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 16,
     fontWeight: "900",
   },
@@ -2755,12 +2764,12 @@ const styles = StyleSheet.create({
   modalCard: {
     width: "100%",
     maxWidth: 420,
-    backgroundColor: "#0b1612",
+    backgroundColor: THEME.colors.cardBgSolid,
     borderRadius: 24,
     padding: 20,
     gap: 14,
     borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.3)",
+    borderColor: THEME.colors.cardBorder,
   },
   modalHeader: {
     flexDirection: "row",
@@ -2768,12 +2777,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   modalTitle: {
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 16,
     fontWeight: "bold",
   },
   modalSub: {
-    color: "#10b981",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 11,
     fontWeight: "600",
   },
@@ -2781,19 +2790,19 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "rgba(16, 185, 129, 0.1)",
+    backgroundColor: "#ffffff",
     padding: 12,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.2)",
+    borderColor: "rgba(200, 218, 210, 0.55)",
   },
   liveCalTitle: {
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 12,
     fontWeight: "bold",
   },
   liveCalSub: {
-    color: "#94a3b8",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 10,
   },
   liveCalValBadge: {
@@ -2814,7 +2823,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   inputLabel: {
-    color: "#94a3b8",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 11,
     fontWeight: "bold",
   },
@@ -2876,14 +2885,14 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   textInput: {
-    backgroundColor: "#13231c",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    color: "#f8fafc",
-    fontSize: 12,
+    backgroundColor: "#ffffff",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.08)",
+    borderColor: "rgba(200, 218, 210, 0.6)",
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    color: THEME.colors.cardTextPrimary,
+    fontSize: 15,
   },
   modalActionRow: {
     flexDirection: "row",
@@ -2928,11 +2937,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#10b981",
   },
   wearableHeroCard: {
-    backgroundColor: "#0d1612",
-    borderRadius: 20,
+    backgroundColor: THEME.colors.cardBg,
+    borderRadius: 24,
     padding: 16,
     borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.25)",
+    borderColor: THEME.colors.cardBorder,
     gap: 14,
   },
   wearableHeroHeader: {
@@ -2953,7 +2962,7 @@ const styles = StyleSheet.create({
   wearableDeviceName: {
     fontSize: 16,
     fontWeight: "800",
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
   },
   connectedPill: {
     flexDirection: "row",
@@ -2980,7 +2989,7 @@ const styles = StyleSheet.create({
   },
   wearableBrandSub: {
     fontSize: 11,
-    color: "#94a3b8",
+    color: THEME.colors.cardTextSecondary,
     marginTop: 2,
   },
   disconnectMiniBtn: {
@@ -3034,8 +3043,8 @@ const styles = StyleSheet.create({
   },
   wearableSectionTitle: {
     fontSize: 11,
-    fontWeight: "800",
-    color: "#64748b",
+    fontWeight: "900",
+    color: THEME.colors.textOnDarkPrimary,
     letterSpacing: 0.8,
   },
   wearableTelemetryGrid: {
@@ -3046,11 +3055,11 @@ const styles = StyleSheet.create({
   telemetryCard: {
     flex: 1,
     minWidth: "47%",
-    backgroundColor: "#0d1612",
-    borderRadius: 16,
+    backgroundColor: THEME.colors.cardBg,
+    borderRadius: 24,
     padding: 14,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: THEME.colors.cardBorder,
     gap: 4,
   },
   telemetryCardHeader: {
@@ -3062,13 +3071,13 @@ const styles = StyleSheet.create({
   telemetryCardLabel: {
     fontSize: 10,
     fontWeight: "800",
-    color: "#64748b",
+    color: THEME.colors.cardTextSecondary,
     letterSpacing: 0.6,
   },
   telemetryCardVal: {
     fontSize: 22,
     fontWeight: "900",
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
   },
   telemetryCardSub: {
     fontSize: 11,
@@ -3081,21 +3090,21 @@ const styles = StyleSheet.create({
   },
   vitalPill: {
     flex: 1,
-    backgroundColor: "#0d1612",
+    backgroundColor: "#ffffff",
     borderRadius: 12,
     padding: 10,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.05)",
+    borderColor: "rgba(200, 218, 210, 0.55)",
     alignItems: "center",
   },
   vitalPillLabel: {
     fontSize: 10,
-    color: "#64748b",
+    color: THEME.colors.cardTextSecondary,
     fontWeight: "700",
   },
   vitalPillValue: {
     fontSize: 14,
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
     fontWeight: "800",
     marginTop: 2,
   },
@@ -3145,11 +3154,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#0d1612",
-    borderRadius: 14,
+    backgroundColor: THEME.colors.cardBg,
+    borderRadius: 24,
     padding: 12,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: THEME.colors.cardBorder,
     gap: 10,
   },
   devicePairCardActive: {
@@ -3167,7 +3176,7 @@ const styles = StyleSheet.create({
   devicePairName: {
     fontSize: 14,
     fontWeight: "800",
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
   },
   activeTag: {
     backgroundColor: "rgba(16, 185, 129, 0.2)",
@@ -3182,7 +3191,7 @@ const styles = StyleSheet.create({
   },
   devicePairBrand: {
     fontSize: 11,
-    color: "#94a3b8",
+    color: THEME.colors.cardTextSecondary,
     marginTop: 1,
   },
   deviceFeatureList: {
@@ -3273,11 +3282,11 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   sourceControlCard: {
-    backgroundColor: "#0d1f17",
-    borderRadius: 20,
+    backgroundColor: THEME.colors.cardBg,
+    borderRadius: 24,
     padding: 16,
     borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.2)",
+    borderColor: THEME.colors.cardBorder,
     gap: 12,
   },
   sourceControlHeader: {
@@ -3299,7 +3308,7 @@ const styles = StyleSheet.create({
   sourceControlTitle: {
     fontSize: 14,
     fontWeight: "800",
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
   },
   sourceControlStatus: {
     fontSize: 11,
@@ -3320,11 +3329,11 @@ const styles = StyleSheet.create({
   sourceSwitchLabel: {
     fontSize: 13,
     fontWeight: "700",
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
   },
   sourceSwitchDesc: {
     fontSize: 11,
-    color: "#94a3b8",
+    color: THEME.colors.cardTextSecondary,
     marginTop: 3,
     lineHeight: 15,
   },
@@ -3380,11 +3389,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   treadmillCard: {
-    backgroundColor: "#0b1912",
-    borderRadius: 20,
+    backgroundColor: THEME.colors.cardBg,
+    borderRadius: 24,
     padding: 16,
     borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.25)",
+    borderColor: THEME.colors.cardBorder,
     gap: 12,
   },
   treadmillHeader: {
@@ -3403,11 +3412,11 @@ const styles = StyleSheet.create({
   treadmillTitle: {
     fontSize: 15,
     fontWeight: "800",
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
   },
   treadmillSub: {
     fontSize: 11,
-    color: "#94a3b8",
+    color: THEME.colors.cardTextSecondary,
     marginTop: 2,
   },
   indoorBadge: {
@@ -3471,7 +3480,7 @@ const styles = StyleSheet.create({
   },
   treadmillMetricCell: {
     flex: 1,
-    backgroundColor: "rgba(255, 255, 255, 0.04)",
+    backgroundColor: "#ffffff",
     borderRadius: 10,
     padding: 8,
     alignItems: "center",
@@ -3479,11 +3488,11 @@ const styles = StyleSheet.create({
   treadmillMetricVal: {
     fontSize: 14,
     fontWeight: "800",
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
   },
   treadmillMetricLabel: {
     fontSize: 9,
-    color: "#94a3b8",
+    color: THEME.colors.cardTextSecondary,
     marginTop: 2,
     fontWeight: "600",
   },

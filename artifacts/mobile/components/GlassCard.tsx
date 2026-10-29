@@ -1,5 +1,6 @@
 import React from "react";
 import { View, StyleSheet, ViewStyle } from "react-native";
+import THEME from "@/constants/theme";
 
 interface GlassCardProps {
   children: React.ReactNode;
@@ -16,15 +17,11 @@ export function GlassCard({ children, style }: GlassCardProps) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: "rgba(11, 19, 16, 0.75)",
+    backgroundColor: THEME.colors.cardBg,
     borderWidth: 1,
-    borderColor: "rgba(30, 41, 59, 0.4)",
-    borderRadius: 24,
-    padding: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
+    borderColor: THEME.colors.cardBorder,
+    borderRadius: THEME.radii.xl,
+    padding: THEME.spacing.xl,
+    ...THEME.shadows.card,
   },
 });

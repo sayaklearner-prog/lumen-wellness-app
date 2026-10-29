@@ -1,3 +1,4 @@
+import THEME from "@/constants/theme";
 import React, { useEffect, useState, useMemo, useRef } from "react";
 import {
   View,
@@ -137,8 +138,8 @@ function CircularScoreRing({ score, maxScore = 10 }: { score: number; maxScore?:
       <Svg width={size} height={size} style={{ position: "absolute" }}>
         <Defs>
           <LinearGradient id="scoreGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <Stop offset="0%" stopColor="#10b981" />
-            <Stop offset="100%" stopColor="#06b6d4" />
+            <Stop offset="0%" stopColor="#f97316" />
+            <Stop offset="100%" stopColor="#10b981" />
           </LinearGradient>
         </Defs>
         {/* Track */}
@@ -146,7 +147,7 @@ function CircularScoreRing({ score, maxScore = 10 }: { score: number; maxScore?:
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke="#1b2a22"
+          stroke="rgba(180, 205, 192, 0.4)"
           strokeWidth={strokeWidth}
           fill="transparent"
         />
@@ -208,10 +209,10 @@ function Trend7DayChart({ overallScore }: { overallScore: number }) {
             </LinearGradient>
           </Defs>
 
-          <Line x1="0" y1="10" x2={chartWidth} y2="10" stroke="rgba(255,255,255,0.05)" strokeDasharray="4 4" />
+          <Line x1="0" y1="10" x2={chartWidth} y2="10" stroke="rgba(200, 218, 210, 0.3)" strokeDasharray="4 4" />
           <Line x1="0" y1="45" x2={chartWidth} y2="45" stroke="rgba(255,255,255,0.05)" strokeDasharray="4 4" />
           <Line x1="0" y1="80" x2={chartWidth} y2="80" stroke="rgba(255,255,255,0.05)" strokeDasharray="4 4" />
-          <Line x1="0" y1={chartHeight} x2={chartWidth} y2={chartHeight} stroke="rgba(255,255,255,0.1)" />
+          <Line x1="0" y1={chartHeight} x2={chartWidth} y2={chartHeight} stroke="rgba(200, 218, 210, 0.4)" />
 
           <Path d={areaPath} fill="url(#trendGrad)" />
           <Path d={linePath} stroke="#10b981" strokeWidth={2.5} fill="none" />
@@ -223,7 +224,7 @@ function Trend7DayChart({ overallScore }: { overallScore: number }) {
               cy={p.y}
               r={idx === points.length - 1 ? 5 : 3}
               fill={idx === points.length - 1 ? "#06b6d4" : "#10b981"}
-              stroke="#070c0a"
+              stroke="#ffffff"
               strokeWidth={2}
             />
           ))}
@@ -2843,7 +2844,7 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#050b08",
+    backgroundColor: THEME.colors.bgSolid,
   },
   topBar: {
     flexDirection: "row",
@@ -2861,12 +2862,12 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   hamburgerBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    backgroundColor: "rgba(16, 185, 129, 0.1)",
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: "rgba(232, 241, 237, 0.12)",
     borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.25)",
+    borderColor: "rgba(200, 218, 210, 0.2)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -2877,7 +2878,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#10b981",
   },
   brandTitle: {
-    color: "#f8fafc",
+    color: THEME.colors.textOnDarkPrimary,
     fontSize: 20,
     fontWeight: "900",
     letterSpacing: -0.5,
@@ -2904,17 +2905,17 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   avatarCircle: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: "#13231c",
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: THEME.colors.cardBg,
     borderWidth: 1.5,
-    borderColor: "#10b981",
+    borderColor: THEME.colors.cardBorder,
     alignItems: "center",
     justifyContent: "center",
   },
   avatarInitial: {
-    color: "#10b981",
+    color: THEME.colors.accentTeal,
     fontSize: 14,
     fontWeight: "bold",
   },
@@ -2926,11 +2927,11 @@ const styles = StyleSheet.create({
 
   // HERO CARD (Matches Reference)
   heroCard: {
-    backgroundColor: "#0d1813",
+    backgroundColor: THEME.colors.cardBg,
     borderRadius: 24,
     padding: 20,
     borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.2)",
+    borderColor: THEME.colors.cardBorder,
     marginBottom: 16,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
@@ -2948,31 +2949,31 @@ const styles = StyleSheet.create({
     paddingRight: 12,
   },
   greetingTitle: {
-    color: "#cbd5e1",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 22,
     fontWeight: "800",
     lineHeight: 28,
     letterSpacing: -0.5,
   },
   greetingName: {
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 24,
     fontWeight: "900",
   },
   energySubtext: {
-    color: "#94a3b8",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 13,
     marginTop: 8,
     lineHeight: 18,
   },
   scoreNumber: {
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 24,
     fontWeight: "900",
     letterSpacing: -0.5,
   },
   scoreLabel: {
-    color: "#94a3b8",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 9,
     fontWeight: "800",
     letterSpacing: 1.5,
@@ -3018,11 +3019,11 @@ const styles = StyleSheet.create({
 
   // AI INSIGHT CARD (Matches Reference)
   aiInsightCard: {
-    backgroundColor: "#121b16",
-    borderRadius: 20,
+    backgroundColor: THEME.colors.cardBg,
+    borderRadius: 24,
     padding: 16,
     borderWidth: 1,
-    borderColor: "rgba(245, 158, 11, 0.2)",
+    borderColor: THEME.colors.cardBorder,
     marginBottom: 16,
   },
   aiInsightHeader: {
@@ -3039,33 +3040,29 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   aiInsightTitle: {
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 15,
     fontWeight: "800",
     letterSpacing: -0.2,
   },
   aiInsightDesc: {
-    color: "#94a3b8",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 12,
     lineHeight: 17,
     marginTop: 4,
   },
   aiActionBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "rgba(245, 158, 11, 0.1)",
-    borderWidth: 1,
-    borderColor: "rgba(245, 158, 11, 0.25)",
-    borderRadius: 12,
+    backgroundColor: THEME.colors.accentTeal,
+    paddingHorizontal: 16,
     paddingVertical: 10,
-    paddingHorizontal: 14,
-    marginTop: 12,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
   },
   aiActionBtnText: {
-    color: "#f59e0b",
-    fontSize: 12,
-    fontWeight: "700",
+    color: "#ffffff",
+    fontSize: 13,
+    fontWeight: "800",
   },
 
   // 4 PILLARS (2x2 Grid)
@@ -3077,11 +3074,11 @@ const styles = StyleSheet.create({
   },
   pillarCard: {
     width: (SCREEN_WIDTH - 42) / 2,
-    backgroundColor: "#0d1612",
-    borderRadius: 16,
+    backgroundColor: THEME.colors.cardBg,
+    borderRadius: 24,
     padding: 14,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: THEME.colors.cardBorder,
   },
   pillarTopRow: {
     flexDirection: "row",
@@ -3089,7 +3086,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   pillarTitle: {
-    color: "#cbd5e1",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 13,
     fontWeight: "700",
   },
@@ -3099,7 +3096,7 @@ const styles = StyleSheet.create({
   },
   pillarBarTrack: {
     height: 4,
-    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    backgroundColor: "rgba(180, 205, 195, 0.35)",
     borderRadius: 2,
     marginVertical: 10,
     overflow: "hidden",
@@ -3109,7 +3106,7 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   pillarSubtitle: {
-    color: "#64748b",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 11,
     fontWeight: "600",
   },
@@ -3134,11 +3131,11 @@ const styles = StyleSheet.create({
   },
   streakCard: {
     width: 240,
-    backgroundColor: "#0e1814",
-    borderRadius: 18,
+    backgroundColor: THEME.colors.cardBg,
+    borderRadius: 24,
     padding: 14,
     borderWidth: 1,
-    borderColor: "rgba(249, 115, 22, 0.2)",
+    borderColor: THEME.colors.cardBorder,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
@@ -3159,12 +3156,12 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   streakCardTitle: {
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 13,
     fontWeight: "800",
   },
   streakCardMsg: {
-    color: "#94a3b8",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 11,
     marginTop: 2,
     lineHeight: 14,
@@ -3172,10 +3169,10 @@ const styles = StyleSheet.create({
 
   // ACHIEVEMENTS & GAMIFICATION SPOTLIGHT
   achievementsSpotlightCard: {
-    backgroundColor: "rgba(245, 158, 11, 0.05)",
+    backgroundColor: THEME.colors.cardBg,
     borderWidth: 1,
-    borderColor: "rgba(245, 158, 11, 0.25)",
-    borderRadius: 18,
+    borderColor: THEME.colors.cardBorder,
+    borderRadius: 24,
     padding: 14,
     marginBottom: 20,
   },
@@ -3197,7 +3194,7 @@ const styles = StyleSheet.create({
   achievementsSpotlightTitle: {
     fontSize: 14,
     fontWeight: "800",
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
   },
   xpMiniPill: {
     backgroundColor: "rgba(245, 158, 11, 0.2)",
@@ -3212,7 +3209,7 @@ const styles = StyleSheet.create({
   },
   achievementsSpotlightSub: {
     fontSize: 11,
-    color: "#94a3b8",
+    color: THEME.colors.cardTextSecondary,
     fontWeight: "500",
     marginTop: 2,
   },
@@ -3239,7 +3236,7 @@ const styles = StyleSheet.create({
   spotlightTrack: {
     height: 6,
     borderRadius: 3,
-    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    backgroundColor: "rgba(180, 205, 195, 0.35)",
     overflow: "hidden",
   },
   spotlightFill: {
@@ -3265,11 +3262,11 @@ const styles = StyleSheet.create({
 
   // 7-DAY SCORE TREND CHART
   trendContainerCard: {
-    backgroundColor: "#0c1511",
-    borderRadius: 20,
+    backgroundColor: THEME.colors.cardBg,
+    borderRadius: 24,
     padding: 16,
     borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.15)",
+    borderColor: THEME.colors.cardBorder,
     marginBottom: 20,
   },
   trendHeaderRow: {
@@ -3279,7 +3276,7 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   trendCardTitle: {
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 15,
     fontWeight: "800",
     letterSpacing: -0.3,
@@ -3332,11 +3329,11 @@ const styles = StyleSheet.create({
   },
   hydrationCard: {
     flex: 1,
-    backgroundColor: "#0c1511",
-    borderRadius: 18,
+    backgroundColor: THEME.colors.cardBg,
+    borderRadius: 24,
     padding: 14,
     borderWidth: 1,
-    borderColor: "rgba(6, 182, 212, 0.15)",
+    borderColor: THEME.colors.cardBorder,
     justifyContent: "space-between",
   },
   hydrationTopRow: {
@@ -3352,12 +3349,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   bioCardLabel: {
-    color: "#94a3b8",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 11,
     fontWeight: "600",
   },
   bioCardValue: {
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 14,
     fontWeight: "800",
     marginTop: 2,
@@ -3375,7 +3372,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 8,
-    backgroundColor: "#16232b",
+    backgroundColor: "#ffffff",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -3386,11 +3383,11 @@ const styles = StyleSheet.create({
   },
   caloriesMacroCard: {
     flex: 1,
-    backgroundColor: "#0c1511",
-    borderRadius: 18,
+    backgroundColor: THEME.colors.cardBg,
+    borderRadius: 24,
     padding: 14,
     borderWidth: 1,
-    borderColor: "rgba(245, 158, 11, 0.15)",
+    borderColor: THEME.colors.cardBorder,
     justifyContent: "space-between",
   },
   calTopRow: {
@@ -3399,13 +3396,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   calValue: {
-    color: "#f59e0b",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 11,
     fontWeight: "800",
   },
   calBarTrack: {
     height: 4,
-    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    backgroundColor: "rgba(180, 205, 195, 0.35)",
     borderRadius: 2,
     marginVertical: 10,
     overflow: "hidden",
@@ -3422,12 +3419,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   macroLabel: {
-    color: "#64748b",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 9,
     fontWeight: "600",
   },
   macroVal: {
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 11,
     fontWeight: "800",
     marginTop: 2,
@@ -3435,11 +3432,11 @@ const styles = StyleSheet.create({
 
   // ACTIVE BURN BANNER
   activeBurnBanner: {
-    backgroundColor: "#101a14",
-    borderRadius: 18,
+    backgroundColor: THEME.colors.cardBg,
+    borderRadius: 24,
     padding: 14,
     borderWidth: 1,
-    borderColor: "rgba(245, 158, 11, 0.2)",
+    borderColor: THEME.colors.cardBorder,
     marginBottom: 20,
   },
   burnBannerTopRow: {
@@ -3448,12 +3445,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   burnBannerTitle: {
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 14,
     fontWeight: "800",
   },
   burnBannerTotal: {
-    color: "#f59e0b",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 16,
     fontWeight: "900",
   },
@@ -3473,7 +3470,7 @@ const styles = StyleSheet.create({
   // BRIEFING CARD
   briefingCard: {
     padding: 16,
-    borderRadius: 20,
+    borderRadius: 24,
     marginBottom: 10,
   },
   briefingHeader: {
@@ -3483,7 +3480,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   briefingTitle: {
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 14,
     fontWeight: "800",
   },
@@ -3496,7 +3493,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   briefingBody: {
-    color: "#94a3b8",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 12,
     lineHeight: 18,
   },
@@ -3508,12 +3505,12 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   modalPanel: {
-    backgroundColor: "#070c0a",
+    backgroundColor: THEME.colors.cardBgSolid,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     borderWidth: 1,
     borderBottomWidth: 0,
-    borderColor: "rgba(16, 185, 129, 0.3)",
+    borderColor: THEME.colors.cardBorder,
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: Platform.OS === "ios" ? 44 : 28,
@@ -3534,11 +3531,11 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 16,
     fontWeight: "900",
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
   },
   modalSub: {
     fontSize: 11,
-    color: "#64748b",
+    color: THEME.colors.cardTextSecondary,
     marginTop: 2,
   },
   modalCloseBtn: {
@@ -3591,9 +3588,9 @@ const styles = StyleSheet.create({
   },
   qualityCard: {
     width: "48%",
-    backgroundColor: "#0d1612",
+    backgroundColor: "#ffffff",
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: "rgba(200, 218, 210, 0.55)",
     borderRadius: 12,
     padding: 10,
   },
@@ -3602,7 +3599,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(245, 158, 11, 0.1)",
   },
   qualityTitle: {
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 13,
     fontWeight: "800",
   },
@@ -3610,17 +3607,17 @@ const styles = StyleSheet.create({
     color: "#f59e0b",
   },
   qualityDesc: {
-    color: "#64748b",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 10,
     marginTop: 2,
   },
   telemetryCard: {
-    backgroundColor: "#0b130f",
+    backgroundColor: "#ffffff",
     borderRadius: 14,
     padding: 12,
     marginVertical: 14,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.05)",
+    borderColor: "rgba(200, 218, 210, 0.55)",
     gap: 6,
   },
   telemetryRow: {
@@ -3637,33 +3634,32 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   modalPrimaryBtn: {
-    backgroundColor: "#10b981",
-    height: 48,
-    borderRadius: 14,
-    flexDirection: "row",
+    backgroundColor: THEME.colors.accentTeal,
+    paddingVertical: 14,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 10,
+    marginTop: 20,
   },
   modalPrimaryBtnText: {
-    color: "#050b08",
-    fontSize: 14,
+    color: "#ffffff",
+    fontSize: 15,
     fontWeight: "800",
   },
 
   // DIGITAL WELLBEING SPECIFIC
   screenUsageCard: {
-    backgroundColor: "#0d1612",
-    borderRadius: 16,
+    backgroundColor: THEME.colors.cardBg,
+    borderRadius: 24,
     padding: 14,
     borderWidth: 1,
-    borderColor: "rgba(168, 85, 247, 0.25)",
+    borderColor: THEME.colors.cardBorder,
     marginBottom: 14,
   },
   screenUsageLabel: {
     fontSize: 10,
     fontWeight: "800",
-    color: "#a855f7",
+    color: THEME.colors.cardTextSecondary,
     letterSpacing: 1,
   },
   screenTimeLargeRow: {
@@ -3675,7 +3671,7 @@ const styles = StyleSheet.create({
   screenTimeLarge: {
     fontSize: 26,
     fontWeight: "900",
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
   },
   screenStatusBadge: {
     backgroundColor: "rgba(168, 85, 247, 0.15)",
@@ -3692,7 +3688,7 @@ const styles = StyleSheet.create({
   },
   screenBarTrack: {
     height: 6,
-    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    backgroundColor: "rgba(180, 205, 195, 0.35)",
     borderRadius: 3,
     marginTop: 12,
     overflow: "hidden",
@@ -3721,12 +3717,12 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   categoryName: {
-    color: "#cbd5e1",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 12,
     fontWeight: "600",
   },
   categoryMins: {
-    color: "#a855f7",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 12,
     fontWeight: "700",
   },
@@ -3743,21 +3739,21 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   switchTitle: {
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 13,
     fontWeight: "700",
   },
   switchDesc: {
-    color: "#64748b",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 11,
     marginTop: 2,
   },
   hydrationCardWide: {
-    backgroundColor: "#0c1511",
-    borderRadius: 20,
+    backgroundColor: THEME.colors.cardBg,
+    borderRadius: 24,
     padding: 16,
     borderWidth: 1,
-    borderColor: "rgba(6, 182, 212, 0.2)",
+    borderColor: THEME.colors.cardBorder,
     marginBottom: 20,
   },
   hydrationBadgePill: {
@@ -3795,9 +3791,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "rgba(6, 182, 212, 0.08)",
+    backgroundColor: "#ffffff",
     borderWidth: 1,
-    borderColor: "rgba(6, 182, 212, 0.25)",
+    borderColor: "rgba(200, 218, 210, 0.55)",
     borderRadius: 14,
     paddingHorizontal: 12,
     paddingVertical: 7,
@@ -3863,11 +3859,11 @@ const styles = StyleSheet.create({
     color: "#06b6d4",
   },
   reservoirHeroCard: {
-    backgroundColor: "#0d1a1f",
-    borderRadius: 18,
+    backgroundColor: THEME.colors.cardBg,
+    borderRadius: 24,
     padding: 16,
     borderWidth: 1,
-    borderColor: "rgba(6, 182, 212, 0.25)",
+    borderColor: THEME.colors.cardBorder,
   },
   reservoirRow: {
     flexDirection: "row",
@@ -3881,12 +3877,12 @@ const styles = StyleSheet.create({
   reservoirPercent: {
     fontSize: 34,
     fontWeight: "900",
-    color: "#06b6d4",
+    color: THEME.colors.cardTextPrimary,
   },
   reservoirSubtitle: {
     fontSize: 10,
     fontWeight: "800",
-    color: "#64748b",
+    color: THEME.colors.cardTextSecondary,
     letterSpacing: 0.5,
     marginTop: 2,
     marginBottom: 6,
@@ -3908,7 +3904,7 @@ const styles = StyleSheet.create({
   reservoirBigMl: {
     fontSize: 26,
     fontWeight: "900",
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
   },
   reservoirMlUnit: {
     fontSize: 14,
@@ -3917,7 +3913,7 @@ const styles = StyleSheet.create({
   },
   reservoirCupsCount: {
     fontSize: 12,
-    color: "#94a3b8",
+    color: THEME.colors.cardTextSecondary,
     fontWeight: "600",
     marginTop: 2,
   },
@@ -3933,7 +3929,7 @@ const styles = StyleSheet.create({
   },
   reservoirGaugeTrack: {
     height: 8,
-    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    backgroundColor: "rgba(180, 205, 195, 0.35)",
     borderRadius: 4,
     overflow: "hidden",
   },
@@ -3971,11 +3967,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "rgba(255, 255, 255, 0.03)",
+    backgroundColor: "#ffffff",
     borderRadius: 12,
     padding: 10,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.08)",
+    borderColor: "rgba(200, 218, 210, 0.55)",
   },
   beverageChipIcon: {
     fontSize: 20,
@@ -3996,19 +3992,19 @@ const styles = StyleSheet.create({
   },
   containerPresetCard: {
     width: "31%",
-    backgroundColor: "rgba(255, 255, 255, 0.03)",
+    backgroundColor: "#ffffff",
     borderRadius: 14,
     padding: 10,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: "rgba(200, 218, 210, 0.55)",
   },
   presetIcon: {
     fontSize: 24,
     marginBottom: 4,
   },
   presetLabel: {
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 11,
     fontWeight: "700",
     textAlign: "center",
@@ -4062,9 +4058,9 @@ const styles = StyleSheet.create({
   },
   customVolChip: {
     flex: 1,
-    backgroundColor: "rgba(245, 158, 11, 0.1)",
+    backgroundColor: "#ffffff",
     borderWidth: 1,
-    borderColor: "rgba(245, 158, 11, 0.3)",
+    borderColor: "rgba(200, 218, 210, 0.55)",
     borderRadius: 10,
     paddingVertical: 8,
     alignItems: "center",
@@ -4149,11 +4145,11 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   roadmapSlotCard: {
-    backgroundColor: "#0d1a1f",
-    borderRadius: 14,
+    backgroundColor: THEME.colors.cardBg,
+    borderRadius: 24,
     padding: 14,
     borderWidth: 1,
-    borderColor: "rgba(6, 182, 212, 0.15)",
+    borderColor: THEME.colors.cardBorder,
   },
   roadmapSlotHeader: {
     flexDirection: "row",
@@ -4180,22 +4176,22 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   roadmapPeriodName: {
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 13,
     fontWeight: "800",
     marginBottom: 2,
   },
   roadmapPurpose: {
-    color: "#94a3b8",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 11,
     lineHeight: 15,
   },
   urineGuideCard: {
-    backgroundColor: "rgba(255, 255, 255, 0.03)",
-    borderRadius: 14,
+    backgroundColor: THEME.colors.cardBg,
+    borderRadius: 24,
     padding: 12,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: THEME.colors.cardBorder,
   },
   urineGuideTop: {
     flexDirection: "row",
@@ -4211,7 +4207,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255, 255, 255, 0.2)",
   },
   urineGuideTitle: {
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 12,
     fontWeight: "700",
   },
@@ -4226,24 +4222,24 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   urineGuideDesc: {
-    color: "#94a3b8",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 11,
     lineHeight: 15,
   },
   caloriesMacroCardWide: {
-    backgroundColor: "#0c1511",
-    borderRadius: 20,
+    backgroundColor: THEME.colors.cardBg,
+    borderRadius: 24,
     padding: 16,
     borderWidth: 1,
-    borderColor: "rgba(245, 158, 11, 0.2)",
+    borderColor: THEME.colors.cardBorder,
     marginBottom: 20,
   },
   permissionCard: {
-    backgroundColor: "rgba(168, 85, 247, 0.1)",
-    borderRadius: 14,
+    backgroundColor: THEME.colors.cardBg,
+    borderRadius: 24,
     padding: 14,
     borderWidth: 1,
-    borderColor: "rgba(168, 85, 247, 0.25)",
+    borderColor: THEME.colors.cardBorder,
     marginBottom: 14,
   },
   permissionTitle: {
@@ -4285,11 +4281,11 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   emptyCategoryCard: {
-    backgroundColor: "#0d1612",
-    borderRadius: 14,
+    backgroundColor: THEME.colors.cardBg,
+    borderRadius: 24,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: THEME.colors.cardBorder,
     marginBottom: 10,
     alignItems: "center",
   },
@@ -4375,11 +4371,11 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   activeFocusBox: {
-    backgroundColor: "#0d1612",
-    borderRadius: 18,
+    backgroundColor: THEME.colors.cardBg,
+    borderRadius: 24,
     padding: 16,
     borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.3)",
+    borderColor: THEME.colors.cardBorder,
   },
   activeFocusHeaderRow: {
     flexDirection: "row",
@@ -4392,13 +4388,13 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   activeFocusTypeTitle: {
-    color: "#10b981",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 12,
     fontWeight: "800",
     letterSpacing: 1,
   },
   activeFocusPercentText: {
-    color: "#94a3b8",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 11,
     fontWeight: "700",
   },
@@ -4410,31 +4406,31 @@ const styles = StyleSheet.create({
   bigFocusClockDigits: {
     fontSize: 54,
     fontWeight: "900",
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
     letterSpacing: 2,
     fontVariant: ["tabular-nums"],
   },
   bigFocusClockSub: {
-    color: "#94a3b8",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 12,
     fontWeight: "600",
     marginTop: 4,
   },
   quoteCard: {
-    backgroundColor: "rgba(255, 255, 255, 0.03)",
+    backgroundColor: THEME.colors.cardBg,
     borderLeftWidth: 3,
     borderLeftColor: "#10b981",
-    borderRadius: 10,
+    borderRadius: 24,
     padding: 12,
   },
   quoteText: {
-    color: "#cbd5e1",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 12,
     fontStyle: "italic",
     lineHeight: 18,
   },
   quoteAuthor: {
-    color: "#10b981",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 11,
     fontWeight: "700",
     marginTop: 4,
@@ -4505,14 +4501,14 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   presetCard: {
-    backgroundColor: "#0d1612",
+    backgroundColor: "#ffffff",
     borderRadius: 12,
     padding: 12,
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: "rgba(200, 218, 210, 0.55)",
   },
   presetCardTitle: {
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 13,
     fontWeight: "700",
   },
@@ -4526,7 +4522,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   presetCardDesc: {
-    color: "#64748b",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 11,
     marginTop: 4,
   },
@@ -4549,12 +4545,12 @@ const styles = StyleSheet.create({
     opacity: 1,
   },
   distractionName: {
-    color: "#94a3b8",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 12,
     fontWeight: "600",
   },
   distractionDesc: {
-    color: "#64748b",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 10,
     marginTop: 2,
   },
@@ -4605,11 +4601,11 @@ const styles = StyleSheet.create({
   },
   bedtimeBox: {
     flex: 1,
-    backgroundColor: "#0d1612",
+    backgroundColor: "#ffffff",
     borderRadius: 12,
     padding: 12,
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: "rgba(200, 218, 210, 0.55)",
     alignItems: "center",
     gap: 4,
   },
@@ -4634,21 +4630,21 @@ const styles = StyleSheet.create({
   breathingPanel: {
     width: "100%",
     maxWidth: 360,
-    backgroundColor: "#0b1410",
+    backgroundColor: THEME.colors.cardBgSolid,
     borderRadius: 24,
     padding: 24,
     borderWidth: 1,
-    borderColor: "rgba(56, 189, 248, 0.3)",
+    borderColor: THEME.colors.cardBorder,
     alignItems: "center",
   },
   breathingTitle: {
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 20,
     fontWeight: "800",
     marginTop: 12,
   },
   breathingSub: {
-    color: "#94a3b8",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 12,
     textAlign: "center",
     marginTop: 4,
@@ -4692,21 +4688,21 @@ const styles = StyleSheet.create({
   reflectionPanel: {
     width: "100%",
     maxWidth: 360,
-    backgroundColor: "#0b1410",
+    backgroundColor: THEME.colors.cardBgSolid,
     borderRadius: 24,
     padding: 24,
     borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.3)",
+    borderColor: THEME.colors.cardBorder,
     alignItems: "center",
   },
   reflectionTitle: {
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 18,
     fontWeight: "800",
     marginTop: 10,
   },
   reflectionSub: {
-    color: "#94a3b8",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 12,
     textAlign: "center",
     marginTop: 4,
@@ -4764,11 +4760,11 @@ const styles = StyleSheet.create({
   realAppRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.03)",
+    backgroundColor: "#ffffff",
     padding: 10,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.05)",
+    borderColor: "rgba(200, 218, 210, 0.55)",
   },
   realAppIcon: {
     width: 32,
@@ -4801,7 +4797,7 @@ const styles = StyleSheet.create({
   },
   realAppTrack: {
     height: 4,
-    backgroundColor: "rgba(255, 255, 255, 0.06)",
+    backgroundColor: "rgba(180, 205, 195, 0.35)",
     borderRadius: 2,
     marginTop: 6,
     overflow: "hidden",

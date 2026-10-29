@@ -18,6 +18,7 @@ import { storage } from "@/services/storage";
 import { syncHealthData } from "@/services/health";
 import { getStoredGoogleUser, GoogleUser } from "@/services/googleAuth";
 import { GoogleIcon } from "@/components/GoogleIcon";
+import THEME from "@/constants/theme";
 import {
   LayoutGrid,
   Sparkles,
@@ -205,7 +206,7 @@ export function SlideMenuDrawer({ isOpen, onClose, side = "left" }: SlideMenuDra
           </View>
 
           <Pressable style={styles.closeBtn} onPress={onClose}>
-            <X size={18} color="#94a3b8" />
+            <X size={18} color={THEME.colors.textOnDarkSecondary} />
           </Pressable>
         </View>
 
@@ -410,7 +411,7 @@ export function SlideMenuDrawer({ isOpen, onClose, side = "left" }: SlideMenuDra
 const styles = StyleSheet.create({
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0, 0, 0, 0.65)",
+    backgroundColor: "rgba(11, 22, 19, 0.7)",
     zIndex: 9998,
   },
   drawer: {
@@ -418,7 +419,7 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: DRAWER_WIDTH,
-    backgroundColor: "#070c0a",
+    backgroundColor: THEME.colors.drawerBg,
     zIndex: 9999,
     paddingTop: Platform.OS === "ios" ? 54 : 36,
     elevation: 20,
@@ -429,13 +430,13 @@ const styles = StyleSheet.create({
   drawerLeft: {
     left: 0,
     borderRightWidth: 1,
-    borderRightColor: "rgba(16, 185, 129, 0.2)",
+    borderRightColor: THEME.colors.drawerDivider,
     shadowOffset: { width: 4, height: 0 },
   },
   drawerRight: {
     right: 0,
     borderLeftWidth: 1,
-    borderLeftColor: "rgba(16, 185, 129, 0.2)",
+    borderLeftColor: THEME.colors.drawerDivider,
     shadowOffset: { width: -4, height: 0 },
   },
   drawerHeader: {
@@ -445,7 +446,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(30, 41, 59, 0.7)",
+    borderBottomColor: THEME.colors.drawerDivider,
   },
   userProfileRow: {
     flexDirection: "row",
@@ -454,24 +455,24 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   avatarCircle: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
     borderWidth: 1.5,
-    borderColor: "#10b981",
+    borderColor: THEME.colors.accentGreen,
     alignItems: "center",
     justifyContent: "center",
   },
   avatarInitial: {
-    color: "#10b981",
+    color: THEME.colors.accentGreen,
     fontSize: 18,
     fontWeight: "bold",
   },
   userName: {
     fontSize: 16,
     fontWeight: "bold",
-    color: "#f8fafc",
+    color: THEME.colors.textOnDarkPrimary,
   },
   statusRow: {
     flexDirection: "row",
@@ -483,22 +484,22 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: "#10b981",
+    backgroundColor: THEME.colors.accentGreen,
   },
   statusText: {
     fontSize: 11,
-    color: "#64748b",
+    color: THEME.colors.textOnDarkSecondary,
     fontWeight: "600",
   },
   closeBtn: {
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: "#0f172a",
+    backgroundColor: "rgba(232, 241, 237, 0.12)",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: "rgba(200, 218, 210, 0.2)",
   },
   drawerScroll: {
     flex: 1,
@@ -510,7 +511,7 @@ const styles = StyleSheet.create({
   sectionHeading: {
     fontSize: 10,
     fontWeight: "800",
-    color: "#64748b",
+    color: THEME.colors.textOnDarkTertiary,
     letterSpacing: 1,
     textTransform: "uppercase",
     marginBottom: 10,
@@ -519,16 +520,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    backgroundColor: "#0b1310",
+    backgroundColor: THEME.colors.drawerItemBg,
     borderWidth: 1,
-    borderColor: "#1e293b",
-    borderRadius: 14,
+    borderColor: "rgba(200, 218, 210, 0.15)",
+    borderRadius: 16,
     padding: 12,
     marginBottom: 8,
   },
   navItemCardActive: {
-    borderColor: "#10b981",
-    backgroundColor: "rgba(16, 185, 129, 0.08)",
+    borderColor: THEME.colors.accentGreen,
+    backgroundColor: THEME.colors.drawerItemActiveBg,
   },
   navIconBox: {
     width: 36,
@@ -540,11 +541,11 @@ const styles = StyleSheet.create({
   navTitle: {
     fontSize: 14,
     fontWeight: "bold",
-    color: "#f8fafc",
+    color: THEME.colors.textOnDarkPrimary,
   },
   navSub: {
     fontSize: 11,
-    color: "#64748b",
+    color: THEME.colors.textOnDarkSecondary,
     marginTop: 2,
   },
   quickGrid: {
@@ -557,37 +558,37 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "#0b1310",
+    backgroundColor: THEME.colors.drawerItemBg,
     borderWidth: 1,
-    borderColor: "#1e293b",
-    borderRadius: 12,
+    borderColor: "rgba(200, 218, 210, 0.15)",
+    borderRadius: 14,
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
   quickLabel: {
-    color: "#f8fafc",
+    color: THEME.colors.textOnDarkPrimary,
     fontSize: 12,
     fontWeight: "600",
   },
   actionRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#0b1310",
+    backgroundColor: THEME.colors.drawerItemBg,
     borderWidth: 1,
-    borderColor: "#1e293b",
-    borderRadius: 12,
+    borderColor: "rgba(200, 218, 210, 0.15)",
+    borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 12,
     marginBottom: 8,
   },
   actionText: {
-    color: "#f8fafc",
+    color: THEME.colors.textOnDarkPrimary,
     fontSize: 13,
     fontWeight: "500",
   },
   logoutRow: {
     borderColor: "rgba(239, 68, 68, 0.3)",
-    backgroundColor: "rgba(239, 68, 68, 0.05)",
+    backgroundColor: "rgba(239, 68, 68, 0.08)",
     marginTop: 4,
   },
 });

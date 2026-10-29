@@ -7,6 +7,7 @@ import {
   ArrowDownRight, ShieldCheck, Heart, Moon, Zap, BarChart2
 } from "lucide-react-native";
 import Svg, { Rect } from "react-native-svg";
+import THEME from "@/constants/theme";
 
 export default function AnalyticsScreen() {
   const [period, setPeriod] = useState<"week" | "month">("week");
@@ -98,7 +99,7 @@ export default function AnalyticsScreen() {
                     y={y}
                     width={barWidth}
                     height={barHeight}
-                    fill={isCurrent ? "#10b981" : "#1e293b"}
+                    fill={isCurrent ? THEME.colors.accentTeal : "rgba(180, 205, 195, 0.45)"}
                     rx={period === "week" ? 6 : 4}
                   />
                 );
@@ -107,7 +108,7 @@ export default function AnalyticsScreen() {
             {/* Bar labels */}
             <View style={{ flexDirection: "row", width: "100%", justifyContent: "space-between", paddingHorizontal: 16, marginTop: 4 }}>
               {activeLabels.map((lbl, idx) => (
-                <Text key={idx} style={{ color: idx === activeLabels.length - 1 ? "#10b981" : "#475569", fontSize: 10, fontWeight: "bold" }}>
+                <Text key={idx} style={{ color: idx === activeLabels.length - 1 ? THEME.colors.cardTextPrimary : THEME.colors.cardTextSecondary, fontSize: 10, fontWeight: "bold" }}>
                   {lbl}
                 </Text>
               ))}
@@ -387,7 +388,7 @@ export default function AnalyticsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#050b08",
+    backgroundColor: THEME.colors.bgSolid,
     paddingTop: Platform.OS === "ios" ? 60 : 40,
   },
   header: {
@@ -395,13 +396,14 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   headerSub: {
-    color: "#64748b",
+    color: THEME.colors.textOnDarkSecondary,
     fontSize: 12,
     fontWeight: "bold",
     textTransform: "uppercase",
+    letterSpacing: 1,
   },
   headerTitle: {
-    color: "#f8fafc",
+    color: THEME.colors.textOnDarkPrimary,
     fontSize: 28,
     fontWeight: "900",
   },
@@ -409,15 +411,15 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "rgba(16, 185, 129, 0.1)",
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
     borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.25)",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    borderColor: "rgba(16, 185, 129, 0.3)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 20,
   },
   aiBadgeText: {
-    color: "#10b981",
+    color: THEME.colors.accentGreen,
     fontSize: 11,
     fontWeight: "bold",
   },
@@ -428,37 +430,38 @@ const styles = StyleSheet.create({
   },
   toggleRow: {
     flexDirection: "row",
-    backgroundColor: "#0b1310",
-    borderRadius: 14,
+    backgroundColor: "rgba(232, 241, 237, 0.18)",
+    borderRadius: 16,
     padding: 4,
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: "rgba(200, 218, 210, 0.25)",
   },
   toggleBtn: {
     flex: 1,
     height: 38,
-    borderRadius: 10,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
   },
   toggleBtnActive: {
-    backgroundColor: "#10b981",
+    backgroundColor: THEME.colors.accentTeal,
   },
   toggleText: {
-    color: "#64748b",
+    color: THEME.colors.textOnDarkSecondary,
     fontSize: 13,
     fontWeight: "bold",
   },
   toggleTextActive: {
-    color: "#050b08",
+    color: "#ffffff",
   },
   chartCard: {
-    backgroundColor: "#0b1310",
+    backgroundColor: THEME.colors.cardBg,
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: THEME.colors.cardBorder,
     borderRadius: 24,
     padding: 20,
     gap: 14,
+    ...THEME.shadows.card,
   },
   chartHeader: {
     flexDirection: "row",
@@ -466,8 +469,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   chartTitle: {
-    color: "#f8fafc",
-    fontSize: 14,
+    color: THEME.colors.cardTextPrimary,
+    fontSize: 15,
     fontWeight: "bold",
   },
   chartContainer: {
@@ -478,38 +481,39 @@ const styles = StyleSheet.create({
   aiCommentary: {
     flexDirection: "row",
     gap: 10,
-    backgroundColor: "rgba(16, 185, 129, 0.06)",
+    backgroundColor: "rgba(232, 241, 237, 0.6)",
     borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.18)",
+    borderColor: "rgba(200, 218, 210, 0.5)",
     borderRadius: 16,
     padding: 14,
   },
   aiCommentaryText: {
-    color: "#94a3b8",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 12,
     lineHeight: 18,
     flex: 1,
   },
   comparisonCard: {
-    backgroundColor: "#0b1310",
+    backgroundColor: THEME.colors.cardBg,
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: THEME.colors.cardBorder,
     borderRadius: 24,
     padding: 20,
+    ...THEME.shadows.card,
   },
   sectionHeaderTitle: {
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 15,
     fontWeight: "bold",
   },
   subToggleRow: {
     flexDirection: "row",
-    backgroundColor: "#070c0a",
+    backgroundColor: "rgba(232, 241, 237, 0.5)",
     borderRadius: 12,
     padding: 3,
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: "rgba(200, 218, 210, 0.5)",
   },
   subToggleBtn: {
     flex: 1,
@@ -519,23 +523,23 @@ const styles = StyleSheet.create({
     borderRadius: 9,
   },
   subToggleBtnActive: {
-    backgroundColor: "#16231e",
+    backgroundColor: THEME.colors.accentTeal,
   },
   subToggleText: {
-    color: "#64748b",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 11,
     fontWeight: "bold",
   },
   subToggleTextActive: {
-    color: "#10b981",
+    color: "#ffffff",
   },
   deltaRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "#080e0c",
+    backgroundColor: "#ffffff",
     borderWidth: 1,
-    borderColor: "#13211b",
+    borderColor: "rgba(200, 218, 210, 0.6)",
     borderRadius: 16,
     padding: 12,
   },
@@ -553,12 +557,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   deltaTitle: {
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 13,
     fontWeight: "600",
   },
   deltaSub: {
-    color: "#64748b",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 11,
     marginTop: 2,
   },
@@ -572,24 +576,25 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   deltaBadgeTextGreen: {
-    color: "#10b981",
+    color: THEME.colors.accentGreen,
     fontSize: 11,
     fontWeight: "bold",
   },
   researchCard: {
-    backgroundColor: "#0b1310",
+    backgroundColor: THEME.colors.cardBg,
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: THEME.colors.cardBorder,
     borderRadius: 24,
     padding: 20,
     gap: 12,
+    ...THEME.shadows.card,
   },
   researchBlock: {
-    backgroundColor: "#080e0c",
+    backgroundColor: "#ffffff",
     borderRadius: 16,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: "rgba(200, 218, 210, 0.6)",
     gap: 6,
   },
   researchHeader: {
@@ -607,30 +612,31 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   researchHeadline: {
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 13,
     fontWeight: "bold",
     marginTop: 2,
   },
   researchBody: {
-    color: "#94a3b8",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 12,
     lineHeight: 18,
   },
   statsCard: {
-    backgroundColor: "#0b1310",
+    backgroundColor: THEME.colors.cardBg,
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: THEME.colors.cardBorder,
     borderRadius: 24,
     padding: 20,
     gap: 12,
+    ...THEME.shadows.card,
   },
   statsTitle: {
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 14,
     fontWeight: "bold",
     borderBottomWidth: 1,
-    borderBottomColor: "#1e293b",
+    borderBottomColor: "rgba(200, 218, 210, 0.4)",
     paddingBottom: 8,
   },
   statRow: {
@@ -644,11 +650,11 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   statLabel: {
-    color: "#94a3b8",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 13,
   },
   statVal: {
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
     fontWeight: "bold",
     fontSize: 13,
   },

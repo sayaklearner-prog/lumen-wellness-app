@@ -47,6 +47,7 @@ import {
   evaluateAchievements,
   popPendingCelebration,
 } from "@/services/achievements";
+import THEME from "@/constants/theme";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -619,7 +620,7 @@ export default function AchievementsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#070c0a",
+    backgroundColor: THEME.colors.bgSolid,
   },
   header: {
     flexDirection: "row",
@@ -629,26 +630,28 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === "ios" ? 54 : 44,
     paddingBottom: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.06)",
-    backgroundColor: "#070c0a",
+    borderBottomColor: "rgba(200, 218, 210, 0.15)",
+    backgroundColor: THEME.colors.bgSolid,
   },
   backBtn: {
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: "rgba(255,255,255,0.06)",
+    backgroundColor: "rgba(232, 241, 237, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(200, 218, 210, 0.2)",
     alignItems: "center",
     justifyContent: "center",
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: "800",
-    color: "#f8fafc",
+    color: THEME.colors.textOnDarkPrimary,
     letterSpacing: -0.3,
   },
   headerSub: {
     fontSize: 11,
-    color: "#94a3b8",
+    color: THEME.colors.textOnDarkSecondary,
     fontWeight: "500",
     marginTop: 2,
   },
@@ -656,7 +659,7 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -667,12 +670,13 @@ const styles = StyleSheet.create({
 
   // Hero Gamification Card
   heroCard: {
-    backgroundColor: "rgba(16, 185, 129, 0.06)",
+    backgroundColor: THEME.colors.cardBg,
     borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.2)",
-    borderRadius: 18,
+    borderColor: THEME.colors.cardBorder,
+    borderRadius: 24,
     padding: 18,
     marginBottom: 14,
+    ...THEME.shadows.card,
   },
   heroTopRow: {
     flexDirection: "row",
@@ -689,32 +693,32 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: "rgba(16, 185, 129, 0.2)",
+    backgroundColor: "rgba(16, 185, 129, 0.18)",
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 6,
+    borderRadius: 8,
   },
   levelPillText: {
     fontSize: 10,
     fontWeight: "900",
-    color: "#10b981",
+    color: THEME.colors.accentGreen,
     letterSpacing: 0.5,
   },
   levelRankTitle: {
     fontSize: 16,
     fontWeight: "800",
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
   },
   xpText: {
     fontSize: 22,
     fontWeight: "900",
-    color: "#10b981",
+    color: THEME.colors.accentGreen,
     marginTop: 2,
   },
   xpSub: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#94a3b8",
+    color: THEME.colors.cardTextSecondary,
   },
   badgeCountCol: {
     alignItems: "center",
@@ -723,9 +727,9 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "rgba(245, 158, 11, 0.15)",
+    backgroundColor: "rgba(249, 115, 22, 0.15)",
     borderWidth: 1,
-    borderColor: "rgba(245, 158, 11, 0.3)",
+    borderColor: "rgba(249, 115, 22, 0.3)",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 4,
@@ -733,18 +737,18 @@ const styles = StyleSheet.create({
   badgeRatioText: {
     fontSize: 14,
     fontWeight: "800",
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
   },
   badgeRatioSub: {
     fontSize: 10,
-    color: "#64748b",
+    color: THEME.colors.cardTextSecondary,
     fontWeight: "600",
   },
   progressSection: {
     marginTop: 14,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,0.06)",
+    borderTopColor: "rgba(200, 218, 210, 0.4)",
   },
   progressLabelRow: {
     flexDirection: "row",
@@ -754,27 +758,27 @@ const styles = StyleSheet.create({
   progressLabelLeft: {
     fontSize: 11,
     fontWeight: "600",
-    color: "#94a3b8",
+    color: THEME.colors.cardTextSecondary,
   },
   progressLabelRight: {
     fontSize: 11,
     fontWeight: "800",
-    color: "#10b981",
+    color: THEME.colors.accentGreen,
   },
   progressBarTrack: {
     height: 8,
     borderRadius: 4,
-    backgroundColor: "rgba(255,255,255,0.08)",
+    backgroundColor: "rgba(180, 205, 195, 0.45)",
     overflow: "hidden",
   },
   progressBarFill: {
     height: "100%",
-    backgroundColor: "#10b981",
+    backgroundColor: THEME.colors.accentGreen,
     borderRadius: 4,
   },
   xpToNextText: {
     fontSize: 10,
-    color: "#64748b",
+    color: THEME.colors.cardTextSecondary,
     fontWeight: "600",
     marginTop: 6,
     textAlign: "right",
@@ -784,42 +788,43 @@ const styles = StyleSheet.create({
   streakBanner: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(239, 68, 68, 0.08)",
+    backgroundColor: THEME.colors.cardBg,
     borderWidth: 1,
-    borderColor: "rgba(239, 68, 68, 0.25)",
-    borderRadius: 16,
+    borderColor: THEME.colors.cardBorder,
+    borderRadius: 20,
     padding: 14,
     marginBottom: 16,
+    ...THEME.shadows.cardLight,
   },
   streakFlameCol: {
     alignItems: "center",
     justifyContent: "center",
     paddingRight: 14,
     borderRightWidth: 1,
-    borderRightColor: "rgba(255,255,255,0.08)",
+    borderRightColor: "rgba(200, 218, 210, 0.4)",
   },
   streakNumber: {
     fontSize: 20,
     fontWeight: "900",
-    color: "#ef4444",
+    color: THEME.colors.accentOrange,
     marginTop: 2,
   },
   streakDaysLabel: {
     fontSize: 9,
     fontWeight: "800",
-    color: "#ef4444",
+    color: THEME.colors.accentOrange,
     letterSpacing: 0.5,
   },
   streakBannerTitle: {
     fontSize: 14,
     fontWeight: "800",
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
   },
   bestStreakPill: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: "rgba(245, 158, 11, 0.15)",
+    backgroundColor: "rgba(249, 115, 22, 0.15)",
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
@@ -827,11 +832,11 @@ const styles = StyleSheet.create({
   bestStreakText: {
     fontSize: 10,
     fontWeight: "800",
-    color: "#f59e0b",
+    color: THEME.colors.accentOrange,
   },
   streakBannerDesc: {
     fontSize: 11,
-    color: "#94a3b8",
+    color: THEME.colors.cardTextSecondary,
     lineHeight: 16,
     marginTop: 4,
   },
@@ -842,24 +847,24 @@ const styles = StyleSheet.create({
     paddingBottom: 14,
   },
   categoryChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.05)",
+    backgroundColor: "rgba(232, 241, 237, 0.18)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderColor: "rgba(200, 218, 210, 0.25)",
   },
   categoryChipActive: {
-    backgroundColor: "rgba(16, 185, 129, 0.2)",
-    borderColor: "#10b981",
+    backgroundColor: THEME.colors.accentTeal,
+    borderColor: THEME.colors.accentTeal,
   },
   categoryChipText: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#94a3b8",
+    color: THEME.colors.textOnDarkSecondary,
   },
   categoryChipTextActive: {
-    color: "#10b981",
+    color: "#ffffff",
   },
 
   // Badges Grid
@@ -871,11 +876,13 @@ const styles = StyleSheet.create({
   },
   badgeCard: {
     width: (SCREEN_WIDTH - 44) / 2,
-    backgroundColor: "rgba(255,255,255,0.03)",
+    backgroundColor: THEME.colors.cardBg,
     borderWidth: 1,
-    borderRadius: 16,
+    borderColor: THEME.colors.cardBorder,
+    borderRadius: 20,
     padding: 12,
     minHeight: 190,
+    ...THEME.shadows.cardLight,
   },
   cardHeaderRow: {
     flexDirection: "row",
@@ -885,7 +892,7 @@ const styles = StyleSheet.create({
   badgeIconBox: {
     width: 44,
     height: 44,
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
@@ -894,7 +901,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 4,
+    borderRadius: 6,
   },
   tierTagText: {
     fontSize: 8,
@@ -902,25 +909,25 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   xpPill: {
-    backgroundColor: "rgba(245, 158, 11, 0.15)",
+    backgroundColor: "rgba(249, 115, 22, 0.15)",
     paddingHorizontal: 6,
     paddingVertical: 1,
-    borderRadius: 4,
+    borderRadius: 6,
   },
   xpPillText: {
     fontSize: 9,
     fontWeight: "800",
-    color: "#f59e0b",
+    color: THEME.colors.accentOrange,
   },
   badgeTitle: {
     fontSize: 13,
     fontWeight: "800",
-    color: "#cbd5e1",
+    color: THEME.colors.cardTextPrimary,
     marginBottom: 2,
   },
   badgeDesc: {
     fontSize: 10,
-    color: "#64748b",
+    color: THEME.colors.cardTextSecondary,
     lineHeight: 14,
   },
   cardProgressRow: {
@@ -930,18 +937,18 @@ const styles = StyleSheet.create({
   },
   cardProgressText: {
     fontSize: 9,
-    color: "#94a3b8",
+    color: THEME.colors.cardTextSecondary,
     fontWeight: "600",
   },
   cardProgressPercent: {
     fontSize: 9,
-    color: "#64748b",
+    color: THEME.colors.cardTextPrimary,
     fontWeight: "800",
   },
   cardTrack: {
     height: 5,
     borderRadius: 2.5,
-    backgroundColor: "rgba(255,255,255,0.08)",
+    backgroundColor: "rgba(180, 205, 195, 0.45)",
     overflow: "hidden",
   },
   cardFill: {
@@ -953,19 +960,19 @@ const styles = StyleSheet.create({
   },
   unlockedFooterText: {
     fontSize: 10,
-    color: "#10b981",
+    color: THEME.colors.accentGreen,
     fontWeight: "700",
   },
   lockedFooterText: {
     fontSize: 10,
-    color: "#64748b",
+    color: THEME.colors.cardTextTertiary,
     fontWeight: "600",
   },
 
   // Modal Detail Styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.8)",
+    backgroundColor: "rgba(11, 22, 19, 0.8)",
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
@@ -973,10 +980,10 @@ const styles = StyleSheet.create({
   modalContent: {
     width: "100%",
     maxWidth: 400,
-    backgroundColor: "#0d1512",
+    backgroundColor: THEME.colors.drawerBg,
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
+    borderColor: "rgba(200, 218, 210, 0.25)",
     padding: 20,
   },
   modalHeader: {
@@ -1000,21 +1007,21 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 20,
     fontWeight: "900",
-    color: "#f8fafc",
+    color: THEME.colors.textOnDarkPrimary,
     textAlign: "center",
   },
   modalDesc: {
     fontSize: 13,
-    color: "#94a3b8",
+    color: THEME.colors.textOnDarkSecondary,
     textAlign: "center",
     marginTop: 4,
     lineHeight: 18,
   },
   loreCard: {
     width: "100%",
-    backgroundColor: "rgba(255,255,255,0.03)",
+    backgroundColor: "rgba(232, 241, 237, 0.08)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
+    borderColor: "rgba(200, 218, 210, 0.15)",
     borderRadius: 14,
     padding: 12,
     marginVertical: 14,
@@ -1022,19 +1029,19 @@ const styles = StyleSheet.create({
   loreHeading: {
     fontSize: 9,
     fontWeight: "900",
-    color: "#10b981",
+    color: THEME.colors.accentGreen,
     letterSpacing: 0.5,
     marginBottom: 4,
   },
   loreText: {
     fontSize: 11,
-    color: "#cbd5e1",
+    color: THEME.colors.textOnDarkPrimary,
     lineHeight: 16,
   },
   modalStatsRow: {
     flexDirection: "row",
     width: "100%",
-    backgroundColor: "rgba(255,255,255,0.02)",
+    backgroundColor: "rgba(232, 241, 237, 0.08)",
     borderRadius: 12,
     padding: 10,
     justifyContent: "space-around",
@@ -1045,20 +1052,20 @@ const styles = StyleSheet.create({
   },
   modalStatLabel: {
     fontSize: 9,
-    color: "#64748b",
+    color: THEME.colors.textOnDarkSecondary,
     fontWeight: "600",
   },
   modalStatVal: {
     fontSize: 12,
     fontWeight: "800",
-    color: "#f8fafc",
+    color: THEME.colors.textOnDarkPrimary,
     marginTop: 2,
   },
   unlockedNotice: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
     padding: 10,
     borderRadius: 10,
     width: "100%",
@@ -1066,7 +1073,7 @@ const styles = StyleSheet.create({
   },
   unlockedNoticeText: {
     fontSize: 11,
-    color: "#10b981",
+    color: THEME.colors.accentGreen,
     fontWeight: "600",
     flex: 1,
   },
@@ -1074,7 +1081,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "rgba(255,255,255,0.03)",
+    backgroundColor: "rgba(232, 241, 237, 0.08)",
     padding: 10,
     borderRadius: 10,
     width: "100%",
@@ -1082,13 +1089,13 @@ const styles = StyleSheet.create({
   },
   lockedNoticeText: {
     fontSize: 11,
-    color: "#94a3b8",
+    color: THEME.colors.textOnDarkSecondary,
     fontWeight: "500",
     flex: 1,
   },
   modalCloseBtn: {
     width: "100%",
-    backgroundColor: "#10b981",
+    backgroundColor: THEME.colors.accentGreen,
     paddingVertical: 12,
     borderRadius: 12,
     alignItems: "center",
@@ -1096,13 +1103,13 @@ const styles = StyleSheet.create({
   modalCloseBtnText: {
     fontSize: 14,
     fontWeight: "800",
-    color: "#070c0a",
+    color: "#ffffff",
   },
 
   // Instant Celebration Overlay
   celebrationOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.85)",
+    backgroundColor: "rgba(11, 22, 19, 0.85)",
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
@@ -1110,10 +1117,10 @@ const styles = StyleSheet.create({
   celebrationCard: {
     width: "100%",
     maxWidth: 380,
-    backgroundColor: "#0d1a14",
+    backgroundColor: THEME.colors.drawerBg,
     borderRadius: 24,
     borderWidth: 1.5,
-    borderColor: "rgba(245, 158, 11, 0.4)",
+    borderColor: "rgba(249, 115, 22, 0.4)",
     padding: 24,
     alignItems: "center",
   },
@@ -1126,7 +1133,7 @@ const styles = StyleSheet.create({
   celebrationPre: {
     fontSize: 11,
     fontWeight: "900",
-    color: "#f59e0b",
+    color: THEME.colors.accentOrange,
     letterSpacing: 1,
   },
   celebrationIconBox: {
@@ -1141,13 +1148,13 @@ const styles = StyleSheet.create({
   celebrationTitle: {
     fontSize: 22,
     fontWeight: "900",
-    color: "#f8fafc",
+    color: THEME.colors.textOnDarkPrimary,
     textAlign: "center",
     marginTop: 4,
   },
   celebrationDesc: {
     fontSize: 13,
-    color: "#94a3b8",
+    color: THEME.colors.textOnDarkSecondary,
     textAlign: "center",
     marginTop: 6,
     lineHeight: 18,
@@ -1161,7 +1168,7 @@ const styles = StyleSheet.create({
     gap: 6,
     backgroundColor: "rgba(16, 185, 129, 0.2)",
     borderWidth: 1,
-    borderColor: "#10b981",
+    borderColor: THEME.colors.accentGreen,
     paddingHorizontal: 12,
     paddingVertical: 5,
     borderRadius: 20,
@@ -1169,12 +1176,12 @@ const styles = StyleSheet.create({
   celebrationXpText: {
     fontSize: 11,
     fontWeight: "900",
-    color: "#10b981",
+    color: THEME.colors.accentGreen,
     letterSpacing: 0.5,
   },
   celebrationLore: {
     fontSize: 11,
-    color: "#cbd5e1",
+    color: THEME.colors.textOnDarkSecondary,
     textAlign: "center",
     lineHeight: 16,
     marginBottom: 18,
@@ -1185,7 +1192,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
     width: "100%",
-    backgroundColor: "#f59e0b",
+    backgroundColor: THEME.colors.accentOrange,
     paddingVertical: 14,
     borderRadius: 14,
     justifyContent: "center",
@@ -1193,6 +1200,6 @@ const styles = StyleSheet.create({
   celebrationConfirmText: {
     fontSize: 15,
     fontWeight: "900",
-    color: "#070c0a",
+    color: "#ffffff",
   },
 });

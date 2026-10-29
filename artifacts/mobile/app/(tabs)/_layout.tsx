@@ -1,5 +1,5 @@
 import { Tabs } from "expo-router";
-import { Platform } from "react-native";
+import { Platform, View, StyleSheet } from "react-native";
 import { 
   LayoutGrid, 
   Sparkles, 
@@ -9,6 +9,7 @@ import {
 import { SlideMenuProvider, useSlideMenu } from "@/context/SlideMenuContext";
 import { SlideMenuDrawer } from "@/components/SlideMenuDrawer";
 import { GlobalStepTracker } from "@/components/GlobalStepTracker";
+import THEME from "@/constants/theme";
 
 function TabsContent() {
   const { isLeftOpen, closeLeftMenu, isRightOpen, closeRightMenu } = useSlideMenu();
@@ -20,28 +21,45 @@ function TabsContent() {
 
       <Tabs
         screenOptions={{
-          tabBarActiveTintColor: "#10b981", // vibrant emerald
-          tabBarInactiveTintColor: "#64748b", // slate-500
+          tabBarActiveTintColor: THEME.colors.navActiveIcon,
+          tabBarInactiveTintColor: THEME.colors.navInactiveIcon,
+          tabBarActiveBackgroundColor: THEME.colors.navActivePill,
           tabBarStyle: {
-            backgroundColor: "#070c0a",
-            borderTopWidth: 1,
-            borderTopColor: "rgba(16, 185, 129, 0.15)",
-            height: Platform.OS === "ios" ? 88 : 72,
-            paddingBottom: Platform.OS === "ios" ? 30 : 14,
+            position: "absolute",
+            bottom: Platform.OS === "ios" ? 24 : 16,
+            left: 20,
+            right: 20,
+            backgroundColor: THEME.colors.navIslandBg,
+            borderTopWidth: 0,
+            borderRadius: THEME.radii.pill,
+            height: Platform.OS === "ios" ? 72 : 64,
+            paddingBottom: Platform.OS === "ios" ? 10 : 8,
             paddingTop: 8,
+            paddingHorizontal: 8,
+            ...THEME.shadows.nav,
+            borderWidth: 1,
+            borderColor: "rgba(156, 182, 174, 0.12)",
           },
           tabBarLabelStyle: {
             fontSize: 10,
-            fontWeight: "700",
+            fontWeight: THEME.fonts.bold,
             marginTop: 2,
           },
+          tabBarItemStyle: {
+            borderRadius: THEME.radii.pill,
+            marginHorizontal: 4,
+            paddingVertical: 4,
+          },
           headerShown: false,
+          tabBarBackground: () => (
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: THEME.colors.navIslandBg, borderRadius: THEME.radii.pill }]} />
+          ),
         }}
       >
         <Tabs.Screen
           name="index"
           options={{
-            title: "Today",
+            title: "Home",
             tabBarIcon: ({ color }) => <LayoutGrid size={20} color={color} />,
           }}
         />
