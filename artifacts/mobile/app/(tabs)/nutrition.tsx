@@ -447,15 +447,15 @@ export default function NutritionScreen() {
               <Text style={styles.macroLabel}>Calories</Text>
             </View>
             <View style={styles.macroCol}>
-              <Text style={[styles.macroVal, { color: "#10b981" }]}>{totalProtein}g</Text>
+              <Text style={[styles.macroVal, { color: "#047857" }]}>{totalProtein}g</Text>
               <Text style={styles.macroLabel}>Protein</Text>
             </View>
             <View style={styles.macroCol}>
-              <Text style={[styles.macroVal, { color: "#3b82f6" }]}>{totalCarbs}g</Text>
+              <Text style={[styles.macroVal, { color: "#1d4ed8" }]}>{totalCarbs}g</Text>
               <Text style={styles.macroLabel}>Carbs</Text>
             </View>
             <View style={styles.macroCol}>
-              <Text style={[styles.macroVal, { color: "#f59e0b" }]}>{totalFat}g</Text>
+              <Text style={[styles.macroVal, { color: "#b45309" }]}>{totalFat}g</Text>
               <Text style={styles.macroLabel}>Fat</Text>
             </View>
           </View>
@@ -489,14 +489,14 @@ export default function NutritionScreen() {
           <View style={styles.formCard}>
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Sparkles size={20} color="#10b981" />
+                <Sparkles size={20} color="#047857" />
                 <Text style={styles.formTitle}>AI Food Vision Scanner</Text>
               </View>
               <Pressable onPress={() => { setShowScanModal(false); setSelectedImageUri(null); setScanResult(null); }}>
-                <X size={20} color="#64748b" />
+                <X size={20} color="#0b1612" />
               </Pressable>
             </View>
-            <Text style={{ color: "#94a3b8", fontSize: 13, lineHeight: 18 }}>
+            <Text style={{ color: THEME.colors.cardTextSecondary, fontSize: 13, lineHeight: 18, fontWeight: "600" }}>
               Take a photo using your phone's camera or choose one from your gallery. Our AI vision model recognizes dish contents, portion sizes, calories, and micronutrients.
             </Text>
 
@@ -562,15 +562,15 @@ export default function NutritionScreen() {
                     <Text style={styles.resultMacroLabel}>Calories (kcal)</Text>
                   </View>
                   <View style={styles.resultMacroBox}>
-                    <Text style={[styles.resultMacroVal, { color: "#10b981" }]}>{scanResult.proteinGrams}g</Text>
+                    <Text style={[styles.resultMacroVal, { color: "#047857" }]}>{scanResult.proteinGrams}g</Text>
                     <Text style={styles.resultMacroLabel}>Protein</Text>
                   </View>
                   <View style={styles.resultMacroBox}>
-                    <Text style={[styles.resultMacroVal, { color: "#3b82f6" }]}>{scanResult.carbsGrams}g</Text>
+                    <Text style={[styles.resultMacroVal, { color: "#1d4ed8" }]}>{scanResult.carbsGrams}g</Text>
                     <Text style={styles.resultMacroLabel}>Carbs</Text>
                   </View>
                   <View style={styles.resultMacroBox}>
-                    <Text style={[styles.resultMacroVal, { color: "#f59e0b" }]}>{scanResult.fatGrams}g</Text>
+                    <Text style={[styles.resultMacroVal, { color: "#b45309" }]}>{scanResult.fatGrams}g</Text>
                     <Text style={styles.resultMacroLabel}>Fat</Text>
                   </View>
                 </View>
@@ -602,12 +602,12 @@ export default function NutritionScreen() {
                 {/* One-Tap Commit & Customize Buttons */}
                 <View style={{ flexDirection: "row", gap: 10, marginTop: 6 }}>
                   <Pressable style={styles.commitBtn} onPress={handleCommitScannedMeal}>
-                    <Check size={16} color="#050b08" style={{ marginRight: 6 }} />
+                    <Check size={16} color="#ffffff" style={{ marginRight: 6 }} />
                     <Text style={styles.commitBtnText}>1-Tap Log Meal</Text>
                   </Pressable>
 
                   <Pressable style={styles.customizeBtn} onPress={handleCustomizeScannedMeal}>
-                    <Sliders size={16} color="#e2e8f0" style={{ marginRight: 6 }} />
+                    <Sliders size={16} color={THEME.colors.cardTextPrimary} style={{ marginRight: 6 }} />
                     <Text style={styles.customizeBtnText}>Customize</Text>
                   </Pressable>
                 </View>
@@ -615,7 +615,7 @@ export default function NutritionScreen() {
             )}
 
             {/* Detection Presets fallback */}
-            <Text style={{ color: "#64748b", fontSize: 11, fontWeight: "bold", textTransform: "uppercase", marginTop: 14, marginBottom: 8 }}>
+            <Text style={{ color: THEME.colors.cardTextSecondary, fontSize: 11, fontWeight: "bold", textTransform: "uppercase", marginTop: 14, marginBottom: 8 }}>
               Or Quick Select From Verified Dishes:
             </Text>
 
@@ -632,12 +632,12 @@ export default function NutritionScreen() {
                   onPress={() => handleApplyPreset(p)}
                 >
                   <View>
-                    <Text style={{ color: "#f8fafc", fontWeight: "bold", fontSize: 13 }}>{p.name}</Text>
-                    <Text style={{ color: "#10b981", fontSize: 11, marginTop: 2 }}>
+                    <Text style={{ color: THEME.colors.cardTextPrimary, fontWeight: "bold", fontSize: 13 }}>{p.name}</Text>
+                    <Text style={{ color: "#047857", fontSize: 11, marginTop: 2, fontWeight: "600" }}>
                       {p.calories} kcal • P: {p.protein}g • C: {p.carbs}g • F: {p.fat}g
                     </Text>
                   </View>
-                  <Text style={{ color: "#64748b", fontSize: 12 }}>Select ➔</Text>
+                  <Text style={{ color: THEME.colors.cardTextSecondary, fontSize: 12, fontWeight: "700" }}>Select ➔</Text>
                 </Pressable>
               ))}
             </View>
@@ -650,7 +650,7 @@ export default function NutritionScreen() {
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
               <Text style={styles.formTitle}>Record Meal</Text>
               <Pressable onPress={() => setShowLogForm(false)}>
-                <X size={18} color="#64748b" />
+                <X size={18} color="#0b1612" />
               </Pressable>
             </View>
             <View style={styles.mealTypeToggle}>
@@ -667,7 +667,7 @@ export default function NutritionScreen() {
             <View style={styles.formGrid}>
               <View style={[styles.inputGroup, { width: "100%" }]}>
                 <Text style={styles.label}>Food Name</Text>
-                <TextInput style={styles.input} value={foodName} onChangeText={setFoodName} placeholder="e.g. Avocado Toast" placeholderTextColor="#475569" />
+                <TextInput style={styles.input} value={foodName} onChangeText={setFoodName} placeholder="e.g. Avocado Toast" placeholderTextColor="#6b877c" />
               </View>
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Calories</Text>
@@ -687,7 +687,7 @@ export default function NutritionScreen() {
               </View>
               <View style={[styles.inputGroup, { width: "100%" }]}>
                 <Text style={styles.label}>Vitamins & Minerals</Text>
-                <TextInput style={styles.input} value={vitamins} onChangeText={setVitamins} placeholder="Vitamin C: 12mg" placeholderTextColor="#475569" />
+                <TextInput style={styles.input} value={vitamins} onChangeText={setVitamins} placeholder="Vitamin C: 12mg" placeholderTextColor="#6b877c" />
               </View>
             </View>
             <View style={styles.formActionRow}>
@@ -700,7 +700,7 @@ export default function NutritionScreen() {
                 disabled={isSaving}
               >
                 {isSaving ? (
-                  <ActivityIndicator size="small" color="#050b08" />
+                  <ActivityIndicator size="small" color="#ffffff" />
                 ) : (
                   <Text style={styles.saveBtnText}>Save Meal</Text>
                 )}
@@ -724,7 +724,7 @@ export default function NutritionScreen() {
                   typeMeals.map((m: any, idx: number) => (
                     <View key={idx} style={styles.mealRow}>
                       <View style={[styles.mealLeft, { minWidth: 0 }]}>
-                        <Apple size={16} color="#10b981" />
+                        <Apple size={16} color="#047857" />
                         <View style={{ flex: 1, minWidth: 0 }}>
                           <Text style={styles.mealName} numberOfLines={1}>{m.name}</Text>
                           <Text style={styles.mealMacros} numberOfLines={1}>
@@ -734,7 +734,7 @@ export default function NutritionScreen() {
                         </View>
                       </View>
                       <Pressable onPress={() => handleDeleteMeal(m.id)}>
-                        <Trash2 size={16} color="#64748b" />
+                        <Trash2 size={16} color="#b91c1c" />
                       </Pressable>
                     </View>
                   ))
@@ -1176,12 +1176,12 @@ const styles = StyleSheet.create({
     ...THEME.shadows.card,
   },
   sectionHeader: {
-    color: THEME.colors.accentGreen,
+    color: "#047857",
     fontSize: 12,
-    fontWeight: "bold",
+    fontWeight: "800",
     textTransform: "uppercase",
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(200, 218, 210, 0.35)",
+    borderBottomColor: "rgba(200, 218, 210, 0.45)",
     paddingBottom: 6,
   },
   mealRow: {
@@ -1208,11 +1208,13 @@ const styles = StyleSheet.create({
     color: THEME.colors.cardTextSecondary,
     fontSize: 11,
     marginTop: 2,
+    fontWeight: "600",
   },
   mealVitamins: {
-    color: THEME.colors.accentGreen,
-    fontSize: 10,
+    color: "#047857",
+    fontSize: 10.5,
     marginTop: 2,
+    fontWeight: "600",
     fontStyle: "italic",
   },
   emptySessionRow: {

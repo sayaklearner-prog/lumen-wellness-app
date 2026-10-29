@@ -104,28 +104,28 @@ function getAchievementIcon(iconName: string, size: number, color: string) {
 // Tier Styling Configurations
 const TIER_COLORS: Record<BadgeTier, { border: string; glow: string; text: string; bg: string }> = {
   bronze: {
-    border: "rgba(217, 119, 6, 0.4)",
-    glow: "rgba(217, 119, 6, 0.15)",
-    text: "#d97706",
-    bg: "rgba(217, 119, 6, 0.08)",
+    border: "rgba(180, 83, 9, 0.45)",
+    glow: "rgba(180, 83, 9, 0.15)",
+    text: "#92400e",
+    bg: "rgba(180, 83, 9, 0.08)",
   },
   silver: {
-    border: "rgba(148, 163, 184, 0.45)",
-    glow: "rgba(148, 163, 184, 0.15)",
-    text: "#cbd5e1",
-    bg: "rgba(148, 163, 184, 0.08)",
+    border: "rgba(71, 85, 105, 0.4)",
+    glow: "rgba(71, 85, 105, 0.15)",
+    text: "#1e293b",
+    bg: "rgba(71, 85, 105, 0.08)",
   },
   gold: {
-    border: "rgba(245, 158, 11, 0.55)",
-    glow: "rgba(245, 158, 11, 0.22)",
-    text: "#f59e0b",
+    border: "rgba(180, 83, 9, 0.5)",
+    glow: "rgba(245, 158, 11, 0.2)",
+    text: "#b45309",
     bg: "rgba(245, 158, 11, 0.12)",
   },
   diamond: {
-    border: "rgba(56, 189, 248, 0.6)",
-    glow: "rgba(56, 189, 248, 0.25)",
-    text: "#38bdf8",
-    bg: "rgba(56, 189, 248, 0.12)",
+    border: "rgba(2, 132, 199, 0.5)",
+    glow: "rgba(2, 132, 199, 0.2)",
+    text: "#0284c7",
+    bg: "rgba(2, 132, 199, 0.1)",
   },
 };
 
@@ -340,7 +340,7 @@ export default function AchievementsScreen() {
                 key={badge.id}
                 style={[
                   styles.badgeCard,
-                  { borderColor: isUnlocked ? tierStyle.border : "rgba(255,255,255,0.06)" },
+                  { borderColor: isUnlocked ? tierStyle.border : "rgba(200, 218, 210, 0.6)" },
                   isUnlocked && { backgroundColor: tierStyle.bg },
                 ]}
                 onPress={() => setSelectedBadge(badge)}
@@ -351,15 +351,15 @@ export default function AchievementsScreen() {
                     style={[
                       styles.badgeIconBox,
                       {
-                        backgroundColor: isUnlocked ? tierStyle.glow : "rgba(255,255,255,0.04)",
-                        borderColor: isUnlocked ? tierStyle.border : "rgba(255,255,255,0.08)",
+                        backgroundColor: isUnlocked ? tierStyle.glow : "rgba(200, 218, 210, 0.25)",
+                        borderColor: isUnlocked ? tierStyle.border : "rgba(200, 218, 210, 0.5)",
                       },
                     ]}
                   >
                     {getAchievementIcon(
                       badge.icon,
                       24,
-                      isUnlocked ? tierStyle.text : "#475569"
+                      isUnlocked ? tierStyle.text : "#334155"
                     )}
                   </View>
 
@@ -383,7 +383,7 @@ export default function AchievementsScreen() {
 
                 {/* Title & Description */}
                 <View style={{ marginVertical: 8 }}>
-                  <Text style={[styles.badgeTitle, isUnlocked && { color: "#f8fafc" }]} numberOfLines={1}>
+                  <Text style={styles.badgeTitle} numberOfLines={1}>
                     {badge.title}
                   </Text>
                   <Text style={styles.badgeDesc} numberOfLines={2}>
@@ -397,7 +397,7 @@ export default function AchievementsScreen() {
                     <Text style={[styles.cardProgressText, { flex: 1, marginRight: 6 }]} numberOfLines={1}>
                       {badge.currentValue.toLocaleString()} / {badge.target.toLocaleString()} {badge.unit}
                     </Text>
-                    <Text style={[styles.cardProgressPercent, isUnlocked && { color: "#10b981" }]}>
+                    <Text style={[styles.cardProgressPercent, isUnlocked && { color: "#047857" }]}>
                       {badge.progressPercent}%
                     </Text>
                   </View>
@@ -408,7 +408,7 @@ export default function AchievementsScreen() {
                         styles.cardFill,
                         {
                           width: `${badge.progressPercent}%`,
-                          backgroundColor: isUnlocked ? tierStyle.text : "#10b981",
+                          backgroundColor: isUnlocked ? tierStyle.text : "#047857",
                         },
                       ]}
                     />
@@ -418,7 +418,7 @@ export default function AchievementsScreen() {
                   <View style={styles.cardFooter}>
                     {isUnlocked ? (
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-                        <CheckCircle2 size={13} color="#10b981" />
+                        <CheckCircle2 size={13} color="#047857" />
                         <Text style={styles.unlockedFooterText}>
                           {badge.unlockedAt
                             ? `Unlocked ${new Date(badge.unlockedAt).toLocaleDateString(undefined, {
@@ -430,7 +430,7 @@ export default function AchievementsScreen() {
                       </View>
                     ) : (
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-                        <Lock size={12} color="#64748b" />
+                        <Lock size={12} color="#44695a" />
                         <Text style={styles.lockedFooterText}>In Progress</Text>
                       </View>
                     )}
@@ -855,8 +855,8 @@ const styles = StyleSheet.create({
     borderColor: "rgba(200, 218, 210, 0.25)",
   },
   categoryChipActive: {
-    backgroundColor: THEME.colors.accentTeal,
-    borderColor: THEME.colors.accentTeal,
+    backgroundColor: "#ffffff",
+    borderColor: "#ffffff",
   },
   categoryChipText: {
     fontSize: 12,
@@ -864,7 +864,8 @@ const styles = StyleSheet.create({
     color: THEME.colors.textOnDarkSecondary,
   },
   categoryChipTextActive: {
-    color: "#ffffff",
+    color: "#0b1612",
+    fontWeight: "800",
   },
 
   // Badges Grid
@@ -959,14 +960,14 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   unlockedFooterText: {
-    fontSize: 10,
-    color: THEME.colors.accentGreen,
+    fontSize: 10.5,
+    color: "#047857",
     fontWeight: "700",
   },
   lockedFooterText: {
-    fontSize: 10,
-    color: THEME.colors.cardTextTertiary,
-    fontWeight: "600",
+    fontSize: 10.5,
+    color: "#334155",
+    fontWeight: "700",
   },
 
   // Modal Detail Styles

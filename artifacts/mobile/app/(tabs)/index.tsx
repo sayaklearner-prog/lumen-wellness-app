@@ -1054,10 +1054,10 @@ export default function DashboardScreen() {
           >
             <View style={styles.pillarTopRow}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 5, flex: 1, minWidth: 0, marginRight: 4 }}>
-                <Utensils size={14} color="#10b981" />
+                <Utensils size={14} color="#047857" />
                 <Text style={styles.pillarTitle} numberOfLines={1}>Nutrition</Text>
               </View>
-              <Text style={[styles.pillarScore, { color: "#10b981" }]}>
+              <Text style={[styles.pillarScore, { color: "#047857" }]}>
                 {dynamicNutritionScore > 0 ? dynamicNutritionScore.toFixed(1) : "0.0"}
               </Text>
             </View>
@@ -1067,7 +1067,7 @@ export default function DashboardScreen() {
                   styles.pillarBarFill,
                   {
                     width: `${Math.min(100, Math.max(10, dynamicNutritionScore * 10))}%`,
-                    backgroundColor: "#10b981",
+                    backgroundColor: "#047857",
                   },
                 ]}
               />
@@ -1090,10 +1090,10 @@ export default function DashboardScreen() {
           >
             <View style={styles.pillarTopRow}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 5, flex: 1, minWidth: 0, marginRight: 4 }}>
-                <Moon size={14} color="#f59e0b" />
+                <Moon size={14} color="#b45309" />
                 <Text style={styles.pillarTitle} numberOfLines={1}>Sleep</Text>
               </View>
-              <Text style={[styles.pillarScore, { color: "#f59e0b" }]}>
+              <Text style={[styles.pillarScore, { color: "#b45309" }]}>
                 {dynamicSleepScore > 0 ? dynamicSleepScore.toFixed(1) : "0.0"}
               </Text>
             </View>
@@ -1103,7 +1103,7 @@ export default function DashboardScreen() {
                   styles.pillarBarFill,
                   {
                     width: `${Math.min(100, Math.max(10, dynamicSleepScore * 10))}%`,
-                    backgroundColor: "#f59e0b",
+                    backgroundColor: "#b45309",
                   },
                 ]}
               />
@@ -1126,10 +1126,10 @@ export default function DashboardScreen() {
           >
             <View style={styles.pillarTopRow}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 5, flex: 1, minWidth: 0, marginRight: 4 }}>
-                <Activity size={14} color="#06b6d4" />
+                <Activity size={14} color="#0891b2" />
                 <Text style={styles.pillarTitle} numberOfLines={1}>Activity</Text>
               </View>
-              <Text style={[styles.pillarScore, { color: "#06b6d4" }]}>
+              <Text style={[styles.pillarScore, { color: "#0891b2" }]}>
                 {dynamicActivityScore > 0 ? dynamicActivityScore.toFixed(1) : "0.0"}
               </Text>
             </View>
@@ -1139,7 +1139,7 @@ export default function DashboardScreen() {
                   styles.pillarBarFill,
                   {
                     width: `${Math.min(100, Math.max(10, dynamicActivityScore * 10))}%`,
-                    backgroundColor: "#06b6d4",
+                    backgroundColor: "#0891b2",
                   },
                 ]}
               />
@@ -1167,7 +1167,7 @@ export default function DashboardScreen() {
           >
             <View style={styles.pillarTopRow}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 5, flex: 1, minWidth: 0, marginRight: 4 }}>
-                <Smartphone size={14} color={liveFocus.isActive ? "#10b981" : "#a855f7"} />
+                <Smartphone size={14} color={liveFocus.isActive ? "#047857" : "#7e22ce"} />
                 <Text style={styles.pillarTitle} numberOfLines={1}>Screen</Text>
               </View>
               {liveFocus.isActive ? (
@@ -1180,7 +1180,7 @@ export default function DashboardScreen() {
                   <Text
                     style={[
                       styles.pillarFocusLiveBadgeText,
-                      { color: liveFocus.isPaused ? "#f59e0b" : "#10b981" },
+                      { color: liveFocus.isPaused ? "#b45309" : "#047857" },
                     ]}
                     numberOfLines={1}
                   >
@@ -1188,7 +1188,7 @@ export default function DashboardScreen() {
                   </Text>
                 </View>
               ) : (
-                <Text style={[styles.pillarScore, { color: "#a855f7" }]}>
+                <Text style={[styles.pillarScore, { color: "#7e22ce" }]}>
                   {dynamicScreenScore.toFixed(1)}
                 </Text>
               )}
@@ -1202,8 +1202,8 @@ export default function DashboardScreen() {
                       ? `${liveFocus.progressPercent}%`
                       : `${Math.min(100, dynamicScreenScore * 10)}%`,
                     backgroundColor: liveFocus.isActive
-                      ? liveFocus.isPaused ? "#f59e0b" : "#10b981"
-                      : "#a855f7",
+                      ? liveFocus.isPaused ? "#b45309" : "#047857"
+                      : "#7e22ce",
                   },
                 ]}
               />
@@ -1230,7 +1230,7 @@ export default function DashboardScreen() {
         >
           <View style={styles.hydrationTopRow}>
             <View style={styles.dropCircle}>
-              <Droplet size={18} color="#06b6d4" />
+              <Droplet size={18} color="#0891b2" />
             </View>
             <View style={{ flex: 1, marginLeft: 10, minWidth: 0 }}>
               <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
@@ -1243,15 +1243,15 @@ export default function DashboardScreen() {
                   </View>
                 </View>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                  <Text style={[styles.pillarScore, { color: "#06b6d4" }]}>
+                  <Text style={[styles.pillarScore, { color: "#0891b2" }]}>
                     {dynamicHydrationScore > 0 ? dynamicHydrationScore.toFixed(1) : "0.0"}
                   </Text>
-                  <ChevronRight size={16} color="#64748b" />
+                  <ChevronRight size={16} color="#244538" />
                 </View>
               </View>
               <Text style={styles.bioCardValue} numberOfLines={1}>
                 {hydration.todayMl > 0 ? `${hydration.todayMl.toLocaleString()} ml` : `${waterCups * 250} ml`}
-                <Text style={{ fontSize: 13, color: "#64748b", fontWeight: "600" }}>
+                <Text style={{ fontSize: 13, color: "#244538", fontWeight: "700" }}>
                   {" "}/ {hydration.targetMl.toLocaleString()} ml ({waterCups} / {hydration.targetCups} cups)
                 </Text>
               </Text>
@@ -1580,7 +1580,7 @@ export default function DashboardScreen() {
                 </View>
               </View>
               <Pressable style={styles.modalCloseBtn} onPress={() => setShowSleepModal(false)}>
-                <X size={16} color="#94a3b8" />
+                <X size={16} color="#0b1612" />
               </Pressable>
             </View>
 
@@ -1652,7 +1652,7 @@ export default function DashboardScreen() {
 
             {/* Save Button */}
             <Pressable style={styles.modalPrimaryBtn} onPress={handleSaveSleepSession}>
-              <Check size={16} color="#050b08" style={{ marginRight: 6 }} />
+              <Check size={16} color="#ffffff" style={{ marginRight: 6 }} />
               <Text style={styles.modalPrimaryBtnText}>Save Sleep Session</Text>
             </Pressable>
           </View>
@@ -1682,7 +1682,7 @@ export default function DashboardScreen() {
                 </View>
               </View>
               <Pressable style={styles.modalCloseBtn} onPress={() => setShowScreenTimeModal(false)}>
-                <X size={16} color="#94a3b8" />
+                <X size={16} color="#0b1612" />
               </Pressable>
             </View>
 
@@ -1695,7 +1695,7 @@ export default function DashboardScreen() {
                   setWellbeingTab("usage");
                 }}
               >
-                <Smartphone size={13} color={wellbeingTab === "usage" ? "#a855f7" : "#64748b"} />
+                <Smartphone size={13} color={wellbeingTab === "usage" ? "#ffffff" : "#244538"} />
                 <Text style={[styles.wellbeingTabBtnText, wellbeingTab === "usage" && styles.wellbeingTabBtnTextActive]}>
                   Usage
                 </Text>
@@ -1708,12 +1708,12 @@ export default function DashboardScreen() {
                   setWellbeingTab("focus");
                 }}
               >
-                <Timer size={13} color={wellbeingTab === "focus" ? "#10b981" : "#64748b"} />
+                <Timer size={13} color={wellbeingTab === "focus" ? "#ffffff" : "#244538"} />
                 <Text style={[styles.wellbeingTabBtnText, wellbeingTab === "focus" && styles.wellbeingTabBtnTextActive]}>
                   Focus Mode
                 </Text>
                 {liveFocus.isActive && (
-                  <View style={[styles.tabBadgeLiveDot, { backgroundColor: liveFocus.isPaused ? "#f59e0b" : "#10b981" }]} />
+                  <View style={[styles.tabBadgeLiveDot, { backgroundColor: liveFocus.isPaused ? "#b45309" : "#047857" }]} />
                 )}
               </Pressable>
 
@@ -1724,7 +1724,7 @@ export default function DashboardScreen() {
                   setWellbeingTab("limits");
                 }}
               >
-                <Sliders size={13} color={wellbeingTab === "limits" ? "#38bdf8" : "#64748b"} />
+                <Sliders size={13} color={wellbeingTab === "limits" ? "#ffffff" : "#244538"} />
                 <Text style={[styles.wellbeingTabBtnText, wellbeingTab === "limits" && styles.wellbeingTabBtnTextActive]}>
                   Wind Down
                 </Text>
@@ -1740,7 +1740,7 @@ export default function DashboardScreen() {
                     <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
                       <Text style={styles.screenUsageLabel}>TODAY'S SCREEN TIME</Text>
                       {screenTelemetry.unlockCount > 0 && (
-                        <Text style={{ fontSize: 11, color: "#94a3b8", fontWeight: "600" }}>
+                        <Text style={{ fontSize: 11, color: THEME.colors.cardTextSecondary, fontWeight: "700" }}>
                           🔓 {screenTelemetry.unlockCount} Unlocks Today
                         </Text>
                       )}
@@ -1793,7 +1793,7 @@ export default function DashboardScreen() {
                       <Text style={styles.screenLimitSub}>
                         Daily Target: {Math.floor(screenLimitMinutes / 60)}h {screenLimitMinutes % 60}m
                       </Text>
-                      <Text style={[styles.screenLimitSub, { color: "#cbd5e1" }]}>
+                      <Text style={[styles.screenLimitSub, { color: THEME.colors.cardTextSecondary, fontWeight: "700" }]}>
                         {Math.min(100, Math.round((screenMinutesToday / screenLimitMinutes) * 100))}% used
                       </Text>
                     </View>
@@ -1804,15 +1804,15 @@ export default function DashboardScreen() {
                     <View style={[styles.permissionCard, { borderColor: "rgba(16, 185, 129, 0.35)", backgroundColor: "rgba(16, 185, 129, 0.08)" }]}>
                       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                          <CheckCircle2 size={17} color="#10b981" />
-                          <Text style={[styles.permissionTitle, { color: "#10b981" }]}>Android UsageStats Active</Text>
+                          <CheckCircle2 size={17} color="#047857" />
+                          <Text style={[styles.permissionTitle, { color: "#047857" }]}>Android UsageStats Active</Text>
                         </View>
                         <Pressable
                           style={styles.syncSmallBtn}
                           onPress={refreshScreenTime}
                           disabled={isScreenRefreshing}
                         >
-                          <RotateCw size={11} color="#10b981" />
+                          <RotateCw size={11} color="#047857" />
                           <Text style={styles.syncSmallBtnText}>{isScreenRefreshing ? "Syncing..." : "Sync Live"}</Text>
                         </Pressable>
                       </View>
@@ -1823,8 +1823,8 @@ export default function DashboardScreen() {
                   ) : (
                     <View style={[styles.permissionCard, { borderColor: "rgba(245, 158, 11, 0.4)", backgroundColor: "rgba(245, 158, 11, 0.08)" }]}>
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                        <AlertCircle size={18} color="#f59e0b" />
-                        <Text style={[styles.permissionTitle, { color: "#f59e0b" }]}>Usage Access Required</Text>
+                        <AlertCircle size={18} color="#b45309" />
+                        <Text style={[styles.permissionTitle, { color: "#b45309" }]}>Usage Access Required</Text>
                       </View>
                       <Text style={styles.permissionDesc}>
                         Lumen needs Android Usage Access to read real screen time and show your installed app stats.
@@ -1975,7 +1975,7 @@ export default function DashboardScreen() {
                         <Text style={styles.quickFocusSub}>Start a Focus Mode session to shield distractions</Text>
                       </View>
                     </View>
-                    <ChevronRight size={16} color="#64748b" />
+                    <ChevronRight size={16} color="#244538" />
                   </Pressable>
                 </View>
               )}
@@ -2126,7 +2126,7 @@ export default function DashboardScreen() {
                               onPress={() => toggleCategoryBlock(cat.id)}
                             >
                               <View style={{ flex: 1 }}>
-                                <Text style={[styles.distractionName, isBlocked && { color: "#f8fafc" }]}>
+                                <Text style={[styles.distractionName, isBlocked && { color: "#047857", fontWeight: "800" }]}>
                                   {cat.name}
                                 </Text>
                                 <Text style={styles.distractionDesc}>{cat.description}</Text>
@@ -2134,10 +2134,10 @@ export default function DashboardScreen() {
                               <View
                                 style={[
                                   styles.checkboxBox,
-                                  isBlocked && { backgroundColor: "#10b981", borderColor: "#10b981" },
+                                  isBlocked && { backgroundColor: "#047857", borderColor: "#047857" },
                                 ]}
                               >
-                                {isBlocked && <Check size={12} color="#050b08" />}
+                                {isBlocked && <Check size={12} color="#ffffff" />}
                               </View>
                             </Pressable>
                           );
@@ -2154,10 +2154,10 @@ export default function DashboardScreen() {
 
                       {/* Start Focus Button */}
                       <Pressable
-                        style={[styles.modalPrimaryBtn, { backgroundColor: "#10b981", marginTop: 16 }]}
+                        style={[styles.modalPrimaryBtn, { backgroundColor: THEME.colors.accentTeal, marginTop: 16 }]}
                         onPress={handleStartFocus}
                       >
-                        <Play size={16} color="#050b08" style={{ marginRight: 6 }} />
+                        <Play size={16} color="#ffffff" style={{ marginRight: 6 }} />
                         <Text style={styles.modalPrimaryBtnText}>
                           Start Focus Session ({selectedFocusMinutes}m)
                         </Text>
@@ -2277,7 +2277,7 @@ export default function DashboardScreen() {
                     style={[styles.modalPrimaryBtn, { marginTop: 16 }]}
                     onPress={handleSaveWellbeing}
                   >
-                    <Check size={16} color="#050b08" style={{ marginRight: 6 }} />
+                    <Check size={16} color="#ffffff" style={{ marginRight: 6 }} />
                     <Text style={styles.modalPrimaryBtnText}>Save Wellbeing Settings</Text>
                   </Pressable>
                 </View>
@@ -2410,7 +2410,7 @@ export default function DashboardScreen() {
                   setShowHydrationModal(false);
                 }}
               >
-                <X size={18} color="#cbd5e1" />
+                <X size={18} color="#0b1612" />
               </Pressable>
             </View>
 
@@ -2779,35 +2779,35 @@ export default function DashboardScreen() {
                       level: "Level 1: Pale Straw / Lemon",
                       color: "#fef08a",
                       badge: "Optimal",
-                      badgeColor: "#10b981",
+                      badgeColor: "#047857",
                       description: "Ideal intracellular hydration equilibrium. Maintain normal sipping pace.",
                     },
                     {
                       level: "Level 2: Completely Clear",
                       color: "#f8fafc",
                       badge: "High Hydration",
-                      badgeColor: "#38bdf8",
+                      badgeColor: "#0891b2",
                       description: "High fluid volume. Supplement with electrolytes to prevent sodium flushing.",
                     },
                     {
                       level: "Level 3: Light Golden Yellow",
                       color: "#fde047",
                       badge: "Good",
-                      badgeColor: "#84cc16",
+                      badgeColor: "#4d7c0f",
                       description: "Healthy range. Drink 1 glass (250 ml) within the next hour.",
                     },
                     {
                       level: "Level 4: Dark Amber / Honey",
                       color: "#eab308",
                       badge: "Dehydrated",
-                      badgeColor: "#f59e0b",
+                      badgeColor: "#b45309",
                       description: "Cellular deficit. Drink 500 ml immediately and reduce caffeine intake.",
                     },
                     {
                       level: "Level 5: Tea Brown / Dark Copper",
                       color: "#b45309",
                       badge: "Critical Deficit",
-                      badgeColor: "#ef4444",
+                      badgeColor: "#b91c1c",
                       description: "Severe dehydration or high sweat loss. Rehydrate with electrolytes urgently.",
                     },
                   ].map((guide, gIdx) => (
@@ -3120,10 +3120,10 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   pillarSubtitle: {
-    color: THEME.colors.cardTextSecondary,
-    fontSize: 10.5,
-    fontWeight: "600",
-    lineHeight: 14,
+    color: "#162e24",
+    fontSize: 11,
+    fontWeight: "700",
+    lineHeight: 15,
   },
 
   // ACTIVE STREAKS SECTION
@@ -3557,16 +3557,16 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "#0f172a",
+    backgroundColor: "rgba(11, 22, 18, 0.08)",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: "rgba(11, 22, 18, 0.12)",
   },
   modalSectionLabel: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: "800",
-    color: "#64748b",
+    color: THEME.colors.cardTextSecondary,
     letterSpacing: 1,
     marginBottom: 8,
   },
@@ -3577,24 +3577,24 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   hoursChip: {
-    backgroundColor: "#0d1612",
+    backgroundColor: "#ffffff",
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: "rgba(200, 218, 210, 0.7)",
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 9,
   },
   hoursChipActive: {
-    backgroundColor: "rgba(16, 185, 129, 0.15)",
-    borderColor: "#10b981",
+    backgroundColor: THEME.colors.accentTeal,
+    borderColor: THEME.colors.accentTeal,
   },
   hoursChipText: {
-    color: "#94a3b8",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 13,
     fontWeight: "700",
   },
   hoursChipTextActive: {
-    color: "#10b981",
+    color: "#ffffff",
   },
   qualityGrid: {
     flexDirection: "row",
@@ -3605,13 +3605,13 @@ const styles = StyleSheet.create({
     width: "48%",
     backgroundColor: "#ffffff",
     borderWidth: 1,
-    borderColor: "rgba(200, 218, 210, 0.55)",
+    borderColor: "rgba(200, 218, 210, 0.6)",
     borderRadius: 12,
     padding: 10,
   },
   qualityCardActive: {
-    borderColor: "#f59e0b",
-    backgroundColor: "rgba(245, 158, 11, 0.1)",
+    borderColor: "#b45309",
+    backgroundColor: "rgba(180, 83, 9, 0.08)",
   },
   qualityTitle: {
     color: THEME.colors.cardTextPrimary,
@@ -3619,11 +3619,11 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   qualityTitleActive: {
-    color: "#f59e0b",
+    color: "#b45309",
   },
   qualityDesc: {
     color: THEME.colors.cardTextSecondary,
-    fontSize: 10,
+    fontSize: 10.5,
     marginTop: 2,
   },
   telemetryCard: {
@@ -3632,7 +3632,7 @@ const styles = StyleSheet.create({
     padding: 12,
     marginVertical: 14,
     borderWidth: 1,
-    borderColor: "rgba(200, 218, 210, 0.55)",
+    borderColor: "rgba(200, 218, 210, 0.6)",
     gap: 6,
   },
   telemetryRow: {
@@ -3640,13 +3640,14 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   telemetryLabel: {
-    color: "#64748b",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 12,
+    fontWeight: "600",
   },
   telemetryVal: {
-    color: "#10b981",
+    color: "#047857",
     fontSize: 12,
-    fontWeight: "700",
+    fontWeight: "800",
   },
   modalPrimaryBtn: {
     backgroundColor: THEME.colors.accentTeal,
@@ -3714,17 +3715,18 @@ const styles = StyleSheet.create({
     backgroundColor: "#a855f7",
   },
   screenLimitSub: {
-    color: "#64748b",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 11,
     marginTop: 6,
+    fontWeight: "600",
   },
   categoryList: {
-    backgroundColor: "#0d1612",
+    backgroundColor: "#ffffff",
     borderRadius: 14,
     padding: 12,
     gap: 8,
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: "rgba(200, 218, 210, 0.6)",
     marginBottom: 10,
   },
   categoryRow: {
@@ -3734,22 +3736,22 @@ const styles = StyleSheet.create({
   categoryName: {
     color: THEME.colors.cardTextPrimary,
     fontSize: 12,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   categoryMins: {
     color: THEME.colors.cardTextSecondary,
     fontSize: 12,
-    fontWeight: "700",
+    fontWeight: "800",
   },
   wellbeingSwitchRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#0d1612",
+    backgroundColor: "#ffffff",
     borderRadius: 14,
     padding: 12,
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: "rgba(200, 218, 210, 0.6)",
     marginTop: 8,
     marginBottom: 4,
   },
@@ -3783,7 +3785,7 @@ const styles = StyleSheet.create({
   },
   hydrationBarTrack: {
     height: 6,
-    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    backgroundColor: "rgba(180, 205, 195, 0.35)",
     borderRadius: 3,
     marginTop: 14,
     marginBottom: 10,
@@ -3791,7 +3793,7 @@ const styles = StyleSheet.create({
   },
   hydrationBarFill: {
     height: 6,
-    backgroundColor: "#06b6d4",
+    backgroundColor: "#0891b2",
     borderRadius: 3,
   },
   hydrationQuickRow: {
@@ -3808,7 +3810,7 @@ const styles = StyleSheet.create({
     gap: 6,
     backgroundColor: "#ffffff",
     borderWidth: 1,
-    borderColor: "rgba(200, 218, 210, 0.55)",
+    borderColor: "rgba(200, 218, 210, 0.6)",
     borderRadius: 14,
     paddingHorizontal: 12,
     paddingVertical: 7,
@@ -3817,23 +3819,23 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   hydrationQuickText: {
-    color: "#06b6d4",
+    color: "#0891b2",
     fontSize: 12,
     fontWeight: "700",
   },
   hydrationQuickDivider: {
     width: 1,
     height: 20,
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    backgroundColor: "rgba(200, 218, 210, 0.6)",
     marginHorizontal: 4,
   },
   waterMiniBtn: {
     width: 32,
     height: 32,
     borderRadius: 10,
-    backgroundColor: "#16232b",
+    backgroundColor: "#ffffff",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.08)",
+    borderColor: "rgba(200, 218, 210, 0.7)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -3841,13 +3843,13 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "rgba(6, 182, 212, 0.15)",
+    backgroundColor: "rgba(8, 145, 178, 0.15)",
     alignItems: "center",
     justifyContent: "center",
   },
   hydrationTabsRow: {
     flexDirection: "row",
-    backgroundColor: "rgba(255, 255, 255, 0.04)",
+    backgroundColor: "rgba(11, 22, 18, 0.06)",
     borderRadius: 12,
     padding: 4,
     marginBottom: 16,
@@ -3861,17 +3863,17 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   hydrationTabBtnActive: {
-    backgroundColor: "rgba(6, 182, 212, 0.2)",
+    backgroundColor: THEME.colors.accentTeal,
     borderWidth: 1,
-    borderColor: "rgba(6, 182, 212, 0.4)",
+    borderColor: THEME.colors.accentTeal,
   },
   hydrationTabBtnText: {
-    color: "#64748b",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 12,
     fontWeight: "700",
   },
   hydrationTabBtnTextActive: {
-    color: "#06b6d4",
+    color: "#ffffff",
   },
   reservoirHeroCard: {
     backgroundColor: THEME.colors.cardBg,
@@ -3923,8 +3925,8 @@ const styles = StyleSheet.create({
   },
   reservoirMlUnit: {
     fontSize: 14,
-    color: "#64748b",
-    fontWeight: "600",
+    color: THEME.colors.cardTextSecondary,
+    fontWeight: "700",
   },
   reservoirCupsCount: {
     fontSize: 12,
@@ -3940,7 +3942,7 @@ const styles = StyleSheet.create({
   },
   reservoirMetaText: {
     fontSize: 10,
-    color: "#64748b",
+    color: THEME.colors.cardTextSecondary,
   },
   reservoirGaugeTrack: {
     height: 8,
@@ -3950,15 +3952,15 @@ const styles = StyleSheet.create({
   },
   reservoirGaugeFill: {
     height: 8,
-    backgroundColor: "#06b6d4",
+    backgroundColor: "#0891b2",
     borderRadius: 4,
   },
   hydrationSectionBox: {
-    backgroundColor: "rgba(255, 255, 255, 0.02)",
+    backgroundColor: "#ffffff",
     borderRadius: 16,
     padding: 14,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.05)",
+    borderColor: "rgba(200, 218, 210, 0.6)",
   },
   hydrationSectionHeader: {
     flexDirection: "row",
@@ -3967,7 +3969,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   hydrationSectionTitle: {
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 13,
     fontWeight: "800",
   },
@@ -3986,19 +3988,20 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 10,
     borderWidth: 1,
-    borderColor: "rgba(200, 218, 210, 0.55)",
+    borderColor: "rgba(200, 218, 210, 0.6)",
   },
   beverageChipIcon: {
     fontSize: 20,
   },
   beverageChipName: {
-    color: "#cbd5e1",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 12,
     fontWeight: "700",
   },
   beverageChipFactor: {
-    color: "#64748b",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 10,
+    fontWeight: "600",
   },
   containerPresetsGrid: {
     flexDirection: "row",
@@ -4012,7 +4015,7 @@ const styles = StyleSheet.create({
     padding: 10,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "rgba(200, 218, 210, 0.55)",
+    borderColor: "rgba(200, 218, 210, 0.6)",
   },
   presetIcon: {
     fontSize: 24,
@@ -4036,9 +4039,9 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   cupMatrixCount: {
-    color: "#64748b",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 11,
-    fontWeight: "600",
+    fontWeight: "700",
     marginLeft: "auto",
   },
   cupsMatrixGrid: {
@@ -4050,21 +4053,21 @@ const styles = StyleSheet.create({
   cupMatrixItem: {
     width: "18%",
     aspectRatio: 1,
-    backgroundColor: "rgba(255, 255, 255, 0.02)",
+    backgroundColor: "#ffffff",
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: "rgba(200, 218, 210, 0.6)",
   },
   cupMatrixItemFilled: {
-    backgroundColor: "rgba(6, 182, 212, 0.15)",
-    borderColor: "rgba(6, 182, 212, 0.4)",
+    backgroundColor: "rgba(8, 145, 178, 0.15)",
+    borderColor: "rgba(8, 145, 178, 0.4)",
   },
   cupMatrixIndex: {
-    color: "#64748b",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 10,
-    fontWeight: "600",
+    fontWeight: "700",
     marginTop: 2,
   },
   customIntakeRow: {
@@ -4092,19 +4095,20 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   hydrationEmptyText: {
-    color: "#64748b",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 12,
     textAlign: "center",
+    fontWeight: "600",
   },
   hydrationEntryRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "rgba(255, 255, 255, 0.03)",
+    backgroundColor: "#ffffff",
     padding: 10,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.05)",
+    borderColor: "rgba(200, 218, 210, 0.6)",
   },
   hydrationEntryLeft: {
     flexDirection: "row",
@@ -4115,14 +4119,15 @@ const styles = StyleSheet.create({
     fontSize: 18,
   },
   hydrationEntryName: {
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 12,
     fontWeight: "700",
   },
   hydrationEntryTime: {
-    color: "#64748b",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 10,
     marginTop: 1,
+    fontWeight: "600",
   },
   hydrationEntryRight: {
     flexDirection: "row",
@@ -4130,7 +4135,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   hydrationEntryAmount: {
-    color: "#06b6d4",
+    color: "#0891b2",
     fontSize: 13,
     fontWeight: "800",
   },
@@ -4146,18 +4151,19 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "rgba(56, 189, 248, 0.08)",
+    backgroundColor: "rgba(8, 145, 178, 0.1)",
     padding: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(56, 189, 248, 0.2)",
+    borderColor: "rgba(8, 145, 178, 0.3)",
     marginBottom: 4,
   },
   roadmapIntroText: {
     flex: 1,
-    color: "#94a3b8",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 11,
     lineHeight: 16,
+    fontWeight: "600",
   },
   roadmapSlotCard: {
     backgroundColor: THEME.colors.cardBg,
@@ -4173,20 +4179,20 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   roadmapTime: {
-    color: "#06b6d4",
+    color: "#0891b2",
     fontSize: 12,
     fontWeight: "800",
   },
   roadmapMlBadge: {
-    backgroundColor: "rgba(6, 182, 212, 0.15)",
+    backgroundColor: "rgba(8, 145, 178, 0.15)",
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "rgba(6, 182, 212, 0.3)",
+    borderColor: "rgba(8, 145, 178, 0.3)",
   },
   roadmapMlText: {
-    color: "#06b6d4",
+    color: "#0891b2",
     fontSize: 11,
     fontWeight: "800",
   },
@@ -4250,22 +4256,23 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   permissionCard: {
-    backgroundColor: THEME.colors.cardBg,
+    backgroundColor: "#ffffff",
     borderRadius: 24,
     padding: 14,
     borderWidth: 1,
-    borderColor: THEME.colors.cardBorder,
+    borderColor: "rgba(200, 218, 210, 0.6)",
     marginBottom: 14,
   },
   permissionTitle: {
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 13,
     fontWeight: "800",
   },
   permissionDesc: {
-    color: "#cbd5e1",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 11,
     lineHeight: 16,
+    fontWeight: "600",
     marginTop: 6,
     marginBottom: 10,
   },
@@ -4277,12 +4284,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   permissionBtnText: {
-    color: "#050b08",
+    color: "#ffffff",
     fontSize: 12,
     fontWeight: "800",
   },
   permissionBtnSecondary: {
-    backgroundColor: "rgba(168, 85, 247, 0.15)",
+    backgroundColor: "rgba(168, 85, 247, 0.12)",
     paddingVertical: 8,
     paddingHorizontal: 10,
     borderRadius: 8,
@@ -4291,24 +4298,25 @@ const styles = StyleSheet.create({
     borderColor: "rgba(168, 85, 247, 0.3)",
   },
   permissionBtnSecondaryText: {
-    color: "#d8b4fe",
+    color: "#7e22ce",
     fontSize: 11,
-    fontWeight: "700",
+    fontWeight: "800",
   },
   emptyCategoryCard: {
-    backgroundColor: THEME.colors.cardBg,
+    backgroundColor: "#ffffff",
     borderRadius: 24,
     padding: 14,
     borderWidth: 1,
-    borderColor: THEME.colors.cardBorder,
+    borderColor: "rgba(200, 218, 210, 0.6)",
     marginBottom: 10,
     alignItems: "center",
   },
   emptyCategoryText: {
-    color: "#94a3b8",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 12,
     textAlign: "center",
     lineHeight: 18,
+    fontWeight: "600",
   },
   pillarFocusLiveBadge: {
     paddingHorizontal: 8,
@@ -4333,23 +4341,23 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
-    paddingVertical: 8,
-    borderRadius: 10,
-    backgroundColor: "rgba(255, 255, 255, 0.04)",
+    paddingVertical: 9,
+    borderRadius: 12,
+    backgroundColor: "rgba(11, 22, 18, 0.06)",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.08)",
+    borderColor: "rgba(11, 22, 18, 0.12)",
   },
   wellbeingTabBtnActive: {
-    backgroundColor: "rgba(168, 85, 247, 0.15)",
-    borderColor: "rgba(168, 85, 247, 0.4)",
+    backgroundColor: THEME.colors.accentTeal,
+    borderColor: THEME.colors.accentTeal,
   },
   wellbeingTabBtnText: {
-    color: "#64748b",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 12,
     fontWeight: "700",
   },
   wellbeingTabBtnTextActive: {
-    color: "#f8fafc",
+    color: "#ffffff",
   },
   tabBadgeLiveDot: {
     width: 6,
@@ -4360,9 +4368,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "rgba(16, 185, 129, 0.08)",
+    backgroundColor: "#ffffff",
     borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.25)",
+    borderColor: "rgba(200, 218, 210, 0.6)",
     borderRadius: 14,
     padding: 12,
     marginTop: 8,
@@ -4376,13 +4384,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   quickFocusTitle: {
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 13,
-    fontWeight: "700",
+    fontWeight: "800",
   },
   quickFocusSub: {
-    color: "#94a3b8",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 11,
+    fontWeight: "600",
     marginTop: 2,
   },
   activeFocusBox: {
@@ -4542,67 +4551,70 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   distractionList: {
-    backgroundColor: "#0d1612",
-    borderRadius: 12,
+    backgroundColor: "#ffffff",
+    borderRadius: 14,
     padding: 10,
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: "rgba(200, 218, 210, 0.6)",
     gap: 6,
   },
   distractionRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 6,
-    paddingHorizontal: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    borderRadius: 10,
   },
   distractionRowActive: {
-    opacity: 1,
+    backgroundColor: "rgba(16, 185, 129, 0.08)",
   },
   distractionName: {
     color: THEME.colors.cardTextPrimary,
-    fontSize: 12,
-    fontWeight: "600",
+    fontSize: 12.5,
+    fontWeight: "700",
   },
   distractionDesc: {
     color: THEME.colors.cardTextSecondary,
-    fontSize: 10,
+    fontSize: 10.5,
     marginTop: 2,
   },
   checkboxBox: {
-    width: 20,
-    height: 20,
+    width: 22,
+    height: 22,
     borderRadius: 6,
-    borderWidth: 1,
-    borderColor: "#475569",
+    borderWidth: 1.5,
+    borderColor: "rgba(200, 218, 210, 0.9)",
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: "#ffffff",
   },
   historyList: {
-    backgroundColor: "#0d1612",
-    borderRadius: 12,
-    padding: 10,
+    backgroundColor: "#ffffff",
+    borderRadius: 14,
+    padding: 12,
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: "rgba(200, 218, 210, 0.6)",
     gap: 8,
   },
   historyRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 4,
+    paddingVertical: 6,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(255, 255, 255, 0.04)",
+    borderBottomColor: "rgba(200, 218, 210, 0.35)",
   },
   historyTitle: {
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 12,
     fontWeight: "700",
   },
   historySub: {
-    color: "#64748b",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 10,
     marginTop: 2,
+    fontWeight: "600",
   },
   starRow: {
     flexDirection: "row",
@@ -4620,19 +4632,19 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 12,
     borderWidth: 1,
-    borderColor: "rgba(200, 218, 210, 0.55)",
+    borderColor: "rgba(200, 218, 210, 0.6)",
     alignItems: "center",
     gap: 4,
   },
   bedtimeLabel: {
-    color: "#64748b",
-    fontSize: 10,
+    color: THEME.colors.cardTextSecondary,
+    fontSize: 10.5,
     fontWeight: "700",
     textTransform: "uppercase",
   },
   bedtimeVal: {
-    color: "#f8fafc",
-    fontSize: 14,
+    color: THEME.colors.cardTextPrimary,
+    fontSize: 15,
     fontWeight: "800",
   },
   breathingBackdrop: {
@@ -4679,24 +4691,24 @@ const styles = StyleSheet.create({
   breathingCounter: {
     fontSize: 38,
     fontWeight: "900",
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
   },
   breathingPill: {
-    color: "#38bdf8",
+    color: "#0284c7",
     fontSize: 12,
     fontWeight: "700",
     marginTop: 6,
   },
   breathingDismissBtn: {
-    backgroundColor: "rgba(56, 189, 248, 0.2)",
+    backgroundColor: THEME.colors.accentTeal,
     paddingVertical: 12,
     paddingHorizontal: 28,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "rgba(56, 189, 248, 0.4)",
+    borderColor: THEME.colors.accentTeal,
   },
   breathingDismissText: {
-    color: "#38bdf8",
+    color: "#ffffff",
     fontSize: 13,
     fontWeight: "800",
   },
@@ -4739,21 +4751,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 10,
-    backgroundColor: "rgba(255, 255, 255, 0.04)",
+    backgroundColor: "#ffffff",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.08)",
+    borderColor: "rgba(200, 218, 210, 0.7)",
   },
   reflectionChipActive: {
-    backgroundColor: "rgba(16, 185, 129, 0.15)",
-    borderColor: "#10b981",
+    backgroundColor: THEME.colors.accentTeal,
+    borderColor: THEME.colors.accentTeal,
   },
   reflectionChipText: {
-    color: "#94a3b8",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 11,
     fontWeight: "600",
   },
   reflectionChipTextActive: {
-    color: "#10b981",
+    color: "#ffffff",
     fontWeight: "700",
   },
   syncSmallBtn: {
@@ -4779,7 +4791,7 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(200, 218, 210, 0.55)",
+    borderColor: "rgba(200, 218, 210, 0.6)",
   },
   realAppIcon: {
     width: 32,
@@ -4800,13 +4812,13 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   realAppName: {
-    color: "#f8fafc",
+    color: THEME.colors.cardTextPrimary,
     fontSize: 12,
     fontWeight: "700",
     maxWidth: 160,
   },
   realAppTime: {
-    color: "#cbd5e1",
+    color: THEME.colors.cardTextSecondary,
     fontSize: 11,
     fontWeight: "700",
   },
