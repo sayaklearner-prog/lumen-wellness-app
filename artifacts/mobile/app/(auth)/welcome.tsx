@@ -11,6 +11,7 @@ import {
   TextInput,
   ActivityIndicator,
   Alert,
+  ScrollView,
 } from "react-native";
 import { useRouter } from "expo-router";
 import * as Linking from "expo-linking";
@@ -369,7 +370,7 @@ export default function WelcomeScreen() {
       {/* ========================================================= */}
       <Image
         source={require("../../assets/cover-bg.jpg")}
-        style={StyleSheet.absoluteFillObject}
+        style={styles.coverImageBg}
         resizeMode="cover"
       />
 
@@ -378,15 +379,15 @@ export default function WelcomeScreen() {
         <Defs>
           {/* Vertical sunset-to-night gradient vignette */}
           <LinearGradient id="heroVerticalVignette" x1="0%" y1="0%" x2="0%" y2="100%">
-            <Stop offset="0%" stopColor="#080e0b" stopOpacity="0.45" />
-            <Stop offset="30%" stopColor="#080e0b" stopOpacity="0.10" />
-            <Stop offset="65%" stopColor="#080e0b" stopOpacity="0.35" />
+            <Stop offset="0%" stopColor="#080e0b" stopOpacity="0.40" />
+            <Stop offset="30%" stopColor="#080e0b" stopOpacity="0.08" />
+            <Stop offset="65%" stopColor="#080e0b" stopOpacity="0.32" />
             <Stop offset="100%" stopColor="#080e0b" stopOpacity="0.92" />
           </LinearGradient>
           {/* Left-edge shadow to give typography razor-sharp contrast */}
           <LinearGradient id="heroLeftEdgeVignette" x1="0%" y1="0%" x2="100%" y2="0%">
-            <Stop offset="0%" stopColor="#080e0b" stopOpacity="0.60" />
-            <Stop offset="60%" stopColor="#080e0b" stopOpacity="0.18" />
+            <Stop offset="0%" stopColor="#080e0b" stopOpacity="0.65" />
+            <Stop offset="55%" stopColor="#080e0b" stopOpacity="0.20" />
             <Stop offset="100%" stopColor="#080e0b" stopOpacity="0.0" />
           </LinearGradient>
         </Defs>
@@ -431,7 +432,7 @@ export default function WelcomeScreen() {
           >
             <Text style={styles.getStartedText}>Get Started</Text>
             <View style={styles.arrowCircle}>
-              <ArrowRight size={20} color="#ffffff" strokeWidth={2.6} />
+              <ArrowRight size={18} color="#ffffff" strokeWidth={2.6} />
             </View>
           </Pressable>
         </View>
@@ -482,37 +483,43 @@ export default function WelcomeScreen() {
         onRequestClose={() => setShowOtpModal(false)}
       >
         <View style={styles.modalBackdrop}>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setShowOtpModal(false)} />
           <View style={styles.modalPanel}>
             {/* Top Handle */}
             <View style={styles.modalHandle} />
 
-            {/* Modal Header */}
-            <View style={styles.modalHeader}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
-                <View style={styles.modalIconGlowCircle}>
-                  <Mail size={22} color="#f5ede4" strokeWidth={2.2} />
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={styles.modalScrollContent}
+            >
+              {/* Modal Header */}
+              <View style={styles.modalHeader}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+                  <View style={styles.modalIconGlowCircle}>
+                    <Mail size={22} color="#f5ede4" strokeWidth={2.2} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.modalHeaderTitle}>
+                      {authMode === "signup" ? "Create Your Account" : "Welcome Back"}
+                    </Text>
+                    <Text style={styles.modalHeaderSub}>
+                      {otpStage === "enter_email"
+                        ? "Step 1 of 2: Confirm your email address"
+                        : otpStage === "enter_otp"
+                        ? "Step 2 of 2: Enter 6-digit verification code"
+                        : "Verification Confirmed"}
+                    </Text>
+                  </View>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.modalHeaderTitle}>
-                    {authMode === "signup" ? "Create Your Account" : "Welcome Back"}
-                  </Text>
-                  <Text style={styles.modalHeaderSub}>
-                    {otpStage === "enter_email"
-                      ? "Step 1 of 2: Confirm your email address"
-                      : otpStage === "enter_otp"
-                      ? "Step 2 of 2: Enter 6-digit verification code"
-                      : "Verification Confirmed"}
-                  </Text>
-                </View>
+                <Pressable
+                  style={styles.modalCloseBtn}
+                  onPress={() => setShowOtpModal(false)}
+                  disabled={otpSending || otpVerifying}
+                >
+                  <X size={16} color="#ffffff" strokeWidth={2.5} />
+                </Pressable>
               </View>
-              <Pressable
-                style={styles.modalCloseBtn}
-                onPress={() => setShowOtpModal(false)}
-                disabled={otpSending || otpVerifying}
-              >
-                <X size={16} color="#ffffff" strokeWidth={2.5} />
-              </Pressable>
-            </View>
 
             {/* Error Banner if any */}
             {otpErrorMessage ? (
@@ -700,6 +707,7 @@ export default function WelcomeScreen() {
                 </Text>
               </View>
             )}
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -714,79 +722,86 @@ export default function WelcomeScreen() {
         onRequestClose={() => setShowGoogleModal(false)}
       >
         <View style={styles.modalBackdrop}>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setShowGoogleModal(false)} />
           <View style={styles.modalPanel}>
             <View style={styles.modalHandle} />
-            <View style={styles.modalHeader}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-                <GoogleIcon size={24} />
-                <View>
-                  <Text style={styles.modalHeaderTitle}>
-                    {authMode === "signup" ? "Sign Up with Google" : "Sign In with Google"}
-                  </Text>
-                  <Text style={styles.modalHeaderSub}>Direct Google Identity Platform</Text>
-                </View>
-              </View>
-              <Pressable style={styles.modalCloseBtn} onPress={() => setShowGoogleModal(false)}>
-                <X size={16} color="#ffffff" />
-              </Pressable>
-            </View>
-
-            {savedUserPreview && (
-              <Pressable
-                style={styles.savedAccountCard}
-                onPress={() => handleCompleteGoogleModal(savedUserPreview.email, savedUserPreview.name)}
-              >
-                <View style={styles.savedAvatar}>
-                  <Text style={styles.savedAvatarText}>
-                    {(savedUserPreview.name || savedUserPreview.email)[0].toUpperCase()}
-                  </Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.savedName}>{savedUserPreview.name}</Text>
-                  <Text style={styles.savedEmail}>{savedUserPreview.email}</Text>
-                </View>
-                <CheckCircle2 size={18} color="#10b981" />
-              </Pressable>
-            )}
-
-            <View style={styles.modalInputBox}>
-              <User size={18} color="#10b981" />
-              <TextInput
-                style={styles.modalTextInput}
-                placeholder="Full Name (e.g., Alex Rivera)"
-                placeholderTextColor="#64748b"
-                value={gmailName}
-                onChangeText={setGmailName}
-              />
-            </View>
-
-            <View style={[styles.modalInputBox, { marginTop: 10 }]}>
-              <Mail size={18} color="#10b981" />
-              <TextInput
-                style={styles.modalTextInput}
-                placeholder="Gmail address (e.g., alex@gmail.com)"
-                placeholderTextColor="#64748b"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                value={gmailAddress}
-                onChangeText={setGmailAddress}
-              />
-            </View>
-
-            <Pressable
-              style={styles.googleSubmitBtn}
-              onPress={() => handleCompleteGoogleModal()}
-              disabled={modalSubmitting}
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={styles.modalScrollContent}
             >
-              {modalSubmitting ? (
-                <ActivityIndicator size="small" color="#0b1612" />
-              ) : (
-                <>
-                  <GoogleIcon size={18} />
-                  <Text style={styles.googleSubmitBtnText}>Continue with Account</Text>
-                </>
+              <View style={styles.modalHeader}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                  <GoogleIcon size={24} />
+                  <View>
+                    <Text style={styles.modalHeaderTitle}>
+                      {authMode === "signup" ? "Sign Up with Google" : "Sign In with Google"}
+                    </Text>
+                    <Text style={styles.modalHeaderSub}>Direct Google Identity Platform</Text>
+                  </View>
+                </View>
+                <Pressable style={styles.modalCloseBtn} onPress={() => setShowGoogleModal(false)}>
+                  <X size={16} color="#ffffff" />
+                </Pressable>
+              </View>
+
+              {savedUserPreview && (
+                <Pressable
+                  style={styles.savedAccountCard}
+                  onPress={() => handleCompleteGoogleModal(savedUserPreview.email, savedUserPreview.name)}
+                >
+                  <View style={styles.savedAvatar}>
+                    <Text style={styles.savedAvatarText}>
+                      {(savedUserPreview.name || savedUserPreview.email)[0].toUpperCase()}
+                    </Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.savedName}>{savedUserPreview.name}</Text>
+                    <Text style={styles.savedEmail}>{savedUserPreview.email}</Text>
+                  </View>
+                  <CheckCircle2 size={18} color="#10b981" />
+                </Pressable>
               )}
-            </Pressable>
+
+              <View style={styles.modalInputBox}>
+                <User size={18} color="#10b981" />
+                <TextInput
+                  style={styles.modalTextInput}
+                  placeholder="Full Name (e.g., Alex Rivera)"
+                  placeholderTextColor="#64748b"
+                  value={gmailName}
+                  onChangeText={setGmailName}
+                />
+              </View>
+
+              <View style={[styles.modalInputBox, { marginTop: 4 }]}>
+                <Mail size={18} color="#10b981" />
+                <TextInput
+                  style={styles.modalTextInput}
+                  placeholder="Gmail address (e.g., alex@gmail.com)"
+                  placeholderTextColor="#64748b"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  value={gmailAddress}
+                  onChangeText={setGmailAddress}
+                />
+              </View>
+
+              <Pressable
+                style={styles.googleSubmitBtn}
+                onPress={() => handleCompleteGoogleModal()}
+                disabled={modalSubmitting}
+              >
+                {modalSubmitting ? (
+                  <ActivityIndicator size="small" color="#0b1612" />
+                ) : (
+                  <>
+                    <GoogleIcon size={18} />
+                    <Text style={styles.googleSubmitBtnText}>Continue with Account</Text>
+                  </>
+                )}
+              </Pressable>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -799,11 +814,20 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#080e0b",
   },
+  coverImageBg: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: "100%",
+    height: "100%",
+  },
   content: {
     flex: 1,
-    paddingHorizontal: 28,
-    paddingTop: Platform.OS === "ios" ? 64 : 44,
-    paddingBottom: Platform.OS === "ios" ? 44 : 28,
+    paddingHorizontal: 24,
+    paddingTop: Platform.OS === "ios" ? 54 : 36,
+    paddingBottom: Platform.OS === "ios" ? 38 : 22,
     justifyContent: "space-between",
   },
 
@@ -812,17 +836,17 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingTop: 8,
+    paddingTop: 6,
   },
   luxuryBrandTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: "700",
     color: "#ffffff",
-    letterSpacing: 8,
+    letterSpacing: 6,
   },
   menuTriggerBtn: {
-    width: 38,
-    height: 38,
+    width: 36,
+    height: 36,
     alignItems: "flex-end",
     justifyContent: "center",
     gap: 5,
@@ -844,35 +868,36 @@ const styles = StyleSheet.create({
   heroTextContainer: {
     marginTop: "auto",
     marginBottom: "auto",
-    paddingVertical: 20,
+    paddingVertical: 14,
+    maxWidth: "80%",
   },
   heroHeadline: {
-    fontSize: 48,
+    fontSize: 38,
     fontWeight: "900",
     color: "#ffffff",
-    lineHeight: 52,
-    letterSpacing: -1.2,
+    lineHeight: 42,
+    letterSpacing: -1.0,
   },
   heroSubheadline: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "600",
-    color: "rgba(255, 255, 255, 0.92)",
-    lineHeight: 24,
-    marginTop: 14,
+    color: "rgba(255, 255, 255, 0.90)",
+    lineHeight: 22,
+    marginTop: 10,
   },
 
   // Iconic Frosted Champagne Action Pill from Reference
   getStartedPill: {
     backgroundColor: "#f5ede4",
-    borderRadius: 36,
-    paddingVertical: 7,
-    paddingLeft: 24,
-    paddingRight: 7,
+    borderRadius: 34,
+    paddingVertical: 6,
+    paddingLeft: 22,
+    paddingRight: 6,
     flexDirection: "row",
     alignItems: "center",
-    gap: 16,
+    gap: 14,
     alignSelf: "flex-start",
-    marginTop: 26,
+    marginTop: 20,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.35,
@@ -881,14 +906,14 @@ const styles = StyleSheet.create({
   },
   getStartedText: {
     color: "#161b18",
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "900",
     letterSpacing: -0.2,
   },
   arrowCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: "#161b18",
     alignItems: "center",
     justifyContent: "center",
@@ -909,27 +934,27 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   miniAvatarCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    borderWidth: 2,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 1.5,
     borderColor: "rgba(255, 255, 255, 0.85)",
     alignItems: "center",
     justifyContent: "center",
   },
   avatarInitials: {
     color: "#ffffff",
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "800",
   },
   miniAvatarPlus: {
     backgroundColor: "rgba(255, 255, 255, 0.28)",
   },
   socialProofText: {
-    color: "rgba(255, 255, 255, 0.95)",
-    fontSize: 12,
+    color: "rgba(255, 255, 255, 0.92)",
+    fontSize: 11,
     fontWeight: "600",
-    lineHeight: 16,
+    lineHeight: 15,
   },
 
   pillarsCol: {
@@ -938,9 +963,9 @@ const styles = StyleSheet.create({
   },
   pillarsDivider: {
     width: 1,
-    height: 68,
+    height: 62,
     backgroundColor: "rgba(255, 255, 255, 0.35)",
-    marginRight: 14,
+    marginRight: 12,
   },
   pillarsList: {
     gap: 3,
@@ -955,28 +980,32 @@ const styles = StyleSheet.create({
   // Modal Backdrop & Luxury Panel
   modalBackdrop: {
     flex: 1,
-    backgroundColor: "rgba(8, 14, 11, 0.78)",
+    backgroundColor: "rgba(8, 14, 11, 0.72)",
     justifyContent: "flex-end",
   },
   modalPanel: {
-    backgroundColor: "rgba(16, 26, 21, 0.98)",
-    borderTopLeftRadius: 36,
-    borderTopRightRadius: 36,
+    maxHeight: "88%",
+    backgroundColor: "rgba(14, 25, 20, 0.98)",
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
     borderWidth: 1.5,
     borderBottomWidth: 0,
-    borderColor: "rgba(255, 255, 255, 0.18)",
-    paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: Platform.OS === "ios" ? 44 : 28,
-    gap: 16,
+    borderColor: "rgba(255, 255, 255, 0.16)",
+    paddingHorizontal: 22,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === "ios" ? 36 : 22,
   },
   modalHandle: {
-    width: 44,
+    width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: "rgba(255, 255, 255, 0.3)",
+    backgroundColor: "rgba(255, 255, 255, 0.28)",
     alignSelf: "center",
-    marginBottom: 4,
+    marginBottom: 8,
+  },
+  modalScrollContent: {
+    gap: 14,
+    paddingBottom: 12,
   },
   modalHeader: {
     flexDirection: "row",
