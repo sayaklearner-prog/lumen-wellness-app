@@ -73,6 +73,7 @@ import Svg, {
   Line,
 } from "react-native-svg";
 import { GlassCard } from "@/components/GlassCard";
+import { AmbientAtmosphere } from "@/components/AmbientAtmosphere";
 import { speakText, stopSpeaking } from "@/services/voice";
 import { syncHealthData, getLastSyncStatus, HealthSyncStatus } from "@/services/health";
 import { storage } from "@/services/storage";
@@ -900,6 +901,9 @@ export default function DashboardScreen() {
 
   return (
     <View style={styles.container}>
+      {/* Ambient atmospheric backlight glow */}
+      <AmbientAtmosphere variant="dashboard" />
+
       {/* Top Header Bar */}
       <View style={styles.topBar}>
         {/* Top-Left: Menu Trigger shifted to top left as requested */}
@@ -2892,17 +2896,17 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    backgroundColor: "rgba(255, 255, 255, 0.14)",
     borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.25)",
+    borderColor: "rgba(255, 255, 255, 0.25)",
     borderRadius: 14,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 11,
+    paddingVertical: 6,
   },
   syncChipText: {
-    color: "#10b981",
-    fontSize: 10,
-    fontWeight: "700",
+    color: "#ffffff",
+    fontSize: 11,
+    fontWeight: "800",
   },
   avatarCircle: {
     width: 36,
@@ -2922,7 +2926,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 16,
     paddingTop: 16,
-    paddingBottom: 40,
+    paddingBottom: 110,
   },
 
   // HERO CARD (Matches Reference)

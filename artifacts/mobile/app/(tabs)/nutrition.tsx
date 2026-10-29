@@ -11,6 +11,7 @@ import { queueOfflineLog, getMeals, saveMeal, deleteMeal, MealRecord } from "@/s
 import { storage } from "@/services/storage";
 import { useSlideMenu } from "@/context/SlideMenuContext";
 import THEME from "@/constants/theme";
+import { AmbientAtmosphere } from "@/components/AmbientAtmosphere";
 
 export default function NutritionScreen() {
   const qc = useQueryClient();
@@ -416,6 +417,9 @@ export default function NutritionScreen() {
 
   return (
     <View style={styles.container}>
+      {/* Ambient atmospheric backlight glow */}
+      <AmbientAtmosphere variant="dashboard" />
+
       {/* Header */}
       <View style={styles.header}>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
@@ -779,7 +783,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 25,
-    paddingBottom: 40,
+    paddingBottom: 110,
   },
   summaryCard: {
     backgroundColor: THEME.colors.cardBg,

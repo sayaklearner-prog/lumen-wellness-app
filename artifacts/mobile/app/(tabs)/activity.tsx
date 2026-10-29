@@ -30,6 +30,7 @@ import {
 } from "@/services/fitnessWatchSensor";
 import { nativeStepCounter } from "@/services/nativeStepCounter";
 import THEME from "@/constants/theme";
+import { AmbientAtmosphere } from "@/components/AmbientAtmosphere";
 
 // Standard MET table for manual logging catalog
 interface WorkoutPreset {
@@ -503,6 +504,9 @@ export default function ActivityScreen() {
 
   return (
     <View style={styles.container}>
+      {/* Ambient atmospheric backlight glow */}
+      <AmbientAtmosphere variant="dashboard" />
+
       {/* Top Header */}
       <View style={styles.header}>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
@@ -1871,7 +1875,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingBottom: 40,
+    paddingBottom: 110,
   },
   // ==========================================
   // FITNESS WATCH HUD STYLES

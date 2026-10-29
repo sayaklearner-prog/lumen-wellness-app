@@ -1,10 +1,8 @@
 /**
- * Lumen AI – Eucalyptus & Sage Frosted-Glass Design System
- * ─────────────────────────────────────────────────────────
- * Every colour, radius, shadow, and spacing token lives here.
- * Import `THEME` in any screen/component and use THEME.colors.xxx.
- *
- * DO NOT hard-code colour hex values in screens.
+ * Lumen AI – Eucalyptus, Sage & Warm Champagne Design System
+ * ─────────────────────────────────────────────────────────────
+ * Luminous frosted-glass surfaces, ambient atmospheric aura,
+ * and bright, high-contrast, crystal-clear typography.
  */
 
 export const THEME = {
@@ -12,40 +10,50 @@ export const THEME = {
   colors: {
     /** Deep sage-forest gradient stops (top → bottom) */
     bgGradientStart: '#1b2e28',
-    bgGradientMid: '#26433b',
-    bgGradientEnd: '#13221d',
-    /** Flat fallback when gradient can't be used */
-    bgSolid: '#1a2e27',
+    bgGradientMid: '#243e35',
+    bgGradientEnd: '#111e19',
+    /** Flat fallback */
+    bgSolid: '#162822',
+
+    /* ──── Ambient Atmospheric Glow (Warm Champagne & Sunlight Aura) ──── */
+    ambientChampagne: '#cfb9a5',
+    ambientChampagneGlow: 'rgba(207, 185, 165, 0.28)',
+    ambientEmeraldGlow: 'rgba(36, 68, 56, 0.35)',
 
     /* ──── Frosted Card Surfaces ──── */
-    /** Primary frosted light-sage card bg */
-    cardBg: 'rgba(232, 241, 237, 0.92)',
-    /** Slightly more opaque variant */
-    cardBgSolid: '#e8f1ed',
+    /** Primary frosted luminous light-sage card */
+    cardBg: 'rgba(238, 245, 242, 0.94)',
+    /** Solid variant */
+    cardBgSolid: '#eef5f2',
     /** Secondary/lighter card */
-    cardBgLight: '#dce7e2',
-    /** Card border */
-    cardBorder: 'rgba(200, 218, 210, 0.55)',
+    cardBgLight: '#e4eee9',
+    /** Crisp luminous card border */
+    cardBorder: 'rgba(215, 230, 224, 0.75)',
     /** Inner-card divider */
-    cardDivider: 'rgba(180, 200, 192, 0.4)',
+    cardDivider: 'rgba(190, 210, 202, 0.45)',
 
-    /* ──── Text on Cards (dark) ──── */
-    /** Primary heading on a card */
-    cardTextPrimary: '#162621',
-    /** Secondary/body on a card */
-    cardTextSecondary: '#4a6b60',
-    /** Tertiary/muted on a card */
-    cardTextTertiary: '#5a7d72',
+    /* ──── Text on Cards (Deep, Crisp, High-Contrast) ──── */
+    /** Primary heading on card – deep sharp forest charcoal */
+    cardTextPrimary: '#0b1612',
+    /** Secondary/body on card – rich, legible slate */
+    cardTextSecondary: '#244538',
+    /** Tertiary/muted on card */
+    cardTextTertiary: '#44695a',
 
-    /* ──── Text on Dark Background ──── */
-    /** Page title / hero text */
+    /* ──── Text on Dark Background (Ultra-Bright & Crisp) ──── */
+    /** Page title / hero text – bright pure white */
     textOnDarkPrimary: '#ffffff',
-    /** Page subtitle */
-    textOnDarkSecondary: '#9cb6ae',
-    /** Muted label */
-    textOnDarkTertiary: '#7a9d93',
+    /** Page subtitle – bright luminous frosted sage */
+    textOnDarkSecondary: '#e2ece7',
+    /** Muted label on dark */
+    textOnDarkTertiary: '#b8d0c6',
 
-    /* ──── Accent: Orange/Amber ──── */
+    /* ──── Accent: Warm Caramel / Terracotta (Editorial Luxury from Reference) ──── */
+    accentCaramel: '#b87a4c',
+    accentCaramelLight: '#c98d60',
+    accentCaramelBg: 'rgba(184, 122, 76, 0.18)',
+
+    /* ──── Accent: Orange/Amber (Steps, Streaks & Burn) ──── */
     accentOrange: '#f97316',
     accentOrangeLight: '#fb923c',
     accentOrangeBg: 'rgba(249, 115, 22, 0.15)',
@@ -65,48 +73,50 @@ export const THEME = {
     statusError: '#ef4444',
     statusInfo: '#3b82f6',
 
-    /* ──── Bottom Navigation ──── */
+    /* ──── Bottom Navigation (Floating Capsule Island) ──── */
     /** Floating capsule background */
-    navIslandBg: '#0b1613',
+    navIslandBg: '#111d18',
+    navIslandBorder: 'rgba(255, 255, 255, 0.12)',
     /** Active tab pill */
     navActivePill: '#ffffff',
     /** Active tab icon/text */
-    navActiveIcon: '#0e1c18',
-    /** Inactive tab icon */
-    navInactiveIcon: '#7a9d93',
+    navActiveIcon: '#0b1612',
+    /** Inactive tab icon – bright, crisp off-white/sage (never dull!) */
+    navInactiveIcon: '#e2ece7',
+    navInactiveText: '#a3c2b6',
 
     /* ──── Slide Drawer ──── */
-    drawerBg: '#13221d',
-    drawerItemBg: 'rgba(232, 241, 237, 0.12)',
-    drawerItemActiveBg: 'rgba(232, 241, 237, 0.22)',
-    drawerDivider: 'rgba(156, 182, 174, 0.2)',
+    drawerBg: '#12201b',
+    drawerItemBg: 'rgba(238, 245, 242, 0.14)',
+    drawerItemActiveBg: 'rgba(238, 245, 242, 0.24)',
+    drawerDivider: 'rgba(184, 208, 198, 0.22)',
 
     /* ──── Misc ──── */
-    overlay: 'rgba(11, 22, 19, 0.65)',
-    shimmer: 'rgba(255, 255, 255, 0.06)',
+    overlay: 'rgba(11, 22, 19, 0.70)',
+    shimmer: 'rgba(255, 255, 255, 0.08)',
     white: '#ffffff',
     black: '#000000',
     transparent: 'transparent',
 
     /* ──── Chat Bubbles ──── */
-    chatAssistantBg: 'rgba(232, 241, 237, 0.92)',
-    chatAssistantText: '#162621',
+    chatAssistantBg: 'rgba(238, 245, 242, 0.95)',
+    chatAssistantText: '#0b1612',
     chatUserBg: '#0e2a24',
-    chatUserText: '#e8f1ed',
-    chatInputBg: 'rgba(232, 241, 237, 0.15)',
-    chatInputText: '#e8f1ed',
-    chatInputPlaceholder: '#7a9d93',
+    chatUserText: '#ffffff',
+    chatInputBg: 'rgba(238, 245, 242, 0.18)',
+    chatInputText: '#ffffff',
+    chatInputPlaceholder: '#b8d0c6',
 
     /* ──── Toggle / Switch ──── */
     toggleActive: '#10b981',
-    toggleInactive: '#4a6b60',
+    toggleInactive: '#385a4e',
     toggleThumb: '#ffffff',
 
     /* ──── Pill / Segment Controls ──── */
     pillActiveBg: '#0e2a24',
     pillActiveText: '#ffffff',
-    pillInactiveBg: 'rgba(232, 241, 237, 0.18)',
-    pillInactiveText: '#9cb6ae',
+    pillInactiveBg: 'rgba(238, 245, 242, 0.18)',
+    pillInactiveText: '#e2ece7',
 
     /* ──── Badges / Achievement Tiers ──── */
     tierBronze: '#cd7f32',
@@ -132,29 +142,36 @@ export const THEME = {
     card: {
       shadowColor: '#000000',
       shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.18,
+      shadowOpacity: 0.14,
       shadowRadius: 12,
-      elevation: 6,
+      elevation: 5,
     },
     cardLight: {
       shadowColor: '#000000',
       shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.10,
+      shadowOpacity: 0.08,
       shadowRadius: 6,
       elevation: 3,
     },
     nav: {
       shadowColor: '#000000',
-      shadowOffset: { width: 0, height: -4 },
-      shadowOpacity: 0.25,
-      shadowRadius: 16,
-      elevation: 10,
+      shadowOffset: { width: 0, height: -3 },
+      shadowOpacity: 0.35,
+      shadowRadius: 18,
+      elevation: 12,
     },
     glow: {
       shadowColor: '#10b981',
       shadowOffset: { width: 0, height: 0 },
       shadowOpacity: 0.35,
       shadowRadius: 12,
+      elevation: 8,
+    },
+    glowWarm: {
+      shadowColor: '#b87a4c',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.35,
+      shadowRadius: 14,
       elevation: 8,
     },
   },
@@ -172,7 +189,6 @@ export const THEME = {
 
   /* ──── Typography ──── */
   fonts: {
-    /** Weights (React Native style string) */
     thin: '300' as const,
     regular: '400' as const,
     medium: '500' as const,

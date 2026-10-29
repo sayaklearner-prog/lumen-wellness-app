@@ -46,6 +46,7 @@ import {
 import { speakText, stopSpeaking, parseVoiceCommand } from "@/services/voice";
 import { useSlideMenu } from "@/context/SlideMenuContext";
 import THEME from "@/constants/theme";
+import { AmbientAtmosphere } from "@/components/AmbientAtmosphere";
 import {
   getCoachMessages,
   saveCoachMessage,
@@ -358,6 +359,9 @@ export default function CoachScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
       keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
     >
+      {/* Ambient atmospheric backlight glow */}
+      <AmbientAtmosphere variant="dashboard" />
+
       {/* Header */}
       <View style={styles.header}>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
@@ -966,13 +970,15 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   inputBar: {
-    height: 72,
+    height: Platform.OS === "ios" ? 134 : 126,
     borderTopWidth: 1,
     borderTopColor: "rgba(200, 218, 210, 0.15)",
     backgroundColor: "rgba(19, 34, 29, 0.98)",
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
+    paddingTop: 12,
     paddingHorizontal: 16,
+    paddingBottom: Platform.OS === "ios" ? 76 : 70,
     gap: 10,
   },
   textInput: {

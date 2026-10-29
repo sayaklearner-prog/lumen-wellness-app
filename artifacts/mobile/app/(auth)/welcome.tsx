@@ -30,6 +30,8 @@ import {
 } from "@/services/googleAuth";
 import { authService } from "@/services/authService";
 import THEME from "@/constants/theme";
+import { AmbientAtmosphere } from "@/components/AmbientAtmosphere";
+import Svg, { Circle, Path as SvgPath, Defs, RadialGradient as SvgRadialGrad, Stop as SvgStop } from "react-native-svg";
 import {
   Sparkles,
   ArrowRight,
@@ -42,6 +44,7 @@ import {
   RefreshCw,
   AlertCircle,
   Lock,
+  Play,
 } from "lucide-react-native";
 
 const { width } = Dimensions.get("window");
@@ -367,8 +370,8 @@ export default function WelcomeScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Ambient botanical background glow */}
-      <View style={styles.radialGlow} />
+      {/* Editorial Ambient Atmospheric Backdrop with Warm Champagne Aura */}
+      <AmbientAtmosphere variant="editorial" />
 
       <View style={styles.content}>
         {/* Brand Header */}
@@ -376,7 +379,7 @@ export default function WelcomeScreen() {
           <View style={styles.logoRow}>
             <Image
               source={require("../../assets/icon.png")}
-              style={{ width: 44, height: 44, borderRadius: 12 }}
+              style={{ width: 38, height: 38, borderRadius: 10 }}
               resizeMode="cover"
             />
             <View>
@@ -412,90 +415,116 @@ export default function WelcomeScreen() {
           </View>
         </View>
 
-        {/* Hero Copy */}
+        {/* Centerpiece: Zen Silhouette & Ambient Glow Aura (Image 1 Aesthetic) */}
+        <View style={styles.zenGraphicContainer}>
+          <Svg width={220} height={150} viewBox="0 0 220 150" style={{ position: "absolute" }}>
+            <Defs>
+              <SvgRadialGrad id="zenHalo" cx="50%" cy="50%" rx="50%" ry="50%">
+                <SvgStop offset="0%" stopColor="#cfb9a5" stopOpacity="0.45" />
+                <SvgStop offset="50%" stopColor="#b87a4c" stopOpacity="0.22" />
+                <SvgStop offset="100%" stopColor="#1e1713" stopOpacity="0" />
+              </SvgRadialGrad>
+            </Defs>
+            <Circle cx="110" cy="75" r="70" fill="url(#zenHalo)" />
+            <Circle cx="110" cy="75" r="46" stroke="rgba(207, 185, 165, 0.3)" strokeWidth="1" strokeDasharray="3 3" fill="none" />
+            {/* Graceful Silhouette in Motion */}
+            <Circle cx="110" cy="46" r="10" fill="rgba(255, 255, 255, 0.88)" />
+            <SvgPath
+              d="M110 58 C102 66, 96 80, 94 96 C94 108, 102 116, 110 116 C118 116, 126 108, 126 96 C124 80, 118 66, 110 58 Z"
+              fill="rgba(255, 255, 255, 0.80)"
+            />
+            {/* Ambient motion wings radiating serene balance */}
+            <SvgPath
+              d="M104 68 C88 56, 68 54, 52 62 C68 72, 86 78, 98 80 Z"
+              fill="rgba(207, 185, 165, 0.50)"
+            />
+            <SvgPath
+              d="M116 68 C132 56, 152 54, 168 62 C152 72, 134 78, 122 80 Z"
+              fill="rgba(207, 185, 165, 0.50)"
+            />
+            <SvgPath
+              d="M86 108 C70 114, 60 124, 48 132 C68 132, 86 126, 94 116 Z"
+              fill="rgba(207, 185, 165, 0.38)"
+            />
+            <SvgPath
+              d="M134 108 C150 114, 160 124, 172 132 C152 132, 134 126, 126 116 Z"
+              fill="rgba(207, 185, 165, 0.38)"
+            />
+          </Svg>
+        </View>
+
+        {/* Floating Category Pills (matching Image 1) */}
+        <View style={styles.floatingPillsRow}>
+          <View style={styles.floatingGlassPill}>
+            <Text style={styles.floatingPillText}>Mindfulness</Text>
+          </View>
+          <View style={[styles.floatingGlassPill, styles.floatingPillActive]}>
+            <Text style={[styles.floatingPillText, styles.floatingPillTextActive]}>Daily Bio-Tracking</Text>
+          </View>
+          <View style={styles.floatingGlassPill}>
+            <Text style={styles.floatingPillText}>Circadian AI</Text>
+          </View>
+        </View>
+
+        {/* Hero Copy (Bold, Ultra-Clean, Bright Sans-Serif Typography) */}
         <View style={styles.copyArea}>
           <Text style={styles.tagline}>
-            {authMode === "signup" ? "Begin Your Health Evolution." : "Welcome Back to Lumen."}
+            {authMode === "signup" ? "Breathe Better.\nLive Calmer." : "Welcome Back.\nLive Calmer."}
           </Text>
           <Text style={styles.desc}>
             {authMode === "signup"
-              ? "Sign up with Gmail to synchronize real-time biometrics, nutrition, circadian sleep, and AI health memory."
-              : "Sign in with your Google account to access your biometric dashboard, wellness records, and AI coach."}
+              ? "For bio-tracking, daily focus, circadian health and inner balance."
+              : "Access your biometric memory, real-time vitals, and intelligent coach."}
           </Text>
         </View>
 
-        {/* Auth Actions Area */}
+        {/* Auth Actions Area (Dual Luxury Pill Buttons matching Image 1) */}
         <View style={styles.actionSection}>
-          {/* ========================================================= */}
-          {/* PROMINENT GOOGLE / GMAIL LOGIN & SIGN UP BUTTON           */}
-          {/* ========================================================= */}
-          <Pressable
-            style={({ pressed }) => [
-              styles.googleBtn,
-              pressed && { opacity: 0.9, transform: [{ scale: 0.98 }] },
-            ]}
-            onPress={handleGoogleAuthPress}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <ActivityIndicator size="small" color="#050b08" />
-            ) : (
-              <>
-                <View style={styles.googleIconBox}>
-                  <GoogleIcon size={22} />
-                </View>
-                <Text style={styles.googleBtnText}>
-                  {authMode === "signup" ? "Sign up with Gmail" : "Sign in with Google"}
-                </Text>
-              </>
-            )}
-          </Pressable>
-
-          {/* Divider */}
-          <View style={styles.dividerRow}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>OR</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          {/* Secondary Action */}
-          {authMode === "signup" ? (
+          <View style={styles.dualButtonRow}>
+            {/* Primary Action Button: Warm Caramel Terracotta with Play / Sparkle Icon */}
             <Pressable
               style={({ pressed }) => [
-                styles.secondaryBtn,
-                pressed && { opacity: 0.8 },
+                styles.caramelPillBtn,
+                pressed && { opacity: 0.9, transform: [{ scale: 0.98 }] },
               ]}
-              onPress={handleOpenManualSignUp}
+              onPress={handleGoogleAuthPress}
+              disabled={isLoading}
             >
-              <Mail size={16} color="#10b981" />
-              <Text style={styles.secondaryBtnText}>Sign Up with Email Verification</Text>
-              <ArrowRight size={16} color="#94a3b8" />
+              {isLoading ? (
+                <ActivityIndicator size="small" color="#ffffff" />
+              ) : (
+                <>
+                  <Play size={16} color="#ffffff" fill="#ffffff" />
+                  <Text style={styles.caramelBtnText}>
+                    {authMode === "signup" ? "Get Started" : "Continue"}
+                  </Text>
+                </>
+              )}
             </Pressable>
-          ) : (
-            <View style={{ gap: 10 }}>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.secondaryBtn,
-                  pressed && { opacity: 0.8 },
-                ]}
-                onPress={handleOpenManualSignIn}
-              >
-                <Mail size={16} color="#10b981" />
-                <Text style={styles.secondaryBtnText}>Sign In with Email Code</Text>
-                <ArrowRight size={16} color="#94a3b8" />
-              </Pressable>
 
-              <Pressable
-                style={({ pressed }) => [
-                  styles.ghostBtn,
-                  pressed && { opacity: 0.8 },
-                ]}
-                onPress={handleGuestBypass}
-              >
-                <Text style={styles.ghostBtnText}>Continue as Guest / Offline</Text>
-              </Pressable>
-            </View>
-          )}
+            {/* Secondary Action Button: Crisp White Frosted Pill */}
+            <Pressable
+              style={({ pressed }) => [
+                styles.whitePillBtn,
+                pressed && { opacity: 0.9, transform: [{ scale: 0.98 }] },
+              ]}
+              onPress={authMode === "signup" ? handleOpenManualSignUp : handleOpenManualSignIn}
+            >
+              <Mail size={16} color="#0b1612" />
+              <Text style={styles.whitePillBtnText}>Email Sign-In</Text>
+            </Pressable>
+          </View>
+
+          {/* Quick Guest Bypass fallback */}
+          <Pressable
+            style={({ pressed }) => [
+              styles.ghostBtn,
+              pressed && { opacity: 0.8 },
+            ]}
+            onPress={handleGuestBypass}
+          >
+            <Text style={styles.ghostBtnText}>Continue as Guest / Offline</Text>
+          </Pressable>
 
           {/* Switch Mode Prompt */}
           <Pressable
@@ -518,7 +547,7 @@ export default function WelcomeScreen() {
 
         {/* Footer */}
         <View style={styles.footer}>
-          <ShieldCheck size={14} color="#64748b" style={{ marginRight: 6 }} />
+          <ShieldCheck size={14} color="#a3c2b6" style={{ marginRight: 6 }} />
           <Text style={styles.footerText}>Secure biometric privacy • Created by MeshMind</Text>
         </View>
       </View>
@@ -935,7 +964,99 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   actionSection: {
-    gap: 14,
+    gap: 12,
+  },
+  zenGraphicContainer: {
+    height: 150,
+    alignItems: "center",
+    justifyContent: "center",
+    marginVertical: 4,
+  },
+  floatingPillsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginVertical: 6,
+  },
+  floatingGlassPill: {
+    backgroundColor: "rgba(255, 255, 255, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.25)",
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  floatingPillActive: {
+    backgroundColor: "rgba(255, 255, 255, 0.24)",
+    borderColor: "rgba(255, 255, 255, 0.45)",
+  },
+  floatingPillText: {
+    color: "#e2ece7",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  floatingPillTextActive: {
+    color: "#ffffff",
+    fontWeight: "900",
+  },
+  dualButtonRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  caramelPillBtn: {
+    flex: 1,
+    height: 52,
+    backgroundColor: THEME.colors.accentCaramel,
+    borderRadius: 26,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  caramelBtnText: {
+    color: "#ffffff",
+    fontSize: 14,
+    fontWeight: "900",
+    letterSpacing: -0.2,
+  },
+  whitePillBtn: {
+    flex: 1,
+    height: 52,
+    backgroundColor: "#ffffff",
+    borderRadius: 26,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  whitePillBtnText: {
+    color: "#0b1612",
+    fontSize: 14,
+    fontWeight: "900",
+    letterSpacing: -0.2,
+  },
+  ghostBtn: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 6,
+  },
+  ghostBtnText: {
+    color: "#d4e8df",
+    fontSize: 12,
+    fontWeight: "700",
+    textDecorationLine: "underline",
   },
 
   // Google Button
@@ -1158,18 +1279,6 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontSize: 14,
     fontWeight: "800",
-  },
-
-  // Ghost Button
-  ghostBtn: {
-    height: 42,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  ghostBtnText: {
-    color: THEME.colors.textOnDarkSecondary,
-    fontSize: 13,
-    fontWeight: "600",
   },
 
   // OTP Modal Styles

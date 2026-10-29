@@ -67,8 +67,33 @@ function AuthGate() {
     }
   });
 
-  // Run on initial mount (with offline sync setup)
+  // Run on initial mount (with offline sync setup and font initialization)
   useEffect(() => {
+    if (Platform.OS === "web" && typeof document !== "undefined") {
+      try {
+        if (!document.getElementById("lumen-google-fonts")) {
+          const fontLink = document.createElement("link");
+          fontLink.id = "lumen-google-fonts";
+          fontLink.rel = "stylesheet";
+          fontLink.href =
+            "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700;800;900&display=swap";
+          document.head.appendChild(fontLink);
+        }
+        if (!document.getElementById("lumen-font-style")) {
+          const styleTag = document.createElement("style");
+          styleTag.id = "lumen-font-style";
+          styleTag.textContent = `
+            *, html, body, div, span, p, a, button, input, select, textarea {
+              font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Inter', 'SF Pro Display', Roboto, 'Segoe UI', Helvetica, Arial, sans-serif !important;
+              -webkit-font-smoothing: antialiased;
+              -moz-osx-font-smoothing: grayscale;
+            }
+          `;
+          document.head.appendChild(styleTag);
+        }
+      } catch {}
+    }
+
     if (Platform.OS !== "web") {
       try {
         const { setupOfflineSync } = require("@/services/sync");
