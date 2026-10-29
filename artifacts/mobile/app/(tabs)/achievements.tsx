@@ -383,7 +383,7 @@ export default function AchievementsScreen() {
 
                 {/* Title & Description */}
                 <View style={{ marginVertical: 8 }}>
-                  <Text style={[styles.badgeTitle, isUnlocked && { color: "#f8fafc" }]}>
+                  <Text style={[styles.badgeTitle, isUnlocked && { color: "#f8fafc" }]} numberOfLines={1}>
                     {badge.title}
                   </Text>
                   <Text style={styles.badgeDesc} numberOfLines={2}>
@@ -394,7 +394,7 @@ export default function AchievementsScreen() {
                 {/* Progress Bar & Numerical Counter */}
                 <View style={{ marginTop: "auto" }}>
                   <View style={styles.cardProgressRow}>
-                    <Text style={styles.cardProgressText}>
+                    <Text style={[styles.cardProgressText, { flex: 1, marginRight: 6 }]} numberOfLines={1}>
                       {badge.currentValue.toLocaleString()} / {badge.target.toLocaleString()} {badge.unit}
                     </Text>
                     <Text style={[styles.cardProgressPercent, isUnlocked && { color: "#10b981" }]}>

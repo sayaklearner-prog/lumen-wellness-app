@@ -465,11 +465,11 @@ export default function NutritionScreen() {
         <View style={styles.actionRow}>
           <Pressable style={styles.scanBtn} onPress={() => setShowScanModal(!showScanModal)}>
             <Camera size={18} color="#050b08" style={{ marginRight: 8 }} />
-            <Text style={styles.scanBtnText}>Scan Food Photo</Text>
+            <Text style={styles.scanBtnText} numberOfLines={1}>Scan Food Photo</Text>
           </Pressable>
           <Pressable style={styles.manualBtn} onPress={() => { setShowLogForm(true); setShowScanModal(false); }}>
             <Plus size={18} color="#e2e8f0" style={{ marginRight: 6 }} />
-            <Text style={styles.manualBtnText}>Log Manually</Text>
+            <Text style={styles.manualBtnText} numberOfLines={1}>Log Manually</Text>
           </Pressable>
         </View>
 
@@ -723,14 +723,14 @@ export default function NutritionScreen() {
                 {typeMeals.length > 0 ? (
                   typeMeals.map((m: any, idx: number) => (
                     <View key={idx} style={styles.mealRow}>
-                      <View style={styles.mealLeft}>
+                      <View style={[styles.mealLeft, { minWidth: 0 }]}>
                         <Apple size={16} color="#10b981" />
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.mealName}>{m.name}</Text>
-                          <Text style={styles.mealMacros}>
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <Text style={styles.mealName} numberOfLines={1}>{m.name}</Text>
+                          <Text style={styles.mealMacros} numberOfLines={1}>
                             {m.calories} kcal • P: {m.proteinGrams ?? m.protein_grams ?? 0}g • C: {m.carbsGrams ?? m.carbs_grams ?? 0}g • F: {m.fatGrams ?? m.fat_grams ?? 0}g
                           </Text>
-                          {m.vitamins && <Text style={styles.mealVitamins}>{m.vitamins}</Text>}
+                          {m.vitamins && <Text style={styles.mealVitamins} numberOfLines={1}>{m.vitamins}</Text>}
                         </View>
                       </View>
                       <Pressable onPress={() => handleDeleteMeal(m.id)}>
@@ -834,7 +834,7 @@ const styles = StyleSheet.create({
   },
   scanBtnText: {
     color: "#ffffff",
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "bold",
   },
   manualBtn: {
@@ -850,7 +850,7 @@ const styles = StyleSheet.create({
   },
   manualBtnText: {
     color: THEME.colors.textOnDarkPrimary,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "bold",
   },
   scannerActionBtn: {

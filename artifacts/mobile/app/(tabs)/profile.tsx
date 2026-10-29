@@ -675,11 +675,11 @@ export default function SettingsScreen() {
               <View style={styles.tierBadgeRow}>
                 <View style={styles.tierBadge}>
                   <Sparkles size={11} color="#10b981" />
-                  <Text style={styles.tierBadgeText}>PRO BIO-INTELLIGENCE</Text>
+                  <Text style={styles.tierBadgeText} numberOfLines={1}>PRO BIO-INTELLIGENCE</Text>
                 </View>
                 <View style={styles.encryptionBadge}>
                   <Shield size={10} color="#38bdf8" />
-                  <Text style={styles.encryptionBadgeText}>AES-256 LOCAL</Text>
+                  <Text style={styles.encryptionBadgeText} numberOfLines={1}>AES-256 LOCAL</Text>
                 </View>
               </View>
 
@@ -699,24 +699,24 @@ export default function SettingsScreen() {
 
           {/* Quick Biometric Metadata Strip */}
           <View style={styles.bioMetaStrip}>
-            <View style={styles.bioMetaCell}>
-              <Text style={styles.bioMetaLabel}>HEIGHT</Text>
-              <Text style={styles.bioMetaVal}>{userHeight} cm</Text>
+            <View style={[styles.bioMetaCell, { minWidth: 0 }]}>
+              <Text style={styles.bioMetaLabel} numberOfLines={1}>HEIGHT</Text>
+              <Text style={styles.bioMetaVal} numberOfLines={1}>{userHeight} cm</Text>
             </View>
             <View style={styles.bioMetaDivider} />
-            <View style={styles.bioMetaCell}>
-              <Text style={styles.bioMetaLabel}>WEIGHT</Text>
-              <Text style={styles.bioMetaVal}>{userWeight} kg</Text>
+            <View style={[styles.bioMetaCell, { minWidth: 0 }]}>
+              <Text style={styles.bioMetaLabel} numberOfLines={1}>WEIGHT</Text>
+              <Text style={styles.bioMetaVal} numberOfLines={1}>{userWeight} kg</Text>
             </View>
             <View style={styles.bioMetaDivider} />
-            <View style={styles.bioMetaCell}>
-              <Text style={styles.bioMetaLabel}>BLOOD</Text>
-              <Text style={styles.bioMetaVal}>{bloodType}</Text>
+            <View style={[styles.bioMetaCell, { minWidth: 0 }]}>
+              <Text style={styles.bioMetaLabel} numberOfLines={1}>BLOOD</Text>
+              <Text style={styles.bioMetaVal} numberOfLines={1}>{bloodType}</Text>
             </View>
             <View style={styles.bioMetaDivider} />
-            <View style={styles.bioMetaCell}>
-              <Text style={styles.bioMetaLabel}>PROTOCOL</Text>
-              <Text style={[styles.bioMetaVal, { color: "#10b981" }]}>
+            <View style={[styles.bioMetaCell, { minWidth: 0 }]}>
+              <Text style={styles.bioMetaLabel} numberOfLines={1}>PROTOCOL</Text>
+              <Text style={[styles.bioMetaVal, { color: "#10b981" }]} numberOfLines={1}>
                 {HEALTH_MODES.find(m => m.id === mode)?.title.split(" ")[0] || "Standard"}
               </Text>
             </View>

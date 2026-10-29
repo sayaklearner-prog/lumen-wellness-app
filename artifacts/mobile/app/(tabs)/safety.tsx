@@ -493,9 +493,9 @@ export default function SafetyScreen() {
               onPress={() => handleCallNumber("911", "National Emergency 911")}
             >
               <PhoneCall size={16} color="#ffffff" />
-              <View>
-                <Text style={styles.sosCallBtnTitle}>CALL 911</Text>
-                <Text style={styles.sosCallBtnSub}>Ambulance • Police • Fire</Text>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={styles.sosCallBtnTitle} numberOfLines={1}>CALL 911</Text>
+                <Text style={styles.sosCallBtnSub} numberOfLines={1}>Ambulance • Fire</Text>
               </View>
             </Pressable>
 
@@ -504,9 +504,9 @@ export default function SafetyScreen() {
               onPress={() => handleCallNumber("112", "Universal Emergency 112")}
             >
               <PhoneCall size={16} color="#ffffff" />
-              <View>
-                <Text style={styles.sosCallBtnTitle}>CALL 112</Text>
-                <Text style={styles.sosCallBtnSub}>Global Dispatch</Text>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={styles.sosCallBtnTitle} numberOfLines={1}>CALL 112</Text>
+                <Text style={styles.sosCallBtnSub} numberOfLines={1}>Global Dispatch</Text>
               </View>
             </Pressable>
           </View>

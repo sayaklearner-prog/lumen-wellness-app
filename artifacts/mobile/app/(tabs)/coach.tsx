@@ -12,6 +12,7 @@ import {
   Alert,
   Modal,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   useGetProfile,
   useListConversations,
@@ -109,9 +110,14 @@ function FormattedMessage({ content, isUser }: { content: string; isUser: boolea
 }
 
 export default function CoachScreen() {
+  const insets = useSafeAreaInsets();
   const qc = useQueryClient();
   const { openLeftMenu } = useSlideMenu();
   const scrollViewRef = useRef<ScrollView>(null);
+
+  const bottomBarClearance = Platform.OS === "ios"
+    ? Math.max(insets.bottom + 76, 96)
+    : Math.max(insets.bottom + 80, 92);
 
   const [inputText, setInputText] = useState("");
   const { data: profile } = useGetProfile();
@@ -374,7 +380,9 @@ export default function CoachScreen() {
               />
               <Text style={styles.logoText}>Lumen Coach</Text>
             </View>
-            <Text style={styles.logoSub}>Ground-Truth Memory Engine & Context Model</Text>
+            <Text style={styles.logoSub} numberOfLines={1}>
+              Ground-Truth Memory Engine & Context Model
+            </Text>
           </View>
 
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
@@ -493,7 +501,7 @@ export default function CoachScreen() {
       {/* Main chat window */}
       <ScrollView
         ref={scrollViewRef}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: 24 }]}
         showsVerticalScrollIndicator={false}
       >
         {localMessages.map((m, idx) => {
@@ -577,32 +585,34 @@ export default function CoachScreen() {
         <View style={{ height: 20 }} />
       </ScrollView>
 
-      {/* Input Bar */}
-      <View style={styles.inputBar}>
-        <Pressable
-          style={[styles.iconBtn, isListening && styles.listeningMic]}
-          onPress={handleMicPress}
-        >
-          <Mic size={18} color={isListening ? "#050b08" : "#94a3b8"} />
-        </Pressable>
+      {/* Input Bar elevated cleanly above floating capsule tab bar */}
+      <View style={[styles.inputBar, { paddingBottom: bottomBarClearance }]}>
+        <View style={styles.inputInnerRow}>
+          <Pressable
+            style={[styles.iconBtn, isListening && styles.listeningMic]}
+            onPress={handleMicPress}
+          >
+            <Mic size={18} color={isListening ? "#050b08" : "#94a3b8"} />
+          </Pressable>
 
-        <TextInput
-          style={styles.textInput}
-          placeholder="Ask Lumen Coach anything..."
-          placeholderTextColor="#64748b"
-          value={inputText}
-          onChangeText={setInputText}
-          onSubmitEditing={() => handleSend(inputText)}
-          returnKeyType="send"
-        />
+          <TextInput
+            style={styles.textInput}
+            placeholder="Ask Lumen Coach anything..."
+            placeholderTextColor="#64748b"
+            value={inputText}
+            onChangeText={setInputText}
+            onSubmitEditing={() => handleSend(inputText)}
+            returnKeyType="send"
+          />
 
-        <Pressable
-          style={[styles.sendBtn, !inputText.trim() && { opacity: 0.5 }]}
-          onPress={() => handleSend(inputText)}
-          disabled={!inputText.trim()}
-        >
-          <Send size={16} color="#050b08" />
-        </Pressable>
+          <Pressable
+            style={[styles.sendBtn, !inputText.trim() && { opacity: 0.5 }]}
+            onPress={() => handleSend(inputText)}
+            disabled={!inputText.trim()}
+          >
+            <Send size={16} color="#050b08" />
+          </Pressable>
+        </View>
       </View>
 
       {/* ========================================================= */}
@@ -889,6 +899,7 @@ const styles = StyleSheet.create({
     borderColor: THEME.colors.cardBorder,
     borderBottomLeftRadius: 4,
     paddingBottom: 26,
+    paddingRight: 32,
     flex: 1,
     flexShrink: 1,
     ...THEME.shadows.cardLight,
@@ -968,18 +979,20 @@ const styles = StyleSheet.create({
     color: THEME.colors.cardTextPrimary,
     fontSize: 13,
     fontWeight: "600",
+    flex: 1,
+    flexShrink: 1,
   },
   inputBar: {
-    height: Platform.OS === "ios" ? 134 : 126,
     borderTopWidth: 1,
     borderTopColor: "rgba(200, 218, 210, 0.15)",
-    backgroundColor: "rgba(19, 34, 29, 0.98)",
+    backgroundColor: "rgba(14, 25, 20, 0.98)",
+    paddingTop: 10,
+    paddingHorizontal: 14,
+  },
+  inputInnerRow: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    paddingTop: 12,
-    paddingHorizontal: 16,
-    paddingBottom: Platform.OS === "ios" ? 76 : 70,
-    gap: 10,
+    alignItems: "center",
+    gap: 8,
   },
   textInput: {
     flex: 1,

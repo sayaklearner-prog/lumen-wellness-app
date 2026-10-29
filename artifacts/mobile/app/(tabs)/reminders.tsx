@@ -330,10 +330,10 @@ export default function RemindersScreen() {
                 />
               </View>
 
-              <Text style={[styles.alarmTitle, !rem.enabled && styles.alarmTitleDisabled]}>
+              <Text style={[styles.alarmTitle, !rem.enabled && styles.alarmTitleDisabled]} numberOfLines={1}>
                 {rem.title}
               </Text>
-              <Text style={styles.alarmRepeat}>{rem.repeat}</Text>
+              <Text style={styles.alarmRepeat} numberOfLines={1}>{rem.repeat}</Text>
 
               {/* Bottom Controls of Card */}
               <View style={styles.cardActionsRow}>

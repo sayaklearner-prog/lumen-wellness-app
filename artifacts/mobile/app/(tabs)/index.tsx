@@ -584,9 +584,9 @@ export default function DashboardScreen() {
   }, [caloriesConsumed, caloriesTarget]);
 
   const dynamicNutritionLabel = useMemo(() => {
-    if (caloriesConsumed === 0) return "Not logged • Tap to log";
+    if (caloriesConsumed === 0) return "Tap to log";
     if (dynamicNutritionScore >= 8.5) return `${caloriesConsumed} kcal • Optimal`;
-    if (dynamicNutritionScore >= 7.0) return `${caloriesConsumed} kcal • On Target`;
+    if (dynamicNutritionScore >= 7.0) return `${caloriesConsumed} kcal • Target`;
     return `${caloriesConsumed} kcal • Deficit`;
   }, [caloriesConsumed, dynamicNutritionScore]);
 
@@ -604,7 +604,7 @@ export default function DashboardScreen() {
   }, [effectiveSleepHours]);
 
   const dynamicSleepLabel = useMemo(() => {
-    if (effectiveSleepHours === 0) return "Not logged • Tap to log";
+    if (effectiveSleepHours === 0) return "Tap to log";
     return `${effectiveSleepHours}h • ${sleepQuality}`;
   }, [effectiveSleepHours, sleepQuality]);
 
@@ -619,7 +619,7 @@ export default function DashboardScreen() {
   }, [stepsCount, stepsTarget, workouts, totalActiveCaloriesBurned]);
 
   const dynamicActivityLabel = useMemo(() => {
-    if (stepsCount === 0 && (!workouts || workouts.length === 0)) return "Not logged • Tap to track";
+    if (stepsCount === 0 && (!workouts || workouts.length === 0)) return "Tap to track";
     if (dynamicActivityScore >= 8.0) return `${stepsCount.toLocaleString()} steps • Peak`;
     if (dynamicActivityScore >= 6.0) return `${stepsCount.toLocaleString()} steps • Active`;
     return `${stepsCount.toLocaleString()} steps • Light`;
@@ -636,13 +636,13 @@ export default function DashboardScreen() {
   }, [screenMinutesToday, screenLimitMinutes]);
 
   const dynamicScreenLabel = useMemo(() => {
-    if (screenMinutesToday === 0) return "Not logged • Tap to connect";
+    if (screenMinutesToday === 0) return "Tap to connect";
     const hours = Math.floor(screenMinutesToday / 60);
     const mins = screenMinutesToday % 60;
     const timeStr = `${hours}h ${mins}m`;
     if (dynamicScreenScore >= 8.5) return `${timeStr} • Balanced`;
     if (dynamicScreenScore >= 7.0) return `${timeStr} • Moderate`;
-    return `${timeStr} • Screen Strain`;
+    return `${timeStr} • Strain`;
   }, [screenMinutesToday, dynamicScreenScore]);
 
   // 5. Dynamic Hydration Score & Label
@@ -655,8 +655,8 @@ export default function DashboardScreen() {
 
   const dynamicHydrationLabel = useMemo(() => {
     if (hydration.statusLabel && hydration.todayMl > 0) return hydration.statusLabel;
-    if (waterCups === 0) return "Not logged • Tap to log";
-    if (waterCups >= 8) return `${waterCups} cups • Fully Hydrated`;
+    if (waterCups === 0) return "Tap to log";
+    if (waterCups >= 8) return `${waterCups} cups • Hydrated`;
     if (waterCups >= 5) return `${waterCups} cups • Good Pace`;
     return `${waterCups} cups • Needs Water`;
   }, [hydration.statusLabel, hydration.todayMl, waterCups]);
@@ -972,11 +972,11 @@ export default function DashboardScreen() {
         <View style={styles.heroCard}>
           <View style={styles.heroTopRow}>
             <View style={styles.heroTextCol}>
-              <Text style={styles.greetingTitle}>
+              <Text style={styles.greetingTitle} numberOfLines={1}>
                 {greetingTime},{"\n"}
-                <Text style={styles.greetingName}>{userName}</Text>
+                <Text style={styles.greetingName} numberOfLines={1}>{userName}</Text>
               </Text>
-              <Text style={styles.energySubtext}>{energySubtext}</Text>
+              <Text style={styles.energySubtext} numberOfLines={2}>{energySubtext}</Text>
             </View>
 
             {/* Circular Score Gauge */}
@@ -993,7 +993,7 @@ export default function DashboardScreen() {
               }}
             >
               <Utensils size={14} color="#f59e0b" />
-              <Text style={styles.pillMealText}>Log Meal</Text>
+              <Text style={styles.pillMealText} numberOfLines={1}>Log Meal</Text>
             </Pressable>
 
             <Pressable
@@ -1004,7 +1004,7 @@ export default function DashboardScreen() {
               }}
             >
               <Zap size={14} color="#10b981" />
-              <Text style={styles.pillActivityText}>Track Activity</Text>
+              <Text style={styles.pillActivityText} numberOfLines={1}>Track Activity</Text>
             </Pressable>
           </View>
         </View>
@@ -1053,9 +1053,9 @@ export default function DashboardScreen() {
             }}
           >
             <View style={styles.pillarTopRow}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 5, flex: 1, minWidth: 0, marginRight: 4 }}>
                 <Utensils size={14} color="#10b981" />
-                <Text style={styles.pillarTitle}>Nutrition</Text>
+                <Text style={styles.pillarTitle} numberOfLines={1}>Nutrition</Text>
               </View>
               <Text style={[styles.pillarScore, { color: "#10b981" }]}>
                 {dynamicNutritionScore > 0 ? dynamicNutritionScore.toFixed(1) : "0.0"}
@@ -1072,7 +1072,7 @@ export default function DashboardScreen() {
                 ]}
               />
             </View>
-            <Text style={styles.pillarSubtitle} numberOfLines={1}>
+            <Text style={styles.pillarSubtitle} numberOfLines={1} ellipsizeMode="tail">
               {dynamicNutritionLabel}
             </Text>
           </Pressable>
@@ -1089,9 +1089,9 @@ export default function DashboardScreen() {
             }}
           >
             <View style={styles.pillarTopRow}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 5, flex: 1, minWidth: 0, marginRight: 4 }}>
                 <Moon size={14} color="#f59e0b" />
-                <Text style={styles.pillarTitle}>Sleep</Text>
+                <Text style={styles.pillarTitle} numberOfLines={1}>Sleep</Text>
               </View>
               <Text style={[styles.pillarScore, { color: "#f59e0b" }]}>
                 {dynamicSleepScore > 0 ? dynamicSleepScore.toFixed(1) : "0.0"}
@@ -1108,7 +1108,7 @@ export default function DashboardScreen() {
                 ]}
               />
             </View>
-            <Text style={styles.pillarSubtitle} numberOfLines={1}>
+            <Text style={styles.pillarSubtitle} numberOfLines={1} ellipsizeMode="tail">
               {dynamicSleepLabel}
             </Text>
           </Pressable>
@@ -1125,9 +1125,9 @@ export default function DashboardScreen() {
             }}
           >
             <View style={styles.pillarTopRow}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 5, flex: 1, minWidth: 0, marginRight: 4 }}>
                 <Activity size={14} color="#06b6d4" />
-                <Text style={styles.pillarTitle}>Activity</Text>
+                <Text style={styles.pillarTitle} numberOfLines={1}>Activity</Text>
               </View>
               <Text style={[styles.pillarScore, { color: "#06b6d4" }]}>
                 {dynamicActivityScore > 0 ? dynamicActivityScore.toFixed(1) : "0.0"}
@@ -1144,7 +1144,7 @@ export default function DashboardScreen() {
                 ]}
               />
             </View>
-            <Text style={styles.pillarSubtitle} numberOfLines={1}>
+            <Text style={styles.pillarSubtitle} numberOfLines={1} ellipsizeMode="tail">
               {dynamicActivityLabel}
             </Text>
           </Pressable>
@@ -1166,9 +1166,9 @@ export default function DashboardScreen() {
             }}
           >
             <View style={styles.pillarTopRow}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 5, flex: 1, minWidth: 0, marginRight: 4 }}>
                 <Smartphone size={14} color={liveFocus.isActive ? "#10b981" : "#a855f7"} />
-                <Text style={styles.pillarTitle}>Screen</Text>
+                <Text style={styles.pillarTitle} numberOfLines={1}>Screen</Text>
               </View>
               {liveFocus.isActive ? (
                 <View
@@ -1182,6 +1182,7 @@ export default function DashboardScreen() {
                       styles.pillarFocusLiveBadgeText,
                       { color: liveFocus.isPaused ? "#f59e0b" : "#10b981" },
                     ]}
+                    numberOfLines={1}
                   >
                     {liveFocus.isPaused ? "PAUSED" : "FOCUS"}
                   </Text>
@@ -1207,7 +1208,7 @@ export default function DashboardScreen() {
                 ]}
               />
             </View>
-            <Text style={styles.pillarSubtitle} numberOfLines={1}>
+            <Text style={styles.pillarSubtitle} numberOfLines={1} ellipsizeMode="tail">
               {liveFocus.isActive
                 ? liveFocus.isPaused
                   ? "Paused • Tap to resume"
@@ -1231,10 +1232,10 @@ export default function DashboardScreen() {
             <View style={styles.dropCircle}>
               <Droplet size={18} color="#06b6d4" />
             </View>
-            <View style={{ flex: 1, marginLeft: 12 }}>
+            <View style={{ flex: 1, marginLeft: 10, minWidth: 0 }}>
               <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                  <Text style={styles.bioCardLabel}>Hydration & Electrolytes</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 5, flex: 1, minWidth: 0, marginRight: 6 }}>
+                  <Text style={styles.bioCardLabel} numberOfLines={1}>Hydration & Electrolytes</Text>
                   <View style={[styles.hydrationBadgePill, { backgroundColor: `${hydration.statusBadgeColor}22`, borderColor: `${hydration.statusBadgeColor}55` }]}>
                     <Text style={[styles.hydrationBadgeText, { color: hydration.statusBadgeColor }]}>
                       {hydration.percentUsed}%
@@ -1248,13 +1249,13 @@ export default function DashboardScreen() {
                   <ChevronRight size={16} color="#64748b" />
                 </View>
               </View>
-              <Text style={styles.bioCardValue}>
+              <Text style={styles.bioCardValue} numberOfLines={1}>
                 {hydration.todayMl > 0 ? `${hydration.todayMl.toLocaleString()} ml` : `${waterCups * 250} ml`}
                 <Text style={{ fontSize: 13, color: "#64748b", fontWeight: "600" }}>
                   {" "}/ {hydration.targetMl.toLocaleString()} ml ({waterCups} / {hydration.targetCups} cups)
                 </Text>
               </Text>
-              <Text style={styles.pillarSubtitle}>{dynamicHydrationLabel}</Text>
+              <Text style={styles.pillarSubtitle} numberOfLines={1}>{dynamicHydrationLabel}</Text>
             </View>
           </View>
 
@@ -2883,29 +2884,29 @@ const styles = StyleSheet.create({
   },
   brandTitle: {
     color: THEME.colors.textOnDarkPrimary,
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "900",
-    letterSpacing: -0.5,
+    letterSpacing: -0.3,
   },
   topRightActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 8,
   },
   syncChip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
+    gap: 4,
     backgroundColor: "rgba(255, 255, 255, 0.14)",
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.25)",
     borderRadius: 14,
-    paddingHorizontal: 11,
-    paddingVertical: 6,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
   },
   syncChipText: {
     color: "#ffffff",
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: "800",
   },
   avatarCircle: {
@@ -2950,25 +2951,27 @@ const styles = StyleSheet.create({
   },
   heroTextCol: {
     flex: 1,
-    paddingRight: 12,
+    paddingRight: 10,
+    minWidth: 0,
   },
   greetingTitle: {
     color: THEME.colors.cardTextPrimary,
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: "800",
-    lineHeight: 28,
-    letterSpacing: -0.5,
+    lineHeight: 24,
+    letterSpacing: -0.4,
   },
   greetingName: {
     color: THEME.colors.cardTextPrimary,
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: "900",
+    lineHeight: 28,
   },
   energySubtext: {
     color: THEME.colors.cardTextSecondary,
-    fontSize: 13,
-    marginTop: 8,
-    lineHeight: 18,
+    fontSize: 12,
+    marginTop: 6,
+    lineHeight: 16,
   },
   scoreNumber: {
     color: THEME.colors.cardTextPrimary,
@@ -2985,39 +2988,43 @@ const styles = StyleSheet.create({
   },
   actionPillsRow: {
     flexDirection: "row",
-    gap: 12,
-    marginTop: 18,
+    gap: 10,
+    marginTop: 14,
   },
   pillMeal: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 6,
     backgroundColor: "rgba(245, 158, 11, 0.16)",
     borderWidth: 1,
     borderColor: "rgba(245, 158, 11, 0.35)",
-    paddingVertical: 9,
-    paddingHorizontal: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
     borderRadius: 20,
   },
   pillMealText: {
     color: "#f59e0b",
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: "700",
   },
   pillActivity: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 6,
     backgroundColor: "rgba(16, 185, 129, 0.16)",
     borderWidth: 1,
     borderColor: "rgba(16, 185, 129, 0.35)",
-    paddingVertical: 9,
-    paddingHorizontal: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
     borderRadius: 20,
   },
   pillActivityText: {
     color: "#10b981",
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: "700",
   },
 
@@ -3077,12 +3084,15 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   pillarCard: {
-    width: (SCREEN_WIDTH - 42) / 2,
+    width: "48.2%",
+    flexGrow: 1,
+    minHeight: 96,
     backgroundColor: THEME.colors.cardBg,
     borderRadius: 24,
-    padding: 14,
+    padding: 12,
     borderWidth: 1,
     borderColor: THEME.colors.cardBorder,
+    justifyContent: "space-between",
   },
   pillarTopRow: {
     flexDirection: "row",
@@ -3091,18 +3101,18 @@ const styles = StyleSheet.create({
   },
   pillarTitle: {
     color: THEME.colors.cardTextPrimary,
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: "700",
   },
   pillarScore: {
-    fontSize: 15,
+    fontSize: 14.5,
     fontWeight: "900",
   },
   pillarBarTrack: {
     height: 4,
     backgroundColor: "rgba(180, 205, 195, 0.35)",
     borderRadius: 2,
-    marginVertical: 10,
+    marginVertical: 8,
     overflow: "hidden",
   },
   pillarBarFill: {
@@ -3111,8 +3121,9 @@ const styles = StyleSheet.create({
   },
   pillarSubtitle: {
     color: THEME.colors.cardTextSecondary,
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: "600",
+    lineHeight: 14,
   },
 
   // ACTIVE STREAKS SECTION

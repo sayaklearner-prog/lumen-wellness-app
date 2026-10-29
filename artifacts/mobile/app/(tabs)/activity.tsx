@@ -535,7 +535,7 @@ export default function ActivityScreen() {
             onPress={() => setActiveMainTab("watch")}
           >
             <Watch size={14} color={activeMainTab === "watch" ? "#10b981" : "#64748b"} />
-            <Text style={[styles.tabText, activeMainTab === "watch" && styles.tabTextActive]}>
+            <Text style={[styles.tabText, activeMainTab === "watch" && styles.tabTextActive]} numberOfLines={1}>
               Watch
             </Text>
           </Pressable>
@@ -545,7 +545,7 @@ export default function ActivityScreen() {
             onPress={() => setActiveMainTab("wearable")}
           >
             <Bluetooth size={14} color={activeMainTab === "wearable" ? "#10b981" : "#64748b"} />
-            <Text style={[styles.tabText, activeMainTab === "wearable" && styles.tabTextActive]}>
+            <Text style={[styles.tabText, activeMainTab === "wearable" && styles.tabTextActive]} numberOfLines={1}>
               Wearables
             </Text>
             {connectedDevice && (
@@ -558,7 +558,7 @@ export default function ActivityScreen() {
             onPress={() => setActiveMainTab("catalog")}
           >
             <Dumbbell size={14} color={activeMainTab === "catalog" ? "#10b981" : "#64748b"} />
-            <Text style={[styles.tabText, activeMainTab === "catalog" && styles.tabTextActive]}>
+            <Text style={[styles.tabText, activeMainTab === "catalog" && styles.tabTextActive]} numberOfLines={1}>
               Catalog
             </Text>
           </Pressable>
@@ -568,7 +568,7 @@ export default function ActivityScreen() {
             onPress={() => setActiveMainTab("strain")}
           >
             <Gauge size={14} color={activeMainTab === "strain" ? "#10b981" : "#64748b"} />
-            <Text style={[styles.tabText, activeMainTab === "strain" && styles.tabTextActive]}>
+            <Text style={[styles.tabText, activeMainTab === "strain" && styles.tabTextActive]} numberOfLines={1}>
               Strain
             </Text>
           </Pressable>
@@ -697,33 +697,36 @@ export default function ActivityScreen() {
                 </View>
 
                 {/* Big Chronometer & Live Primary Metric */}
-                <View style={styles.watchMainMetricsCol}>
-                  <Text style={styles.watchTimerText}>
+                <View style={[styles.watchMainMetricsCol, { minWidth: 0 }]}>
+                  <Text style={styles.watchTimerText} numberOfLines={1}>
                     {watchMetrics.isActive ? formatTime(watchMetrics.elapsedSeconds) : "LIVE"}
                   </Text>
-                  <Text style={[
-                    styles.watchStatusPill, 
-                    isWearableActive && { backgroundColor: "rgba(56, 189, 248, 0.2)", borderColor: "rgba(56, 189, 248, 0.4)", color: "#38bdf8" },
-                    !bgTrackingInfo.hasPermission && { backgroundColor: "rgba(245, 158, 11, 0.2)", borderColor: "rgba(245, 158, 11, 0.4)", color: "#fbbf24" }
-                  ]}>
+                  <Text
+                    style={[
+                      styles.watchStatusPill, 
+                      isWearableActive && { backgroundColor: "rgba(56, 189, 248, 0.2)", borderColor: "rgba(56, 189, 248, 0.4)", color: "#38bdf8" },
+                      !bgTrackingInfo.hasPermission && { backgroundColor: "rgba(245, 158, 11, 0.2)", borderColor: "rgba(245, 158, 11, 0.4)", color: "#fbbf24" }
+                    ]}
+                    numberOfLines={2}
+                  >
                     {isWearableActive
                       ? `⌚ WEARABLE EXTRACT (${connectedDevice?.name || "DEVICE"})`
                       : !bgTrackingInfo.hasPermission
-                        ? "⚠️ BACKGROUND PERMISSION REQUIRED"
+                        ? "⚠️ PERMISSION NEEDED"
                         : watchMetrics.detectedActivity === "running"
-                          ? "🏃 OUTDOOR RUNNING (AUTO-DETECTED)"
+                          ? "🏃 OUTDOOR RUNNING"
                           : watchMetrics.detectedActivity === "walking"
-                            ? "🚶 OUTDOOR WALKING (AUTO-DETECTED)"
-                            : "● 24/7 BACKGROUND TRACKING ACTIVE"}
+                            ? "🚶 OUTDOOR WALKING"
+                            : "● 24/7 TRACKING ACTIVE"}
                   </Text>
 
                   {/* Dynamic primary counter based on workout mode */}
                   <View style={styles.primaryMetricBox}>
-                    <Text style={styles.primaryMetricVal}>
+                    <Text style={styles.primaryMetricVal} numberOfLines={1}>
                       {stepsToday.toLocaleString()}
                     </Text>
-                    <Text style={styles.primaryMetricUnit}>
-                      Daily Steps (Auto-Tracked 24/7)
+                    <Text style={styles.primaryMetricUnit} numberOfLines={1}>
+                      Daily Steps (24/7 Live)
                     </Text>
                   </View>
                 </View>
@@ -737,7 +740,7 @@ export default function ActivityScreen() {
                     <Zap size={14} color="#10b981" />
                     <Text style={styles.telemetryLabel}>Exertion Load</Text>
                   </View>
-                  <Text style={styles.telemetryValue}>
+                  <Text style={styles.telemetryValue} numberOfLines={1}>
                     {watchMetrics.cadenceSpm > 0 ? (
                       watchMetrics.currentIntensity.toUpperCase()
                     ) : (
@@ -745,7 +748,7 @@ export default function ActivityScreen() {
                     )}
                   </Text>
                   <View style={[styles.zoneBadge, { backgroundColor: getZoneColor(watchMetrics.heartRateZone) + "20" }]}>
-                    <Text style={[styles.zoneBadgeText, { color: getZoneColor(watchMetrics.heartRateZone) }]}>
+                    <Text style={[styles.zoneBadgeText, { color: getZoneColor(watchMetrics.heartRateZone) }]} numberOfLines={1}>
                       {watchMetrics.cadenceSpm > 0
                         ? `ZONE ${watchMetrics.heartRateZone} INTENSITY`
                         : "STATIONARY • AT REST"}
@@ -759,10 +762,10 @@ export default function ActivityScreen() {
                     <Flame size={14} color="#f59e0b" />
                     <Text style={styles.telemetryLabel}>Active Burn</Text>
                   </View>
-                  <Text style={styles.telemetryValue}>
+                  <Text style={styles.telemetryValue} numberOfLines={1}>
                     {watchMetrics.isActive ? watchMetrics.activeCalories : stepsCaloriesBurned} <Text style={styles.telemetryUnit}>kcal</Text>
                   </Text>
-                  <Text style={styles.telemetrySub}>
+                  <Text style={styles.telemetrySub} numberOfLines={1}>
                     {watchMetrics.isActive ? `${watchMetrics.currentMet} METs power` : `${totalActiveCaloriesBurned} total day kcal`}
                   </Text>
                 </View>
@@ -773,12 +776,12 @@ export default function ActivityScreen() {
                     <Footprints size={14} color="#10b981" />
                     <Text style={styles.telemetryLabel}>Cadence / Tempo</Text>
                   </View>
-                  <Text style={styles.telemetryValue}>
+                  <Text style={styles.telemetryValue} numberOfLines={1}>
                     {watchMetrics.isActive && watchMetrics.mode === "strength_reps"
                       ? `${watchMetrics.reps} reps`
                       : `${watchMetrics.cadenceSpm}`} <Text style={styles.telemetryUnit}>SPM</Text>
                   </Text>
-                  <Text style={styles.telemetrySub}>Peak G: {watchMetrics.peakGForce}G</Text>
+                  <Text style={styles.telemetrySub} numberOfLines={1}>Peak G: {watchMetrics.peakGForce}G</Text>
                 </View>
 
                 {/* 4. Distance & Pace */}
@@ -787,11 +790,11 @@ export default function ActivityScreen() {
                     <Compass size={14} color="#3b82f6" />
                     <Text style={styles.telemetryLabel}>Distance & Pace</Text>
                   </View>
-                  <Text style={styles.telemetryValue}>
+                  <Text style={styles.telemetryValue} numberOfLines={1}>
                     {watchMetrics.isActive ? watchMetrics.distanceKm : (stepsToday * 0.00075).toFixed(2)} <Text style={styles.telemetryUnit}>km</Text>
                   </Text>
-                  <Text style={styles.telemetrySub}>
-                    {watchMetrics.isActive ? `${watchMetrics.paceMinKm} pace` : `${stepsToday > 0 ? "Continuous daily walk" : "Stationary"}`}
+                  <Text style={styles.telemetrySub} numberOfLines={1}>
+                    {watchMetrics.isActive ? `${watchMetrics.paceMinKm} pace` : `${stepsToday > 0 ? "Continuous walk" : "Stationary"}`}
                   </Text>
                 </View>
               </View>
@@ -1563,9 +1566,9 @@ export default function ActivityScreen() {
                   <View style={styles.activityIcon}>
                     <Activity size={18} color="#10b981" />
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.activityName}>{w.type}</Text>
-                    <Text style={styles.activityTime}>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={styles.activityName} numberOfLines={1}>{w.type}</Text>
+                    <Text style={styles.activityTime} numberOfLines={1}>
                       {w.durationMinutes} min • <Text style={{ color: "#10b981", fontWeight: "bold" }}>{w.caloriesBurned} kcal</Text>
                       {w.distanceKm ? ` • ${w.distanceKm} km` : ""}
                       {w.steps ? ` • ${w.steps.toLocaleString()} steps` : ""}
@@ -1940,9 +1943,9 @@ const styles = StyleSheet.create({
   },
   watchTimerText: {
     color: THEME.colors.cardTextPrimary,
-    fontSize: 32,
+    fontSize: 26,
     fontWeight: "900",
-    letterSpacing: 1,
+    letterSpacing: 0.5,
     fontVariant: ["tabular-nums"],
   },
   watchStatusPill: {
