@@ -30,10 +30,8 @@ import {
 } from "@/services/googleAuth";
 import { authService } from "@/services/authService";
 import THEME from "@/constants/theme";
-import { AmbientAtmosphere } from "@/components/AmbientAtmosphere";
-import Svg, { Circle, Path as SvgPath, Defs, RadialGradient as SvgRadialGrad, Stop as SvgStop } from "react-native-svg";
+import Svg, { Defs, LinearGradient, Stop, Rect } from "react-native-svg";
 import {
-  Sparkles,
   ArrowRight,
   ShieldCheck,
   Mail,
@@ -44,10 +42,10 @@ import {
   RefreshCw,
   AlertCircle,
   Lock,
-  Play,
+  Plus,
 } from "lucide-react-native";
 
-const { width } = Dimensions.get("window");
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 export default function WelcomeScreen() {
   const router = useRouter();
@@ -69,7 +67,7 @@ export default function WelcomeScreen() {
   const [otpErrorMessage, setOtpErrorMessage] = useState("");
   const [devOtpNotification, setDevOtpNotification] = useState<string | null>(null);
 
-  // Google Sign-In Interactive Modal State (used when OAuth key is pending or for direct account selection)
+  // Google Sign-In Interactive Modal State
   const [showGoogleModal, setShowGoogleModal] = useState(false);
   const [gmailAddress, setGmailAddress] = useState("");
   const [gmailName, setGmailName] = useState("");
@@ -97,7 +95,7 @@ export default function WelcomeScreen() {
     checkSaved();
   }, []);
 
-  // Listen to incoming OAuth redirect URLs (from real Google OAuth flow)
+  // Listen to incoming OAuth redirect URLs
   useEffect(() => {
     const handleUrlEvent = async (event: { url: string }) => {
       const { url } = event;
@@ -149,7 +147,6 @@ export default function WelcomeScreen() {
 
     const sub = Linking.addEventListener("url", handleUrlEvent);
 
-    // Also check initial URL if opened via deep link
     Linking.getInitialURL().then((initialUrl) => {
       if (initialUrl) {
         handleUrlEvent({ url: initialUrl });
@@ -163,7 +160,6 @@ export default function WelcomeScreen() {
   const handleGoogleAuthPress = async () => {
     triggerHaptic();
 
-    // If real Google OAuth Client ID has been configured, trigger the browser OAuth flow
     if (isGoogleOAuthConfigured()) {
       setIsLoading(true);
       const authUrl = buildGoogleAuthUrl(authMode === "signup" ? "select_account" : "consent");
@@ -180,7 +176,6 @@ export default function WelcomeScreen() {
       return;
     }
 
-    // When OAuth key is pending, open the interactive Google Account Selector
     setShowGoogleModal(true);
   };
 
@@ -196,7 +191,6 @@ export default function WelcomeScreen() {
       return;
     }
 
-    // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(emailToUse)) {
       Alert.alert("Invalid Email", "Please enter a valid email address (e.g., name@gmail.com).");
@@ -248,6 +242,7 @@ export default function WelcomeScreen() {
   // Open Email OTP Modal for Manual Sign Up
   const handleOpenManualSignUp = () => {
     triggerHaptic();
+    setAuthMode("signup");
     setOtpEmail("");
     setOtpCode("");
     setOtpStage("enter_email");
@@ -259,6 +254,7 @@ export default function WelcomeScreen() {
   // Open Email OTP Modal for Sign In
   const handleOpenManualSignIn = () => {
     triggerHaptic();
+    setAuthMode("signin");
     setOtpEmail("");
     setOtpCode("");
     setOtpStage("enter_email");
@@ -328,7 +324,6 @@ export default function WelcomeScreen() {
           qc.invalidateQueries({ queryKey: getGetMyProfileQueryKey() });
 
           if (authMode === "signup") {
-            // First email verification done! Now transition to other onboarding inputs
             await storage.setItem("lumen_in_onboarding", "true");
             await storage.removeItem("lumen_onboarding_completed");
             if (Platform.OS === "web" && typeof localStorage !== "undefined") {
@@ -337,7 +332,6 @@ export default function WelcomeScreen() {
             }
             router.replace("/(auth)/onboarding");
           } else {
-            // Sign in verified -> go straight to dashboard
             await storage.removeItem("lumen_in_onboarding");
             if (Platform.OS === "web" && typeof localStorage !== "undefined") {
               localStorage.removeItem("lumen_in_onboarding");
@@ -355,7 +349,7 @@ export default function WelcomeScreen() {
     }
   };
 
-  // Guest bypass fallback if needed
+  // Guest bypass fallback
   const handleGuestBypass = async () => {
     triggerHaptic();
     await storage.setItem("lumen_auth_token", "authenticated");
@@ -370,323 +364,144 @@ export default function WelcomeScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Editorial Ambient Atmospheric Backdrop with Warm Champagne Aura */}
-      <AmbientAtmosphere variant="editorial" />
+      {/* ========================================================= */}
+      {/* FULLSCREEN BACKGROUND PHOTOGRAPHY (Reference Aesthetic)    */}
+      {/* ========================================================= */}
+      <Image
+        source={require("../../assets/cover-bg.jpg")}
+        style={StyleSheet.absoluteFillObject}
+        resizeMode="cover"
+      />
 
+      {/* Cinematic Dual Vignette Overlays for Maximum Legibility */}
+      <Svg width="100%" height="100%" style={StyleSheet.absoluteFillObject} pointerEvents="none">
+        <Defs>
+          {/* Vertical sunset-to-night gradient vignette */}
+          <LinearGradient id="heroVerticalVignette" x1="0%" y1="0%" x2="0%" y2="100%">
+            <Stop offset="0%" stopColor="#080e0b" stopOpacity="0.45" />
+            <Stop offset="30%" stopColor="#080e0b" stopOpacity="0.10" />
+            <Stop offset="65%" stopColor="#080e0b" stopOpacity="0.35" />
+            <Stop offset="100%" stopColor="#080e0b" stopOpacity="0.92" />
+          </LinearGradient>
+          {/* Left-edge shadow to give typography razor-sharp contrast */}
+          <LinearGradient id="heroLeftEdgeVignette" x1="0%" y1="0%" x2="100%" y2="0%">
+            <Stop offset="0%" stopColor="#080e0b" stopOpacity="0.60" />
+            <Stop offset="60%" stopColor="#080e0b" stopOpacity="0.18" />
+            <Stop offset="100%" stopColor="#080e0b" stopOpacity="0.0" />
+          </LinearGradient>
+        </Defs>
+        <Rect x="0" y="0" width="100%" height="100%" fill="url(#heroVerticalVignette)" />
+        <Rect x="0" y="0" width="100%" height="100%" fill="url(#heroLeftEdgeVignette)" />
+      </Svg>
+
+      {/* Main Foreground Content */}
       <View style={styles.content}>
-        {/* Brand Header */}
-        <View style={styles.header}>
-          <View style={styles.logoRow}>
-            <Image
-              source={require("../../assets/icon.png")}
-              style={{ width: 38, height: 38, borderRadius: 10 }}
-              resizeMode="cover"
-            />
-            <View>
-              <Text style={styles.logoText}>Lumen OS</Text>
-              <Text style={styles.logoSub}>Bio-Intelligence Platform</Text>
-            </View>
-          </View>
-
-          {/* Mode Switcher Tabs */}
-          <View style={styles.tabContainer}>
-            <Pressable
-              style={[styles.tabBtn, authMode === "signup" && styles.tabBtnActive]}
-              onPress={() => {
-                triggerHaptic();
-                setAuthMode("signup");
-              }}
-            >
-              <Text style={[styles.tabBtnText, authMode === "signup" && styles.tabBtnTextActive]}>
-                Sign Up
-              </Text>
-            </Pressable>
-            <Pressable
-              style={[styles.tabBtn, authMode === "signin" && styles.tabBtnActive]}
-              onPress={() => {
-                triggerHaptic();
-                setAuthMode("signin");
-              }}
-            >
-              <Text style={[styles.tabBtnText, authMode === "signin" && styles.tabBtnTextActive]}>
-                Sign In
-              </Text>
-            </Pressable>
-          </View>
+        {/* Top Minimalist Luxury Header */}
+        <View style={styles.topHeader}>
+          <Text style={styles.luxuryBrandTitle}>v i t a</Text>
+          <Pressable
+            style={styles.menuTriggerBtn}
+            onPress={handleOpenManualSignIn}
+            accessibilityLabel="Open Menu"
+          >
+            <View style={styles.menuTriggerBar1} />
+            <View style={styles.menuTriggerBar2} />
+          </Pressable>
         </View>
 
-        {/* Centerpiece: Zen Silhouette & Ambient Glow Aura (Image 1 Aesthetic) */}
-        <View style={styles.zenGraphicContainer}>
-          <Svg width={220} height={150} viewBox="0 0 220 150" style={{ position: "absolute" }}>
-            <Defs>
-              <SvgRadialGrad id="zenHalo" cx="50%" cy="50%" rx="50%" ry="50%">
-                <SvgStop offset="0%" stopColor="#cfb9a5" stopOpacity="0.45" />
-                <SvgStop offset="50%" stopColor="#b87a4c" stopOpacity="0.22" />
-                <SvgStop offset="100%" stopColor="#1e1713" stopOpacity="0" />
-              </SvgRadialGrad>
-            </Defs>
-            <Circle cx="110" cy="75" r="70" fill="url(#zenHalo)" />
-            <Circle cx="110" cy="75" r="46" stroke="rgba(207, 185, 165, 0.3)" strokeWidth="1" strokeDasharray="3 3" fill="none" />
-            {/* Graceful Silhouette in Motion */}
-            <Circle cx="110" cy="46" r="10" fill="rgba(255, 255, 255, 0.88)" />
-            <SvgPath
-              d="M110 58 C102 66, 96 80, 94 96 C94 108, 102 116, 110 116 C118 116, 126 108, 126 96 C124 80, 118 66, 110 58 Z"
-              fill="rgba(255, 255, 255, 0.80)"
-            />
-            {/* Ambient motion wings radiating serene balance */}
-            <SvgPath
-              d="M104 68 C88 56, 68 54, 52 62 C68 72, 86 78, 98 80 Z"
-              fill="rgba(207, 185, 165, 0.50)"
-            />
-            <SvgPath
-              d="M116 68 C132 56, 152 54, 168 62 C152 72, 134 78, 122 80 Z"
-              fill="rgba(207, 185, 165, 0.50)"
-            />
-            <SvgPath
-              d="M86 108 C70 114, 60 124, 48 132 C68 132, 86 126, 94 116 Z"
-              fill="rgba(207, 185, 165, 0.38)"
-            />
-            <SvgPath
-              d="M134 108 C150 114, 160 124, 172 132 C152 132, 134 126, 126 116 Z"
-              fill="rgba(207, 185, 165, 0.38)"
-            />
-          </Svg>
-        </View>
-
-        {/* Floating Category Pills (matching Image 1) */}
-        <View style={styles.floatingPillsRow}>
-          <View style={styles.floatingGlassPill}>
-            <Text style={styles.floatingPillText}>Mindfulness</Text>
-          </View>
-          <View style={[styles.floatingGlassPill, styles.floatingPillActive]}>
-            <Text style={[styles.floatingPillText, styles.floatingPillTextActive]}>Daily Bio-Tracking</Text>
-          </View>
-          <View style={styles.floatingGlassPill}>
-            <Text style={styles.floatingPillText}>Circadian AI</Text>
-          </View>
-        </View>
-
-        {/* Hero Copy (Bold, Ultra-Clean, Bright Sans-Serif Typography) */}
-        <View style={styles.copyArea}>
-          <Text style={styles.tagline}>
-            {authMode === "signup" ? "Breathe Better.\nLive Calmer." : "Welcome Back.\nLive Calmer."}
+        {/* Center/Left Hero Headline & Action Pill */}
+        <View style={styles.heroTextContainer}>
+          <Text style={styles.heroHeadline}>
+            A{"\n"}Healthier{"\n"}Happier{"\n"}You.
           </Text>
-          <Text style={styles.desc}>
-            {authMode === "signup"
-              ? "For bio-tracking, daily focus, circadian health and inner balance."
-              : "Access your biometric memory, real-time vitals, and intelligent coach."}
+          <Text style={styles.heroSubheadline}>
+            Small steps.{"\n"}Big changes.
           </Text>
-        </View>
 
-        {/* Auth Actions Area (Dual Luxury Pill Buttons matching Image 1) */}
-        <View style={styles.actionSection}>
-          <View style={styles.dualButtonRow}>
-            {/* Primary Action Button: Warm Caramel Terracotta with Play / Sparkle Icon */}
-            <Pressable
-              style={({ pressed }) => [
-                styles.caramelPillBtn,
-                pressed && { opacity: 0.9, transform: [{ scale: 0.98 }] },
-              ]}
-              onPress={handleGoogleAuthPress}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <ActivityIndicator size="small" color="#ffffff" />
-              ) : (
-                <>
-                  <Play size={16} color="#ffffff" fill="#ffffff" />
-                  <Text style={styles.caramelBtnText}>
-                    {authMode === "signup" ? "Get Started" : "Continue"}
-                  </Text>
-                </>
-              )}
-            </Pressable>
-
-            {/* Secondary Action Button: Crisp White Frosted Pill */}
-            <Pressable
-              style={({ pressed }) => [
-                styles.whitePillBtn,
-                pressed && { opacity: 0.9, transform: [{ scale: 0.98 }] },
-              ]}
-              onPress={authMode === "signup" ? handleOpenManualSignUp : handleOpenManualSignIn}
-            >
-              <Mail size={16} color="#0b1612" />
-              <Text style={styles.whitePillBtnText}>Email Sign-In</Text>
-            </Pressable>
-          </View>
-
-          {/* Quick Guest Bypass fallback */}
+          {/* Iconic Frosted Champagne "Get Started ->" Action Pill */}
           <Pressable
             style={({ pressed }) => [
-              styles.ghostBtn,
-              pressed && { opacity: 0.8 },
+              styles.getStartedPill,
+              pressed && { opacity: 0.92, transform: [{ scale: 0.98 }] },
             ]}
-            onPress={handleGuestBypass}
-          >
-            <Text style={styles.ghostBtnText}>Continue as Guest / Offline</Text>
-          </Pressable>
-
-          {/* Switch Mode Prompt */}
-          <Pressable
-            style={styles.switchModeRow}
             onPress={() => {
               triggerHaptic();
-              setAuthMode(authMode === "signup" ? "signin" : "signup");
+              setShowOtpModal(true);
             }}
           >
-            <Text style={styles.switchModeText}>
-              {authMode === "signup"
-                ? "Already have an account? "
-                : "New to Lumen Health OS? "}
-              <Text style={styles.switchModeHighlight}>
-                {authMode === "signup" ? "Sign In" : "Sign Up"}
-              </Text>
-            </Text>
+            <Text style={styles.getStartedText}>Get Started</Text>
+            <View style={styles.arrowCircle}>
+              <ArrowRight size={20} color="#ffffff" strokeWidth={2.6} />
+            </View>
           </Pressable>
         </View>
 
-        {/* Footer */}
-        <View style={styles.footer}>
-          <ShieldCheck size={14} color="#a3c2b6" style={{ marginRight: 6 }} />
-          <Text style={styles.footerText}>Secure biometric privacy • Created by MeshMind</Text>
+        {/* Bottom Section: Social Proof & 4 Wellness Pillars */}
+        <View style={styles.bottomSection}>
+          {/* Left: Overlapping Avatars + Social Proof */}
+          <View style={styles.socialProofCol}>
+            <View style={styles.avatarRow}>
+              <View style={[styles.miniAvatarCircle, { zIndex: 4, backgroundColor: "#685044" }]}>
+                <Text style={styles.avatarInitials}>S</Text>
+              </View>
+              <View style={[styles.miniAvatarCircle, { marginLeft: -10, zIndex: 3, backgroundColor: "#3d5345" }]}>
+                <Text style={styles.avatarInitials}>M</Text>
+              </View>
+              <View style={[styles.miniAvatarCircle, { marginLeft: -10, zIndex: 2, backgroundColor: "#524436" }]}>
+                <Text style={styles.avatarInitials}>A</Text>
+              </View>
+              <View style={[styles.miniAvatarCircle, styles.miniAvatarPlus, { marginLeft: -10, zIndex: 1 }]}>
+                <Plus size={11} color="#ffffff" strokeWidth={3} />
+              </View>
+            </View>
+            <Text style={styles.socialProofText}>
+              Join 50K+ on their{"\n"}wellness journey
+            </Text>
+          </View>
+
+          {/* Right: Vertical Line + 4 Wellness Pillars */}
+          <View style={styles.pillarsCol}>
+            <View style={styles.pillarsDivider} />
+            <View style={styles.pillarsList}>
+              <Text style={styles.pillarItem}>Move</Text>
+              <Text style={styles.pillarItem}>Nourish</Text>
+              <Text style={styles.pillarItem}>Mind</Text>
+              <Text style={styles.pillarItem}>Thrive</Text>
+            </View>
+          </View>
         </View>
       </View>
 
       {/* ========================================================= */}
-      {/* GOOGLE ACCOUNT AUTHENTICATION MODAL                        */}
-      {/* ========================================================= */}
-      <Modal
-        visible={showGoogleModal}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setShowGoogleModal(false)}
-      >
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalPanel}>
-            {/* Modal Header */}
-            <View style={styles.modalHeader}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                <GoogleIcon size={24} />
-                <View>
-                  <Text style={styles.modalTitle}>
-                    {authMode === "signup" ? "Sign up with Google" : "Sign in with Google"}
-                  </Text>
-                  <Text style={styles.modalSub}>to continue to Lumen Health OS</Text>
-                </View>
-              </View>
-              <Pressable style={styles.modalCloseBtn} onPress={() => setShowGoogleModal(false)}>
-                <X size={16} color="#94a3b8" />
-              </Pressable>
-            </View>
-
-            {/* Quick account suggestion if available */}
-            {savedUserPreview && (
-              <Pressable
-                style={styles.savedAccountCard}
-                onPress={() => handleCompleteGoogleModal(savedUserPreview.email, savedUserPreview.name)}
-              >
-                <View style={styles.savedAvatar}>
-                  <Text style={styles.savedAvatarText}>
-                    {(savedUserPreview.name || savedUserPreview.email)[0].toUpperCase()}
-                  </Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.savedName}>{savedUserPreview.name}</Text>
-                  <Text style={styles.savedEmail}>{savedUserPreview.email}</Text>
-                </View>
-                <CheckCircle2 size={18} color="#10b981" />
-              </Pressable>
-            )}
-
-            {/* Manual Gmail Input Card */}
-            <View style={styles.inputCard}>
-              <Text style={styles.inputCardLabel}>ENTER YOUR GMAIL ACCOUNT</Text>
-
-              {/* Name field */}
-              <View style={styles.inputRow}>
-                <User size={16} color="#94a3b8" />
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="Your Full Name (e.g., Alex Rivera)"
-                  placeholderTextColor="#475569"
-                  value={gmailName}
-                  onChangeText={setGmailName}
-                />
-              </View>
-
-              {/* Email field */}
-              <View style={[styles.inputRow, { marginTop: 10 }]}>
-                <Mail size={16} color="#94a3b8" />
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="Gmail address (e.g., alex@gmail.com)"
-                  placeholderTextColor="#475569"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  value={gmailAddress}
-                  onChangeText={setGmailAddress}
-                />
-              </View>
-            </View>
-
-            {/* Ready for OAuth notice */}
-            <View style={styles.oauthNoticeCard}>
-              <Text style={styles.oauthNoticeTitle}>OAuth Integration Architecture</Text>
-              <Text style={styles.oauthNoticeBody}>
-                Full Google OAuth 2.0 flow is ready. When your Google Cloud OAuth Client ID is provided, this window opens Google's native authorization service automatically.
-              </Text>
-            </View>
-
-            {/* Submit Button */}
-            <Pressable
-              style={styles.modalSubmitBtn}
-              onPress={() => handleCompleteGoogleModal()}
-              disabled={modalSubmitting}
-            >
-              {modalSubmitting ? (
-                <ActivityIndicator size="small" color="#050b08" />
-              ) : (
-                <>
-                  <GoogleIcon size={18} />
-                  <Text style={styles.modalSubmitBtnText}>
-                    {authMode === "signup" ? "Create Account with Gmail" : "Sign In with Gmail"}
-                  </Text>
-                </>
-              )}
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
-
-      {/* ========================================================= */}
-      {/* EMAIL OTP VERIFICATION MODAL                             */}
+      {/* REDESIGNED LUXURY EMAIL VERIFICATION POP-UP                */}
       {/* ========================================================= */}
       <Modal
         visible={showOtpModal}
         animationType="slide"
         transparent
-        onRequestClose={() => {
-          if (!otpSending && !otpVerifying) setShowOtpModal(false);
-        }}
+        onRequestClose={() => setShowOtpModal(false)}
       >
         <View style={styles.modalBackdrop}>
           <View style={styles.modalPanel}>
+            {/* Top Handle */}
+            <View style={styles.modalHandle} />
+
             {/* Modal Header */}
             <View style={styles.modalHeader}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                <View style={styles.otpHeaderIcon}>
-                  <Mail size={18} color="#10b981" />
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+                <View style={styles.modalIconGlowCircle}>
+                  <Mail size={22} color="#f5ede4" strokeWidth={2.2} />
                 </View>
-                <View>
-                  <Text style={styles.modalTitle}>
-                    {authMode === "signup" ? "Email Verification" : "Sign In with Email"}
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.modalHeaderTitle}>
+                    {authMode === "signup" ? "Create Your Account" : "Welcome Back"}
                   </Text>
-                  <Text style={styles.modalSub}>
+                  <Text style={styles.modalHeaderSub}>
                     {otpStage === "enter_email"
-                      ? "Step 1 of 2: Confirm your email"
+                      ? "Step 1 of 2: Confirm your email address"
                       : otpStage === "enter_otp"
-                      ? "Step 2 of 2: Enter 6-digit code"
-                      : "Verification Complete"}
+                      ? "Step 2 of 2: Enter 6-digit verification code"
+                      : "Verification Confirmed"}
                   </Text>
                 </View>
               </View>
@@ -695,7 +510,7 @@ export default function WelcomeScreen() {
                 onPress={() => setShowOtpModal(false)}
                 disabled={otpSending || otpVerifying}
               >
-                <X size={16} color="#94a3b8" />
+                <X size={16} color="#ffffff" strokeWidth={2.5} />
               </Pressable>
             </View>
 
@@ -716,71 +531,95 @@ export default function WelcomeScreen() {
                   triggerHaptic();
                 }}
               >
-                <Sparkles size={14} color="#10b981" />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.devBannerTitle}>Development Preview Code</Text>
                   <Text style={styles.devBannerBody}>
-                    Tap to auto-fill code: <Text style={{ fontWeight: "900", color: "#10b981" }}>{devOtpNotification}</Text>
+                    Tap to auto-fill code:{" "}
+                    <Text style={{ fontWeight: "900", color: "#10b981" }}>{devOtpNotification}</Text>
                   </Text>
                 </View>
               </Pressable>
             ) : null}
 
-            {/* STAGE 1: ENTER EMAIL */}
+            {/* STAGE 1: ENTER EMAIL & 1-CLICK OPTIONS */}
             {otpStage === "enter_email" && (
               <View style={{ gap: 14 }}>
-                <View style={styles.inputCard}>
-                  <Text style={styles.inputCardLabel}>ENTER YOUR EMAIL ADDRESS</Text>
-                  <View style={styles.inputRow}>
-                    <Mail size={16} color="#94a3b8" />
-                    <TextInput
-                      style={styles.textInput}
-                      placeholder="e.g. alex@example.com"
-                      placeholderTextColor="#475569"
-                      keyboardType="email-address"
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      value={otpEmail}
-                      onChangeText={(t) => {
-                        setOtpEmail(t);
-                        if (otpErrorMessage) setOtpErrorMessage("");
-                      }}
-                      onSubmitEditing={handleRequestOtp}
-                    />
-                  </View>
+                {/* 1-Click Google Access */}
+                <Pressable
+                  style={styles.modalGoogleBtn}
+                  onPress={handleGoogleAuthPress}
+                  disabled={isLoading}
+                >
+                  <GoogleIcon size={20} />
+                  <Text style={styles.modalGoogleBtnText}>
+                    {authMode === "signup" ? "Continue with Google" : "Sign In with Google"}
+                  </Text>
+                </Pressable>
+
+                {/* Aesthetic Divider */}
+                <View style={styles.modalDividerRow}>
+                  <View style={styles.modalDividerLine} />
+                  <Text style={styles.modalDividerText}>OR WITH EMAIL</Text>
+                  <View style={styles.modalDividerLine} />
                 </View>
 
-                <View style={styles.securityNoticeRow}>
-                  <Lock size={13} color="#10b981" />
-                  <Text style={styles.securityNoticeText}>
-                    A secure 6-digit verification code will be sent to this email. No password required.
+                {/* Email Input Field */}
+                <View style={styles.modalInputBox}>
+                  <Mail size={18} color="#10b981" />
+                  <TextInput
+                    style={styles.modalTextInput}
+                    placeholder="Enter your email (e.g. name@example.com)"
+                    placeholderTextColor="#64748b"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    value={otpEmail}
+                    onChangeText={(t) => {
+                      setOtpEmail(t);
+                      if (otpErrorMessage) setOtpErrorMessage("");
+                    }}
+                    onSubmitEditing={handleRequestOtp}
+                  />
+                </View>
+
+                {/* Security Tag */}
+                <View style={styles.securityRow}>
+                  <Lock size={12} color="#10b981" />
+                  <Text style={styles.securityText}>
+                    Passwordless secure login. We'll send a 6-digit confirmation code.
                   </Text>
                 </View>
 
+                {/* Send Button */}
                 <Pressable
-                  style={[styles.modalSubmitBtn, otpSending && { opacity: 0.7 }]}
+                  style={[styles.modalActionPillBtn, otpSending && { opacity: 0.7 }]}
                   onPress={handleRequestOtp}
                   disabled={otpSending}
                 >
                   {otpSending ? (
-                    <ActivityIndicator size="small" color="#050b08" />
+                    <ActivityIndicator size="small" color="#161b18" />
                   ) : (
                     <>
-                      <Text style={styles.modalSubmitBtnText}>Send Verification Code</Text>
-                      <ArrowRight size={16} color="#050b08" />
+                      <Text style={styles.modalActionPillText}>Send Verification Code</Text>
+                      <ArrowRight size={18} color="#161b18" strokeWidth={2.4} />
                     </>
                   )}
+                </Pressable>
+
+                {/* Guest Offline Link */}
+                <Pressable style={styles.guestLinkBox} onPress={handleGuestBypass}>
+                  <Text style={styles.guestLinkText}>Explore as Guest / Offline</Text>
                 </Pressable>
               </View>
             )}
 
-            {/* STAGE 2: ENTER OTP */}
+            {/* STAGE 2: ENTER 6-DIGIT OTP CODE */}
             {otpStage === "enter_otp" && (
-              <View style={{ gap: 14 }}>
-                {/* Active target email indicator */}
+              <View style={{ gap: 16 }}>
+                {/* Active Target Email Notice */}
                 <View style={styles.targetEmailRow}>
                   <Text style={styles.targetEmailText}>
-                    Code sent to <Text style={{ color: "#f8fafc", fontWeight: "700" }}>{otpEmail}</Text>
+                    Code sent to <Text style={{ color: "#ffffff", fontWeight: "800" }}>{otpEmail}</Text>
                   </Text>
                   <Pressable
                     onPress={() => {
@@ -792,10 +631,10 @@ export default function WelcomeScreen() {
                   </Pressable>
                 </View>
 
-                {/* 6-digit Code input card */}
-                <View style={styles.inputCard}>
-                  <View style={styles.otpInputHeaderRow}>
-                    <Text style={styles.inputCardLabel}>6-DIGIT VERIFICATION CODE</Text>
+                {/* Big 6-Digit OTP Code Input */}
+                <View style={styles.otpCardBox}>
+                  <View style={styles.otpHeaderRow}>
+                    <Text style={styles.otpHeaderLabel}>6-DIGIT VERIFICATION CODE</Text>
                     <Text style={styles.expiryTimerText}>
                       Expires in {Math.floor(otpExpiresIn / 60)}:{(otpExpiresIn % 60).toString().padStart(2, "0")}
                     </Text>
@@ -803,7 +642,7 @@ export default function WelcomeScreen() {
                   <TextInput
                     style={styles.otpCodeInput}
                     placeholder="• • • • • •"
-                    placeholderTextColor="#334155"
+                    placeholderTextColor="rgba(255, 255, 255, 0.25)"
                     keyboardType="number-pad"
                     maxLength={6}
                     value={otpCode}
@@ -828,41 +667,126 @@ export default function WelcomeScreen() {
                   )}
                 </View>
 
+                {/* Verify Button */}
                 <Pressable
                   style={[
-                    styles.modalSubmitBtn,
+                    styles.verifyActionBtn,
                     (otpCode.length !== 6 || otpVerifying) && { opacity: otpCode.length === 6 ? 0.7 : 0.5 },
                   ]}
                   onPress={handleVerifyOtp}
                   disabled={otpCode.length !== 6 || otpVerifying}
                 >
                   {otpVerifying ? (
-                    <ActivityIndicator size="small" color="#050b08" />
+                    <ActivityIndicator size="small" color="#ffffff" />
                   ) : (
                     <>
-                      <ShieldCheck size={18} color="#050b08" />
-                      <Text style={styles.modalSubmitBtnText}>Verify & Continue</Text>
+                      <ShieldCheck size={18} color="#ffffff" strokeWidth={2.4} />
+                      <Text style={styles.verifyActionText}>Verify & Continue</Text>
                     </>
                   )}
                 </Pressable>
               </View>
             )}
 
-            {/* STAGE 3: VERIFIED SUCCESS */}
+            {/* STAGE 3: VERIFIED CELEBRATION */}
             {otpStage === "verified" && (
               <View style={styles.verifiedContainer}>
                 <View style={styles.verifiedIconBadge}>
                   <CheckCircle2 size={44} color="#10b981" />
                 </View>
-                <Text style={styles.verifiedTitle}>Email Verified!</Text>
+                <Text style={styles.verifiedTitle}>Verification Confirmed</Text>
                 <Text style={styles.verifiedSub}>
-                  {authMode === "signup"
-                    ? "Welcome to Lumen. Now let's set up your bio-profile..."
-                    : "Signing you into Lumen Health OS..."}
+                  Preparing your personalized biometric environment...
                 </Text>
-                <ActivityIndicator size="small" color="#10b981" style={{ marginTop: 12 }} />
               </View>
             )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* ========================================================= */}
+      {/* GOOGLE ACCOUNT AUTHENTICATION MODAL                        */}
+      {/* ========================================================= */}
+      <Modal
+        visible={showGoogleModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowGoogleModal(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalPanel}>
+            <View style={styles.modalHandle} />
+            <View style={styles.modalHeader}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                <GoogleIcon size={24} />
+                <View>
+                  <Text style={styles.modalHeaderTitle}>
+                    {authMode === "signup" ? "Sign Up with Google" : "Sign In with Google"}
+                  </Text>
+                  <Text style={styles.modalHeaderSub}>Direct Google Identity Platform</Text>
+                </View>
+              </View>
+              <Pressable style={styles.modalCloseBtn} onPress={() => setShowGoogleModal(false)}>
+                <X size={16} color="#ffffff" />
+              </Pressable>
+            </View>
+
+            {savedUserPreview && (
+              <Pressable
+                style={styles.savedAccountCard}
+                onPress={() => handleCompleteGoogleModal(savedUserPreview.email, savedUserPreview.name)}
+              >
+                <View style={styles.savedAvatar}>
+                  <Text style={styles.savedAvatarText}>
+                    {(savedUserPreview.name || savedUserPreview.email)[0].toUpperCase()}
+                  </Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.savedName}>{savedUserPreview.name}</Text>
+                  <Text style={styles.savedEmail}>{savedUserPreview.email}</Text>
+                </View>
+                <CheckCircle2 size={18} color="#10b981" />
+              </Pressable>
+            )}
+
+            <View style={styles.modalInputBox}>
+              <User size={18} color="#10b981" />
+              <TextInput
+                style={styles.modalTextInput}
+                placeholder="Full Name (e.g., Alex Rivera)"
+                placeholderTextColor="#64748b"
+                value={gmailName}
+                onChangeText={setGmailName}
+              />
+            </View>
+
+            <View style={[styles.modalInputBox, { marginTop: 10 }]}>
+              <Mail size={18} color="#10b981" />
+              <TextInput
+                style={styles.modalTextInput}
+                placeholder="Gmail address (e.g., alex@gmail.com)"
+                placeholderTextColor="#64748b"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                value={gmailAddress}
+                onChangeText={setGmailAddress}
+              />
+            </View>
+
+            <Pressable
+              style={styles.googleSubmitBtn}
+              onPress={() => handleCompleteGoogleModal()}
+              disabled={modalSubmitting}
+            >
+              {modalSubmitting ? (
+                <ActivityIndicator size="small" color="#0b1612" />
+              ) : (
+                <>
+                  <GoogleIcon size={18} />
+                  <Text style={styles.googleSubmitBtnText}>Continue with Account</Text>
+                </>
+              )}
+            </Pressable>
           </View>
         </View>
       </Modal>
@@ -873,143 +797,412 @@ export default function WelcomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: THEME.colors.bgSolid,
-  },
-  radialGlow: {
-    position: "absolute",
-    top: "-10%",
-    left: "50%",
-    width: 400,
-    height: 400,
-    borderRadius: 200,
-    backgroundColor: "rgba(16, 185, 129, 0.09)",
-    transform: [{ translateX: -200 }],
+    backgroundColor: "#080e0b",
   },
   content: {
     flex: 1,
-    paddingHorizontal: 26,
-    paddingTop: Platform.OS === "ios" ? 70 : 50,
-    paddingBottom: 30,
+    paddingHorizontal: 28,
+    paddingTop: Platform.OS === "ios" ? 64 : 44,
+    paddingBottom: Platform.OS === "ios" ? 44 : 28,
     justifyContent: "space-between",
   },
-  header: {
-    gap: 20,
-  },
-  logoRow: {
+
+  // Top Minimalist Luxury Header
+  topHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    justifyContent: "space-between",
+    paddingTop: 8,
   },
-  logoBox: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    backgroundColor: "rgba(16, 185, 129, 0.15)",
+  luxuryBrandTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#ffffff",
+    letterSpacing: 8,
+  },
+  menuTriggerBtn: {
+    width: 38,
+    height: 38,
+    alignItems: "flex-end",
+    justifyContent: "center",
+    gap: 5,
+  },
+  menuTriggerBar1: {
+    width: 22,
+    height: 2,
+    backgroundColor: "#ffffff",
+    borderRadius: 1,
+  },
+  menuTriggerBar2: {
+    width: 15,
+    height: 2,
+    backgroundColor: "#ffffff",
+    borderRadius: 1,
+  },
+
+  // Hero Headline & "Get Started ->" Action Pill
+  heroTextContainer: {
+    marginTop: "auto",
+    marginBottom: "auto",
+    paddingVertical: 20,
+  },
+  heroHeadline: {
+    fontSize: 48,
+    fontWeight: "900",
+    color: "#ffffff",
+    lineHeight: 52,
+    letterSpacing: -1.2,
+  },
+  heroSubheadline: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "rgba(255, 255, 255, 0.92)",
+    lineHeight: 24,
+    marginTop: 14,
+  },
+
+  // Iconic Frosted Champagne Action Pill from Reference
+  getStartedPill: {
+    backgroundColor: "#f5ede4",
+    borderRadius: 36,
+    paddingVertical: 7,
+    paddingLeft: 24,
+    paddingRight: 7,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+    alignSelf: "flex-start",
+    marginTop: 26,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 14,
+    elevation: 8,
+  },
+  getStartedText: {
+    color: "#161b18",
+    fontSize: 16,
+    fontWeight: "900",
+    letterSpacing: -0.2,
+  },
+  arrowCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#161b18",
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.3)",
   },
-  logoText: {
+
+  // Bottom Section: Social Proof & Pillars
+  bottomSection: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+    paddingBottom: 4,
+  },
+  socialProofCol: {
+    gap: 8,
+  },
+  avatarRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  miniAvatarCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: "rgba(255, 255, 255, 0.85)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarInitials: {
+    color: "#ffffff",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  miniAvatarPlus: {
+    backgroundColor: "rgba(255, 255, 255, 0.28)",
+  },
+  socialProofText: {
+    color: "rgba(255, 255, 255, 0.95)",
+    fontSize: 12,
+    fontWeight: "600",
+    lineHeight: 16,
+  },
+
+  pillarsCol: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  pillarsDivider: {
+    width: 1,
+    height: 68,
+    backgroundColor: "rgba(255, 255, 255, 0.35)",
+    marginRight: 14,
+  },
+  pillarsList: {
+    gap: 3,
+  },
+  pillarItem: {
+    color: "rgba(255, 255, 255, 0.88)",
+    fontSize: 12,
+    fontWeight: "600",
+    letterSpacing: 0.4,
+  },
+
+  // Modal Backdrop & Luxury Panel
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(8, 14, 11, 0.78)",
+    justifyContent: "flex-end",
+  },
+  modalPanel: {
+    backgroundColor: "rgba(16, 26, 21, 0.98)",
+    borderTopLeftRadius: 36,
+    borderTopRightRadius: 36,
+    borderWidth: 1.5,
+    borderBottomWidth: 0,
+    borderColor: "rgba(255, 255, 255, 0.18)",
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: Platform.OS === "ios" ? 44 : 28,
+    gap: 16,
+  },
+  modalHandle: {
+    width: 44,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "rgba(255, 255, 255, 0.3)",
+    alignSelf: "center",
+    marginBottom: 4,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  modalIconGlowCircle: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: "rgba(245, 237, 228, 0.12)",
+    borderWidth: 1.5,
+    borderColor: "rgba(245, 237, 228, 0.35)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalHeaderTitle: {
     fontSize: 20,
     fontWeight: "900",
-    color: THEME.colors.textOnDarkPrimary,
+    color: "#ffffff",
     letterSpacing: -0.3,
   },
-  logoSub: {
-    fontSize: 11,
-    color: THEME.colors.accentGreen,
-    fontWeight: "600",
-    letterSpacing: 0.5,
+  modalHeaderSub: {
+    fontSize: 12,
+    color: "#b4cbbf",
+    marginTop: 2,
   },
-  tabContainer: {
-    flexDirection: "row",
-    backgroundColor: "rgba(232, 241, 237, 0.15)",
+  modalCloseBtn: {
+    width: 32,
+    height: 32,
     borderRadius: 16,
-    padding: 4,
-    borderWidth: 1,
-    borderColor: "rgba(200, 218, 210, 0.25)",
-  },
-  tabBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    alignItems: "center",
-    borderRadius: 12,
-  },
-  tabBtnActive: {
-    backgroundColor: THEME.colors.accentTeal,
-  },
-  tabBtnText: {
-    color: THEME.colors.textOnDarkSecondary,
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  tabBtnTextActive: {
-    color: "#ffffff",
-  },
-  copyArea: {
-    marginVertical: 20,
-  },
-  tagline: {
-    fontSize: 38,
-    fontWeight: "900",
-    color: THEME.colors.textOnDarkPrimary,
-    lineHeight: 44,
-    letterSpacing: -0.8,
-    marginBottom: 14,
-  },
-  desc: {
-    fontSize: 15,
-    color: THEME.colors.textOnDarkSecondary,
-    lineHeight: 22,
-  },
-  actionSection: {
-    gap: 12,
-  },
-  zenGraphicContainer: {
-    height: 150,
+    backgroundColor: "rgba(255, 255, 255, 0.12)",
     alignItems: "center",
     justifyContent: "center",
-    marginVertical: 4,
   },
-  floatingPillsRow: {
+
+  // Google 1-Click Fast Button
+  modalGoogleBtn: {
+    height: 52,
+    backgroundColor: "#ffffff",
+    borderRadius: 26,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  modalGoogleBtnText: {
+    color: "#0b1612",
+    fontSize: 15,
+    fontWeight: "800",
+    letterSpacing: -0.2,
+  },
+
+  modalDividerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginVertical: 2,
+  },
+  modalDividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+  },
+  modalDividerText: {
+    color: "#8fae9f",
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.8,
+  },
+
+  // Input Box
+  modalInputBox: {
+    backgroundColor: "#ffffff",
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderColor: "rgba(215, 230, 224, 0.85)",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  modalTextInput: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#0b1612",
+  },
+
+  securityRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 4,
+  },
+  securityText: {
+    color: "#b4cbbf",
+    fontSize: 11,
+    lineHeight: 16,
+    flex: 1,
+  },
+
+  modalActionPillBtn: {
+    height: 54,
+    backgroundColor: "#f5ede4",
+    borderRadius: 27,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    marginVertical: 6,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 6,
+    marginTop: 4,
   },
-  floatingGlassPill: {
-    backgroundColor: "rgba(255, 255, 255, 0.12)",
+  modalActionPillText: {
+    color: "#161b18",
+    fontSize: 15,
+    fontWeight: "900",
+    letterSpacing: -0.2,
+  },
+
+  guestLinkBox: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 4,
+  },
+  guestLinkText: {
+    color: "#b4cbbf",
+    fontSize: 12,
+    fontWeight: "700",
+    textDecorationLine: "underline",
+  },
+
+  // OTP Stage
+  targetEmailRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.25)",
+    borderColor: "rgba(255, 255, 255, 0.15)",
+  },
+  targetEmailText: {
+    color: "#dbeae3",
+    fontSize: 12,
+  },
+  changeEmailLink: {
+    color: "#10b981",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+
+  otpCardBox: {
+    backgroundColor: "rgba(255, 255, 255, 0.06)",
     borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    padding: 16,
+    borderWidth: 1.5,
+    borderColor: "rgba(16, 185, 129, 0.45)",
+    gap: 8,
   },
-  floatingPillActive: {
-    backgroundColor: "rgba(255, 255, 255, 0.24)",
-    borderColor: "rgba(255, 255, 255, 0.45)",
+  otpHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
-  floatingPillText: {
-    color: "#e2ece7",
+  otpHeaderLabel: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#10b981",
+    letterSpacing: 0.8,
+  },
+  expiryTimerText: {
+    color: "#10b981",
     fontSize: 11,
+    fontWeight: "800",
+  },
+  otpCodeInput: {
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    color: "#ffffff",
+    fontSize: 28,
+    fontWeight: "900",
+    letterSpacing: 10,
+    textAlign: "center",
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+  },
+
+  resendRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 8,
+  },
+  resendPrompt: {
+    color: "#b4cbbf",
+    fontSize: 12,
+  },
+  resendCooldownText: {
+    color: "#8fae9f",
+    fontSize: 12,
     fontWeight: "700",
   },
-  floatingPillTextActive: {
-    color: "#ffffff",
-    fontWeight: "900",
+  resendActionLink: {
+    color: "#10b981",
+    fontSize: 12,
+    fontWeight: "800",
   },
-  dualButtonRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  caramelPillBtn: {
-    flex: 1,
-    height: 52,
-    backgroundColor: THEME.colors.accentCaramel,
-    borderRadius: 26,
+
+  verifyActionBtn: {
+    height: 54,
+    backgroundColor: "#10b981",
+    borderRadius: 27,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -1020,298 +1213,59 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 6,
   },
-  caramelBtnText: {
+  verifyActionText: {
     color: "#ffffff",
-    fontSize: 14,
-    fontWeight: "900",
-    letterSpacing: -0.2,
-  },
-  whitePillBtn: {
-    flex: 1,
-    height: 52,
-    backgroundColor: "#ffffff",
-    borderRadius: 26,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.18,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  whitePillBtnText: {
-    color: "#0b1612",
-    fontSize: 14,
-    fontWeight: "900",
-    letterSpacing: -0.2,
-  },
-  ghostBtn: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 6,
-  },
-  ghostBtnText: {
-    color: "#d4e8df",
-    fontSize: 12,
-    fontWeight: "700",
-    textDecorationLine: "underline",
-  },
-
-  // Google Button
-  googleBtn: {
-    height: 54,
-    backgroundColor: "#ffffff",
-    borderRadius: 27,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-    ...THEME.shadows.card,
-  },
-  googleIconBox: {
-    width: 24,
-    height: 24,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  googleBtnText: {
-    color: "#162621",
     fontSize: 15,
-    fontWeight: "800",
+    fontWeight: "900",
     letterSpacing: -0.2,
   },
 
-  // Divider
-  dividerRow: {
-    flexDirection: "row",
+  // Verified Celebration
+  verifiedContainer: {
     alignItems: "center",
+    paddingVertical: 24,
     gap: 12,
-    marginVertical: 4,
   },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: "rgba(200, 218, 210, 0.2)",
-  },
-  dividerText: {
-    color: THEME.colors.textOnDarkTertiary,
-    fontSize: 11,
-    fontWeight: "700",
-  },
-
-  // Secondary Button
-  secondaryBtn: {
-    height: 52,
-    backgroundColor: "rgba(232, 241, 237, 0.12)",
-    borderRadius: 26,
-    borderWidth: 1,
-    borderColor: "rgba(200, 218, 210, 0.25)",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-  },
-  secondaryBtnText: {
-    color: THEME.colors.textOnDarkPrimary,
-    fontSize: 14,
-    fontWeight: "700",
-  },
-
-  switchModeRow: {
-    alignItems: "center",
-    marginTop: 6,
-    paddingVertical: 6,
-  },
-  switchModeText: {
-    color: THEME.colors.textOnDarkSecondary,
-    fontSize: 13,
-  },
-  switchModeHighlight: {
-    color: THEME.colors.accentGreen,
-    fontWeight: "800",
-  },
-
-  footer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 10,
-  },
-  footerText: {
-    fontSize: 11,
-    color: THEME.colors.textOnDarkTertiary,
-  },
-
-  // Modal Styles
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(11, 22, 19, 0.8)",
-    justifyContent: "flex-end",
-  },
-  modalPanel: {
-    backgroundColor: THEME.colors.drawerBg,
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    borderWidth: 1,
-    borderBottomWidth: 0,
-    borderColor: "rgba(200, 218, 210, 0.25)",
-    paddingHorizontal: 22,
-    paddingTop: 22,
-    paddingBottom: Platform.OS === "ios" ? 44 : 26,
-    gap: 16,
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  modalTitle: {
-    fontSize: 17,
-    fontWeight: "800",
-    color: THEME.colors.textOnDarkPrimary,
-  },
-  modalSub: {
-    fontSize: 12,
-    color: THEME.colors.textOnDarkSecondary,
-  },
-  modalCloseBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "rgba(232, 241, 237, 0.12)",
+  verifiedIconBadge: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    backgroundColor: "rgba(16, 185, 129, 0.18)",
+    borderWidth: 2,
+    borderColor: "rgba(16, 185, 129, 0.5)",
     alignItems: "center",
     justifyContent: "center",
   },
-  savedAccountCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    backgroundColor: THEME.colors.cardBg,
-    borderRadius: 18,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: THEME.colors.cardBorder,
-  },
-  savedAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "rgba(16, 185, 129, 0.15)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  savedAvatarText: {
-    color: THEME.colors.accentGreen,
-    fontSize: 16,
-    fontWeight: "800",
-  },
-  savedName: {
-    color: THEME.colors.cardTextPrimary,
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  savedEmail: {
-    color: THEME.colors.cardTextSecondary,
-    fontSize: 11,
-  },
-  inputCard: {
-    backgroundColor: THEME.colors.cardBg,
-    borderRadius: 20,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: THEME.colors.cardBorder,
-    gap: 8,
-    ...THEME.shadows.card,
-  },
-  inputCardLabel: {
-    fontSize: 10,
-    fontWeight: "800",
-    color: THEME.colors.cardTextSecondary,
-    letterSpacing: 0.8,
-    marginBottom: 4,
-  },
-  inputRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    backgroundColor: "#ffffff",
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: "rgba(200, 218, 210, 0.7)",
-  },
-  textInput: {
-    flex: 1,
-    color: THEME.colors.cardTextPrimary,
-    fontSize: 13,
-  },
-  oauthNoticeCard: {
-    backgroundColor: "rgba(59, 130, 246, 0.12)",
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: "rgba(59, 130, 246, 0.25)",
-  },
-  oauthNoticeTitle: {
-    color: "#60a5fa",
-    fontSize: 11,
-    fontWeight: "800",
-    marginBottom: 2,
-  },
-  oauthNoticeBody: {
-    color: THEME.colors.cardTextSecondary,
-    fontSize: 11,
-    lineHeight: 15,
-  },
-  modalSubmitBtn: {
-    height: 52,
-    backgroundColor: THEME.colors.accentGreen,
-    borderRadius: 26,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-  },
-  modalSubmitBtnText: {
+  verifiedTitle: {
+    fontSize: 22,
+    fontWeight: "900",
     color: "#ffffff",
-    fontSize: 14,
-    fontWeight: "800",
+  },
+  verifiedSub: {
+    fontSize: 13,
+    color: "#b4cbbf",
+    textAlign: "center",
   },
 
-  // OTP Modal Styles
-  otpHeaderIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "rgba(16, 185, 129, 0.15)",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.3)",
-  },
+  // Banners
   errorBanner: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "rgba(239, 68, 68, 0.12)",
+    backgroundColor: "rgba(239, 68, 68, 0.15)",
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderWidth: 1,
-    borderColor: "rgba(239, 68, 68, 0.3)",
+    borderColor: "rgba(239, 68, 68, 0.35)",
   },
   errorBannerText: {
-    color: "#f87171",
+    color: "#fca5a5",
     fontSize: 12,
+    fontWeight: "600",
     flex: 1,
   },
   devBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
     backgroundColor: "rgba(16, 185, 129, 0.15)",
     borderRadius: 12,
     padding: 12,
@@ -1319,117 +1273,62 @@ const styles = StyleSheet.create({
     borderColor: "rgba(16, 185, 129, 0.35)",
   },
   devBannerTitle: {
-    color: THEME.colors.accentGreen,
+    color: "#10b981",
     fontSize: 11,
     fontWeight: "800",
   },
   devBannerBody: {
-    color: THEME.colors.textOnDarkSecondary,
+    color: "#dbeae3",
     fontSize: 12,
     marginTop: 2,
   },
-  securityNoticeRow: {
+
+  // Google Modal specific styles
+  savedAccountCard: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 4,
-  },
-  securityNoticeText: {
-    color: THEME.colors.textOnDarkSecondary,
-    fontSize: 11,
-    lineHeight: 16,
-    flex: 1,
-  },
-  targetEmailRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    backgroundColor: "rgba(232, 241, 237, 0.08)",
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    gap: 12,
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    borderRadius: 16,
+    padding: 12,
     borderWidth: 1,
-    borderColor: "rgba(200, 218, 210, 0.15)",
+    borderColor: "rgba(255, 255, 255, 0.18)",
   },
-  targetEmailText: {
-    color: THEME.colors.textOnDarkSecondary,
-    fontSize: 12,
-  },
-  changeEmailLink: {
-    color: THEME.colors.accentGreen,
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  otpInputHeaderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+  savedAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(16, 185, 129, 0.2)",
     alignItems: "center",
-    marginBottom: 4,
-  },
-  expiryTimerText: {
-    color: THEME.colors.accentGreen,
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  otpCodeInput: {
-    backgroundColor: "rgba(232, 241, 237, 0.12)",
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    color: THEME.colors.accentGreen,
-    fontSize: 26,
-    fontWeight: "900",
-    letterSpacing: 10,
-    textAlign: "center",
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.4)",
-  },
-  resendRow: {
-    flexDirection: "row",
     justifyContent: "center",
-    alignItems: "center",
-    gap: 8,
   },
-  resendPrompt: {
-    color: THEME.colors.textOnDarkSecondary,
-    fontSize: 12,
-  },
-  resendCooldownText: {
-    color: THEME.colors.textOnDarkTertiary,
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  resendActionLink: {
-    color: THEME.colors.accentGreen,
-    fontSize: 12,
+  savedAvatarText: {
+    color: "#10b981",
+    fontSize: 16,
     fontWeight: "800",
   },
-  verifiedContainer: {
-    alignItems: "center",
-    paddingVertical: 20,
-    gap: 10,
+  savedName: {
+    color: "#ffffff",
+    fontSize: 13,
+    fontWeight: "700",
   },
-  verifiedIconBadge: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: "rgba(16, 185, 129, 0.15)",
+  savedEmail: {
+    color: "#b4cbbf",
+    fontSize: 11,
+  },
+  googleSubmitBtn: {
+    height: 52,
+    backgroundColor: "#ffffff",
+    borderRadius: 26,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.35)",
-    marginBottom: 6,
+    gap: 8,
+    marginTop: 6,
   },
-  verifiedTitle: {
-    fontSize: 20,
-    fontWeight: "900",
-    color: THEME.colors.textOnDarkPrimary,
-  },
-  verifiedSub: {
-    fontSize: 13,
-    color: THEME.colors.textOnDarkSecondary,
-    textAlign: "center",
-    paddingHorizontal: 20,
+  googleSubmitBtnText: {
+    color: "#0b1612",
+    fontSize: 15,
+    fontWeight: "800",
   },
 });
