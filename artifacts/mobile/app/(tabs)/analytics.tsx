@@ -205,7 +205,7 @@ export default function AnalyticsScreen() {
       {/* Top Header - Safe & Responsive */}
       <View style={styles.header}>
         <View style={styles.headerRow}>
-          <View style={{ flex: 1, marginRight: 8 }}>
+          <View style={{ flex: 1, minWidth: 0, marginRight: 8 }}>
             <Text style={styles.headerSub} numberOfLines={1}>
               Longitudinal Telemetry
             </Text>
@@ -213,10 +213,10 @@ export default function AnalyticsScreen() {
               Biometric Analytics
             </Text>
           </View>
-          <View style={styles.aiBadge}>
+          <View style={[styles.aiBadge, { flexShrink: 0 }]}>
             <Sparkles size={11} color="#10b981" />
             <Text style={styles.aiBadgeText} numberOfLines={1}>
-              AI Synthesized
+              AI Insights
             </Text>
           </View>
         </View>
@@ -894,7 +894,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 16,
-    paddingBottom: 140, // Generous padding so the floating capsule tab bar NEVER overlaps content
+    paddingBottom: 160, // Generous padding so the floating capsule tab bar NEVER overlaps calendar days
     gap: 14,
   },
 

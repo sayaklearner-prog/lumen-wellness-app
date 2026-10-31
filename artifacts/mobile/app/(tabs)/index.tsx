@@ -1061,8 +1061,10 @@ export default function DashboardScreen() {
           <View style={styles.heroTopRow}>
             <View style={styles.heroTextCol}>
               <Text style={styles.greetingTitle} numberOfLines={1}>
-                {greetingTime},{"\n"}
-                <Text style={styles.greetingName} numberOfLines={1}>{userName}</Text>
+                {greetingTime},
+              </Text>
+              <Text style={styles.greetingName} numberOfLines={1}>
+                {userName}
               </Text>
               <Text style={styles.energySubtext} numberOfLines={2}>{energySubtext}</Text>
             </View>
@@ -1499,18 +1501,20 @@ export default function DashboardScreen() {
           onPress={() => router.push("/(tabs)/achievements" as any)}
         >
           <View style={styles.achievementsSpotlightHeader}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1, minWidth: 0, marginRight: 8 }}>
               <View style={styles.achievementsTrophyIcon}>
                 <Trophy size={18} color="#f59e0b" />
               </View>
-              <View>
+              <View style={{ flex: 1, minWidth: 0 }}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                  <Text style={styles.achievementsSpotlightTitle}>Achievements & Badges</Text>
+                  <Text style={[styles.achievementsSpotlightTitle, { flexShrink: 1 }]} numberOfLines={1}>
+                    Achievements & Badges
+                  </Text>
                   <View style={styles.xpMiniPill}>
-                    <Text style={styles.xpMiniText}>+{gamification?.totalXp || 0} XP</Text>
+                    <Text style={styles.xpMiniText} numberOfLines={1}>+{gamification?.totalXp || 0} XP</Text>
                   </View>
                 </View>
-                <Text style={styles.achievementsSpotlightSub}>
+                <Text style={styles.achievementsSpotlightSub} numberOfLines={1}>
                   {gamification ? `Level ${gamification.currentLevel} • ${gamification.levelTitle}` : "Milestones & consistency rewards"}
                 </Text>
               </View>
@@ -1566,11 +1570,11 @@ export default function DashboardScreen() {
         {/* ========================================================= */}
         <View style={styles.caloriesMacroCardWide}>
           <View style={styles.calTopRow}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1, minWidth: 0, marginRight: 8 }}>
               <Utensils size={14} color="#f59e0b" />
-              <Text style={styles.bioCardLabel}>Calories & Macronutrients</Text>
+              <Text style={styles.bioCardLabel} numberOfLines={1}>Calories & Macronutrients</Text>
             </View>
-            <Text style={styles.calValue}>
+            <Text style={[styles.calValue, { flexShrink: 0 }]} numberOfLines={1}>
               {caloriesConsumed} / {caloriesTarget} kcal
             </Text>
           </View>
@@ -1607,22 +1611,22 @@ export default function DashboardScreen() {
         {/* ========================================================= */}
         <View style={styles.activeBurnBanner}>
           <View style={styles.burnBannerTopRow}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1, minWidth: 0, marginRight: 8 }}>
               <Flame size={18} color="#f59e0b" />
-              <Text style={styles.burnBannerTitle}>Total Active Burn</Text>
+              <Text style={styles.burnBannerTitle} numberOfLines={1}>Total Active Burn</Text>
             </View>
-            <Text style={styles.burnBannerTotal}>{totalActiveCaloriesBurned} kcal</Text>
+            <Text style={[styles.burnBannerTotal, { flexShrink: 0 }]} numberOfLines={1}>{totalActiveCaloriesBurned} kcal</Text>
           </View>
 
           <View style={styles.burnBannerSubRow}>
-            <Text style={styles.burnBannerSubText}>
+            <Text style={styles.burnBannerSubText} numberOfLines={1}>
               {liveSensorMetrics.isWearableSourceActive ? "⌚ Wearable: " : "🚶 Steps: "}
               <Text style={{ color: "#38bdf8", fontWeight: "bold" }}>
                 {stepsCaloriesBurned} kcal
               </Text>{" "}
               ({stepsCount.toLocaleString()} steps)
             </Text>
-            <Text style={styles.burnBannerSubText}>
+            <Text style={styles.burnBannerSubText} numberOfLines={1}>
               ⚡ Workouts:{" "}
               <Text style={{ color: "#10b981", fontWeight: "bold" }}>
                 {workoutCaloriesBurned} kcal
@@ -3024,7 +3028,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 16,
     paddingTop: 16,
-    paddingBottom: 110,
+    paddingBottom: 150, // Generous clearance so floating capsule tab bar never obscures content
   },
 
   // HERO CARD (Matches Reference)
@@ -3585,6 +3589,9 @@ const styles = StyleSheet.create({
   burnBannerSubRow: {
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 6,
     marginTop: 8,
     paddingTop: 8,
     borderTopWidth: 1,

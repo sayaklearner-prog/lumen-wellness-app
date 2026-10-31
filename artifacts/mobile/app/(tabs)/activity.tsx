@@ -510,16 +510,16 @@ export default function ActivityScreen() {
       {/* Top Header */}
       <View style={styles.header}>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-          <View>
+          <View style={{ flex: 1, minWidth: 0, marginRight: 8 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
               <View style={[styles.sensorBlinkDot, watchMetrics.isActive && { backgroundColor: "#10b981" }]} />
-              <Text style={styles.headerSub}>
+              <Text style={styles.headerSub} numberOfLines={1}>
                 {watchMetrics.isActive ? "⚡ SENSORS ENGAGED • 50Hz ACTIVE" : "BIOMETRIC MOTION ENGINE"}
               </Text>
             </View>
-            <Text style={styles.headerTitle}>Activity & Motion</Text>
+            <Text style={styles.headerTitle} numberOfLines={1}>Activity & Motion</Text>
           </View>
-          <Pressable onPress={openMenu} accessibilityLabel="Open Navigation Menu">
+          <Pressable onPress={openMenu} accessibilityLabel="Open Navigation Menu" style={{ flexShrink: 0 }}>
             <View style={styles.avatarCircleSmall}>
               <Text style={styles.avatarInitialSmall}>
                 {profile?.name ? profile.name[0].toUpperCase() : "A"}
@@ -615,13 +615,13 @@ export default function ActivityScreen() {
             {/* Live Watch Telemetry Banner & Triple Rings */}
             <View style={styles.watchHudCard}>
               <View style={styles.watchHeaderRow}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1, minWidth: 0, marginRight: 8 }}>
                   <Watch size={20} color="#10b981" />
-                  <Text style={styles.watchHudTitle}>Lumen Bio-Watch HUD</Text>
+                  <Text style={styles.watchHudTitle} numberOfLines={1}>Lumen Bio-Watch HUD</Text>
                 </View>
-                <View style={styles.sensorStatusBadge}>
+                <View style={[styles.sensorStatusBadge, { flexShrink: 0 }]}>
                   <View style={[styles.livePulseDot, watchMetrics.isActive && { backgroundColor: "#10b981" }]} />
-                  <Text style={styles.sensorStatusText}>
+                  <Text style={styles.sensorStatusText} numberOfLines={1}>
                     {watchMetrics.sensorState === "hardware_active" ? "ACCEL+GYRO HW" : 
                      watchMetrics.sensorState === "simulated" ? "SIMULATION ACTIVE" : "SENSORS READY"}
                   </Text>
@@ -802,8 +802,10 @@ export default function ActivityScreen() {
               {/* Real-Time Hardware Oscilloscope & Micro-Stream */}
               <View style={styles.sensorStreamCard}>
                 <View style={styles.sensorStreamHeader}>
-                  <Text style={styles.streamTitle}>Hardware Sensor Micro-Stream (50Hz Sampling)</Text>
-                  <Text style={styles.streamBadge}>ACCEL + GYRO ACTIVE</Text>
+                  <Text style={[styles.streamTitle, { flex: 1, minWidth: 0, marginRight: 8 }]} numberOfLines={1}>
+                    Hardware Sensor Micro-Stream (50Hz Sampling)
+                  </Text>
+                  <Text style={[styles.streamBadge, { flexShrink: 0 }]} numberOfLines={1}>ACCEL + GYRO ACTIVE</Text>
                 </View>
                 <View style={styles.streamReadoutRow}>
                   <View style={styles.streamAxisCol}>
@@ -997,26 +999,26 @@ export default function ActivityScreen() {
             {/* All-Day Accelerometer Pedometer Live Card */}
             <View style={styles.allDayStepCard}>
               <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                  <View style={[styles.pedometerIconBox, isWearableActive && { backgroundColor: "rgba(56, 189, 248, 0.15)" }]}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1, minWidth: 0, marginRight: 10 }}>
+                  <View style={[styles.pedometerIconBox, isWearableActive && { backgroundColor: "rgba(56, 189, 248, 0.15)" }, { flexShrink: 0 }]}>
                     {isWearableActive ? (
                       <Watch size={22} color="#38bdf8" />
                     ) : (
                       <Footprints size={22} color="#10b981" />
                     )}
                   </View>
-                  <View>
-                    <Text style={styles.allDayStepsLabel}>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={styles.allDayStepsLabel} numberOfLines={1}>
                       {isWearableActive ? `Wearable Steps (${connectedDevice?.name || "Sync"})` : "Phone Pedometer (Daily Total)"}
                     </Text>
-                    <Text style={styles.allDayStepsSub}>
+                    <Text style={styles.allDayStepsSub} numberOfLines={1}>
                       {isWearableActive
                         ? "Extracted directly from connected BLE wearable"
                         : "Continuously counted 24/7 via phone accelerometer"}
                     </Text>
                   </View>
                 </View>
-                <Text style={styles.allDayStepsVal}>{stepsToday.toLocaleString()}</Text>
+                <Text style={[styles.allDayStepsVal, { flexShrink: 0 }]} numberOfLines={1}>{stepsToday.toLocaleString()}</Text>
               </View>
               <View style={styles.pedometerProgressBar}>
                 <View style={[styles.pedometerProgressFill, isWearableActive && { backgroundColor: "#38bdf8" }, { width: `${Math.min(100, Math.round((stepsToday / 9000) * 100))}%` }]} />
@@ -1161,8 +1163,10 @@ export default function ActivityScreen() {
 
             {/* Live Synchronized Telemetry Section */}
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-              <Text style={styles.wearableSectionTitle}>SYNCHRONIZED WEARABLE METRICS</Text>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+              <Text style={[styles.wearableSectionTitle, { flex: 1, minWidth: 0, marginRight: 8 }]} numberOfLines={1}>
+                SYNCHRONIZED WEARABLE METRICS
+              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4, flexShrink: 0 }}>
                 <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: connectedDevice ? "#10b981" : "#64748b" }} />
                 <Text style={{ fontSize: 11, color: connectedDevice ? "#10b981" : "#64748b", fontWeight: "700" }}>
                   {connectedDevice ? "Live BLE Stream" : "Standby"}
@@ -1249,12 +1253,12 @@ export default function ActivityScreen() {
             {/* Wearable Device Pairing & Catalog */}
             <View style={styles.deviceCatalogSection}>
               <View style={styles.sectionHeaderRow}>
-                <View>
-                  <Text style={styles.sectionHeaderTitle}>Bluetooth Wearables</Text>
-                  <Text style={styles.sectionHeaderSub}>Pair to stream steps, calories & sleep</Text>
+                <View style={{ flex: 1, minWidth: 0, marginRight: 8 }}>
+                  <Text style={styles.sectionHeaderTitle} numberOfLines={1}>Bluetooth Wearables</Text>
+                  <Text style={styles.sectionHeaderSub} numberOfLines={1}>Pair to stream steps, calories & sleep</Text>
                 </View>
-                <View style={styles.edgeProtocolBadge}>
-                  <Text style={styles.edgeProtocolBadgeText}>EDGE BLE ENGINE</Text>
+                <View style={[styles.edgeProtocolBadge, { flexShrink: 0 }]}>
+                  <Text style={styles.edgeProtocolBadgeText} numberOfLines={1}>EDGE BLE ENGINE</Text>
                 </View>
               </View>
 
@@ -1432,13 +1436,13 @@ export default function ActivityScreen() {
             {/* Unified Total Active Calorie Burn Hub Banner */}
             <View style={styles.unifiedBurnCard}>
               <View style={styles.unifiedHeaderRow}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1, minWidth: 0, marginRight: 8 }}>
                   <Flame size={20} color="#f59e0b" />
-                  <Text style={styles.unifiedTitle}>Total Active Calorie Burn</Text>
+                  <Text style={styles.unifiedTitle} numberOfLines={1}>Total Active Calorie Burn</Text>
                 </View>
-                <View style={styles.liveIndicator}>
+                <View style={[styles.liveIndicator, { flexShrink: 0 }]}>
                   <View style={styles.liveDot} />
-                  <Text style={styles.liveText}>COMBINED TELEMETRY</Text>
+                  <Text style={styles.liveText} numberOfLines={1}>COMBINED TELEMETRY</Text>
                 </View>
               </View>
 
@@ -1878,7 +1882,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingBottom: 110,
+    paddingBottom: 150, // Generous clearance so the floating capsule tab bar never covers content
   },
   // ==========================================
   // FITNESS WATCH HUD STYLES

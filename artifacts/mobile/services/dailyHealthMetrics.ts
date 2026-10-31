@@ -502,7 +502,7 @@ export async function checkDailyHealthScoreNotification(): Promise<void> {
  * for genuine user-logged telemetry only.
  */
 export async function purgeSimulatedHealthMetrics(): Promise<void> {
-  const PURGE_FLAG_KEY = "lumen_historical_metrics_purged_v3";
+  const PURGE_FLAG_KEY = "lumen_historical_metrics_purged_v5";
   const alreadyPurged = await getKV(PURGE_FLAG_KEY);
   if (alreadyPurged === "true") return;
 
