@@ -14,7 +14,7 @@ export interface GoogleUser {
 }
 
 // User's Official Google Cloud OAuth Client ID
-export const GOOGLE_CLIENT_ID = "549183478585-aiojp8eo0mdbsrviij2eg3em3g0kmpnt.apps.googleusercontent.com";
+export const GOOGLE_CLIENT_ID = "949098534684-o0kfrlmr8coj9jjcc7m17rkgu5lkach5.apps.googleusercontent.com";
 
 /**
  * Returns the configured redirect URI based on current runtime
