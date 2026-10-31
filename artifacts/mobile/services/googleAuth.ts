@@ -13,68 +13,151 @@ export interface GoogleUser {
   signedInAt: string;
 }
 
-const DEFAULT_GOOGLE_ACCOUNTS: GoogleUser[] = [
-  {
-    id: "google-109823471029384",
-    name: "Sayak Mondal",
-    email: "sayakmondal@gmail.com",
-    givenName: "Sayak",
-    familyName: "Mondal",
-    provider: "google",
-    signedInAt: new Date().toISOString(),
-  },
-];
+// User's Official Google Cloud OAuth Client ID
+export const GOOGLE_CLIENT_ID = "549183478585-aiojp8eo0mdbsrviij2eg3em3g0kmpnt.apps.googleusercontent.com";
 
 /**
- * Retrieves list of known/saved Google accounts on this device
+ * Returns the configured redirect URI based on current runtime
  */
-export async function getKnownGoogleAccounts(): Promise<GoogleUser[]> {
-  try {
-    const raw = await storage.getItem("lumen_known_google_accounts");
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
-      }
-    }
-
-    if (Platform.OS === "web" && typeof localStorage !== "undefined") {
-      const webRaw = localStorage.getItem("lumen_known_google_accounts");
-      if (webRaw) {
-        const parsed = JSON.parse(webRaw);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
-      }
-    }
-  } catch {}
-
-  // If none saved yet, check if there's a stored Google user or verified email
-  try {
-    const stored = await getStoredGoogleUser();
-    if (stored) {
-      return [stored];
-    }
-  } catch {}
-
-  return DEFAULT_GOOGLE_ACCOUNTS;
+export function getGoogleRedirectUri(): string {
+  if (Platform.OS === "web" && typeof window !== "undefined" && window.location?.origin) {
+    return window.location.origin;
+  }
+  return "http://localhost:8081";
 }
 
 /**
- * Adds an account to the list of known Google accounts
+ * Builds the official Google OAuth 2.0 authorization URL
+ * pointing directly to accounts.google.com in the browser
  */
-export async function addKnownGoogleAccount(user: GoogleUser): Promise<void> {
-  try {
-    const existing = await getKnownGoogleAccounts();
-    const filtered = existing.filter((acc) => acc.email.toLowerCase() !== user.email.toLowerCase());
-    const updated = [user, ...filtered];
-    const json = JSON.stringify(updated);
+export function buildGoogleOAuthUrl(customRedirectUri?: string): string {
+  const redirectUri = customRedirectUri || getGoogleRedirectUri();
+  const params = new URLSearchParams({
+    client_id: GOOGLE_CLIENT_ID,
+    redirect_uri: redirectUri,
+    response_type: "token id_token",
+    scope: "openid profile email",
+    nonce: String(Date.now()),
+    prompt: "select_account",
+  });
+  return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+}
 
-    await storage.setItem("lumen_known_google_accounts", json);
-    if (Platform.OS === "web" && typeof localStorage !== "undefined") {
-      localStorage.setItem("lumen_known_google_accounts", json);
+/**
+ * Decodes a JWT token without external libraries
+ */
+export function decodeJwtPayload(jwt: string): any {
+  try {
+    const parts = jwt.split(".");
+    if (parts.length < 2) return null;
+    let base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    while (base64.length % 4) {
+      base64 += "=";
     }
-  } catch {}
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split("")
+        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+        .join("")
+    );
+    return JSON.parse(jsonPayload);
+  } catch (err) {
+    console.warn("Failed to decode JWT:", err);
+    return null;
+  }
+}
+
+/**
+ * Fetches user profile from Google UserInfo API using access_token
+ */
+export async function fetchGoogleProfile(accessToken: string): Promise<Partial<GoogleUser> | null> {
+  try {
+    const res = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return {
+      id: data.sub || `google-${Date.now()}`,
+      email: data.email,
+      name: data.name || data.email?.split("@")[0],
+      givenName: data.given_name,
+      familyName: data.family_name,
+      photoUrl: data.picture,
+    };
+  } catch (err) {
+    console.warn("fetchGoogleProfile error:", err);
+    return null;
+  }
+}
+
+/**
+ * Parses Google OAuth redirect URL or hash string (#access_token=...&id_token=...)
+ */
+export async function parseGoogleAuthRedirect(urlOrHash: string): Promise<GoogleUser | null> {
+  try {
+    let hashOrQuery = "";
+    if (urlOrHash.includes("#")) {
+      hashOrQuery = urlOrHash.substring(urlOrHash.indexOf("#") + 1);
+    } else if (urlOrHash.includes("?")) {
+      hashOrQuery = urlOrHash.substring(urlOrHash.indexOf("?") + 1);
+    } else {
+      hashOrQuery = urlOrHash;
+    }
+
+    const params = new URLSearchParams(hashOrQuery);
+    const accessToken = params.get("access_token");
+    const idToken = params.get("id_token");
+
+    if (!accessToken && !idToken) return null;
+
+    let userEmail = "";
+    let userName = "";
+    let userId = "";
+    let userPicture = "";
+
+    // 1. Try decoding id_token JWT
+    if (idToken) {
+      const decoded = decodeJwtPayload(idToken);
+      if (decoded) {
+        userEmail = decoded.email || "";
+        userName = decoded.name || "";
+        userId = decoded.sub || "";
+        userPicture = decoded.picture || "";
+      }
+    }
+
+    // 2. Fetch fresh userinfo from Google API if accessToken available
+    if (accessToken) {
+      const liveInfo = await fetchGoogleProfile(accessToken);
+      if (liveInfo) {
+        if (liveInfo.email) userEmail = liveInfo.email;
+        if (liveInfo.name) userName = liveInfo.name;
+        if (liveInfo.id) userId = liveInfo.id;
+        if (liveInfo.photoUrl) userPicture = liveInfo.photoUrl;
+      }
+    }
+
+    if (!userEmail) return null;
+
+    const formattedName =
+      userName ||
+      userEmail.split("@")[0].replace(/[._-]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
+    const user: GoogleUser = {
+      id: userId || `google-${Date.now()}`,
+      email: userEmail.toLowerCase(),
+      name: formattedName,
+      photoUrl: userPicture,
+      provider: "google",
+      signedInAt: new Date().toISOString(),
+    };
+
+    return user;
+  } catch (err) {
+    console.warn("parseGoogleAuthRedirect error:", err);
+    return null;
+  }
 }
 
 /**
@@ -86,15 +169,12 @@ export async function saveGoogleUserSession(
 ): Promise<void> {
   const userJson = JSON.stringify(user);
 
-  // 1. Add to known accounts list for future 1-tap logins
-  await addKnownGoogleAccount(user);
-
-  // 2. Storage persistence
+  // 1. Storage persistence
   await storage.setItem("lumen_auth_token", "authenticated");
   await storage.setItem("lumen_google_user", userJson);
   await storage.setItem("lumen_auth_provider", "google");
 
-  // 3. Synchronize with master SQLite database
+  // 2. Synchronize with master SQLite database
   try {
     await setKV("lumen_google_user", userJson);
     await setKV("lumen_auth_provider", "google");
@@ -123,14 +203,14 @@ export async function saveGoogleUserSession(
     console.warn("Error saving Google profile to master DB:", err);
   }
 
-  // 4. Web localStorage mirrors
+  // 3. Web localStorage mirrors
   if (Platform.OS === "web" && typeof localStorage !== "undefined") {
     localStorage.setItem("lumen_authenticated", "true");
     localStorage.setItem("lumen_google_user", userJson);
     localStorage.setItem("lumen_auth_provider", "google");
   }
 
-  // 5. Onboarding route control
+  // 4. Onboarding route control
   if (isSignUp) {
     await storage.setItem("lumen_in_onboarding", "true");
     await storage.removeItem("lumen_onboarding_completed");

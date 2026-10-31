@@ -23,7 +23,8 @@ import { GoogleIcon } from "@/components/GoogleIcon";
 import {
   saveGoogleUserSession,
   getStoredGoogleUser,
-  getKnownGoogleAccounts,
+  buildGoogleOAuthUrl,
+  parseGoogleAuthRedirect,
   GoogleUser,
 } from "@/services/googleAuth";
 import { authService } from "@/services/authService";
@@ -66,14 +67,8 @@ export default function WelcomeScreen() {
   const [otpErrorMessage, setOtpErrorMessage] = useState("");
   const [devOtpNotification, setDevOtpNotification] = useState<string | null>(null);
 
-  // Authentic Google Account Chooser State
-  const [showGoogleModal, setShowGoogleModal] = useState(false);
-  const [knownGoogleAccounts, setKnownGoogleAccounts] = useState<GoogleUser[]>([]);
-  const [selectedGoogleAccount, setSelectedGoogleAccount] = useState<GoogleUser | null>(null);
+  // Google OAuth Browser Redirect State
   const [isSigningInGoogle, setIsSigningInGoogle] = useState(false);
-  const [isAddingNewGoogleAccount, setIsAddingNewGoogleAccount] = useState(false);
-  const [newGoogleEmail, setNewGoogleEmail] = useState("");
-  const [newGoogleName, setNewGoogleName] = useState("");
 
   const triggerHaptic = (style: Haptics.ImpactFeedbackStyle = Haptics.ImpactFeedbackStyle.Light) => {
     if (Platform.OS !== "web") {
@@ -83,78 +78,95 @@ export default function WelcomeScreen() {
     }
   };
 
-  // Load known Google accounts on component mount
+  // Intercept Google OAuth redirect callback on page load or deep link return
   useEffect(() => {
-    async function loadAccounts() {
-      const accounts = await getKnownGoogleAccounts();
-      setKnownGoogleAccounts(accounts);
+    let isMounted = true;
+
+    async function checkOAuthCallback() {
+      try {
+        if (Platform.OS === "web" && typeof window !== "undefined") {
+          const hash = window.location.hash || "";
+          const search = window.location.search || "";
+          if (
+            hash.includes("access_token") ||
+            hash.includes("id_token") ||
+            search.includes("access_token")
+          ) {
+            setIsSigningInGoogle(true);
+            const user = await parseGoogleAuthRedirect(hash || search);
+            if (user && isMounted) {
+              await saveGoogleUserSession(user, true);
+              qc.invalidateQueries({ queryKey: getGetMyProfileQueryKey() });
+              if (window.history && window.history.replaceState) {
+                window.history.replaceState({}, document.title, window.location.pathname);
+              }
+              router.replace("/(auth)/onboarding");
+              return;
+            }
+            if (isMounted) setIsSigningInGoogle(false);
+          }
+        } else {
+          const initialUrl = await Linking.getInitialURL();
+          if (
+            initialUrl &&
+            (initialUrl.includes("access_token") || initialUrl.includes("id_token"))
+          ) {
+            setIsSigningInGoogle(true);
+            const user = await parseGoogleAuthRedirect(initialUrl);
+            if (user && isMounted) {
+              await saveGoogleUserSession(user, true);
+              qc.invalidateQueries({ queryKey: getGetMyProfileQueryKey() });
+              router.replace("/(auth)/onboarding");
+              return;
+            }
+            if (isMounted) setIsSigningInGoogle(false);
+          }
+        }
+      } catch (err) {
+        if (isMounted) setIsSigningInGoogle(false);
+      }
     }
-    loadAccounts();
-  }, []);
 
-  // When user taps "Connect with Google" on the Cover Page
+    checkOAuthCallback();
+
+    const sub = Linking.addEventListener("url", async (event) => {
+      if (event.url && (event.url.includes("access_token") || event.url.includes("id_token"))) {
+        setIsSigningInGoogle(true);
+        const user = await parseGoogleAuthRedirect(event.url);
+        if (user && isMounted) {
+          await saveGoogleUserSession(user, true);
+          qc.invalidateQueries({ queryKey: getGetMyProfileQueryKey() });
+          router.replace("/(auth)/onboarding");
+        }
+        if (isMounted) setIsSigningInGoogle(false);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      sub.remove();
+    };
+  }, [router, qc]);
+
+  // When user taps "Connect with Google" on the Cover Page:
+  // Redirect directly to the official Google OAuth login browser page (accounts.google.com)
   const handleGoogleAuthPress = async () => {
-    triggerHaptic();
-    const accounts = await getKnownGoogleAccounts();
-    setKnownGoogleAccounts(accounts);
-    setIsAddingNewGoogleAccount(false);
-    setSelectedGoogleAccount(null);
-    setIsSigningInGoogle(false);
-    setShowGoogleModal(true);
-  };
-
-  // When user selects a Google account from the Account Chooser
-  const handleSelectGoogleAccount = async (account: GoogleUser) => {
     triggerHaptic(Haptics.ImpactFeedbackStyle.Medium);
-    setSelectedGoogleAccount(account);
     setIsSigningInGoogle(true);
 
     try {
-      // 1. Persist Google session & set onboarding flag
-      await saveGoogleUserSession(account, true);
-      qc.invalidateQueries({ queryKey: getGetMyProfileQueryKey() });
-
-      // 2. Smooth authentic Google transition & immediate redirect to Personal Details
-      setTimeout(() => {
-        setIsSigningInGoogle(false);
-        setShowGoogleModal(false);
-        // Automatically open the Personal Details page (Step 1 of Onboarding)
-        router.replace("/(auth)/onboarding");
-      }, 650);
+      const authUrl = buildGoogleOAuthUrl();
+      if (Platform.OS === "web" && typeof window !== "undefined") {
+        // Direct browser redirect to accounts.google.com
+        window.location.href = authUrl;
+      } else {
+        // Open system browser on Android / iOS
+        await Linking.openURL(authUrl);
+      }
     } catch (err: any) {
       setIsSigningInGoogle(false);
-      Alert.alert("Sign In Error", "Failed to sign in with Google: " + err?.message);
+      Alert.alert("Google Sign-In Error", "Could not open Google login page: " + err?.message);
     }
-  };
-
-  // When user enters a new Google account
-  const handleAddNewGoogleAccount = async () => {
-    triggerHaptic(Haptics.ImpactFeedbackStyle.Medium);
-    const cleanEmail = newGoogleEmail.trim().toLowerCase();
-
-    if (!cleanEmail) {
-      Alert.alert("Email Required", "Please enter your Google email address.");
-      return;
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(cleanEmail)) {
-      Alert.alert("Invalid Email", "Please enter a valid email address (e.g., name@gmail.com).");
-      return;
-    }
-
-    const defaultName = newGoogleName.trim() || cleanEmail.split("@")[0].replace(/[._-]/g, " ");
-    const formattedName = defaultName.charAt(0).toUpperCase() + defaultName.slice(1);
-
-    const newAccount: GoogleUser = {
-      id: `google-${Date.now()}`,
-      email: cleanEmail,
-      name: formattedName,
-      provider: "google",
-      signedInAt: new Date().toISOString(),
-    };
-
-    handleSelectGoogleAccount(newAccount);
   };
 
   // Countdown timer for OTP expiry and resend cooldown
@@ -732,167 +744,19 @@ export default function WelcomeScreen() {
       </Modal>
 
       {/* ========================================================= */}
-      {/* AUTHENTIC GOOGLE ACCOUNT CHOOSER (Consumer-grade UX)      */}
+      {/* GOOGLE BROWSER AUTHENTICATION OVERLAY                     */}
       {/* ========================================================= */}
-      <Modal
-        visible={showGoogleModal}
-        animationType="slide"
-        transparent
-        onRequestClose={() => {
-          if (!isSigningInGoogle) setShowGoogleModal(false);
-        }}
-      >
-        <View style={styles.modalBackdrop}>
-          <Pressable
-            style={StyleSheet.absoluteFillObject}
-            onPress={() => {
-              if (!isSigningInGoogle) setShowGoogleModal(false);
-            }}
-          />
-          <View style={styles.googleChooserPanel}>
-            <View style={styles.modalHandle} />
-
-            {/* Google Brand Header */}
-            <View style={styles.googleChooserHeader}>
-              <View style={styles.googleIconCircle}>
-                <GoogleIcon size={26} />
-              </View>
-              <Text style={styles.googleChooserTitle}>Choose an account</Text>
-              <Text style={styles.googleChooserSub}>to continue to Lumen OS</Text>
-              <Pressable
-                style={styles.googleChooserCloseBtn}
-                onPress={() => setShowGoogleModal(false)}
-                disabled={isSigningInGoogle}
-              >
-                <X size={16} color="#ffffff" />
-              </Pressable>
-            </View>
-
-            {/* Signing In State (Authentic Google Loader) */}
-            {isSigningInGoogle ? (
-              <View style={styles.googleSigningInBox}>
-                <ActivityIndicator size="large" color="#4285f4" />
-                <Text style={styles.googleSigningInTitle}>Signing in with Google...</Text>
-                <Text style={styles.googleSigningInAccount} numberOfLines={1}>
-                  {selectedGoogleAccount?.email}
-                </Text>
-                <Text style={styles.googleSigningInSub}>
-                  Redirecting to Personal Details setup...
-                </Text>
-              </View>
-            ) : isAddingNewGoogleAccount ? (
-              /* Add Another Account Input View */
-              <View style={{ gap: 14 }}>
-                <Text style={styles.googleInputSectionTitle}>Add another Google account</Text>
-
-                <View style={styles.modalInputBox}>
-                  <User size={18} color="#10b981" />
-                  <TextInput
-                    style={styles.modalTextInput}
-                    placeholder="Name (e.g. Sayak Mondal)"
-                    placeholderTextColor="#64748b"
-                    value={newGoogleName}
-                    onChangeText={setNewGoogleName}
-                    autoCapitalize="words"
-                  />
-                </View>
-
-                <View style={styles.modalInputBox}>
-                  <Mail size={18} color="#10b981" />
-                  <TextInput
-                    style={styles.modalTextInput}
-                    placeholder="Google email (e.g. name@gmail.com)"
-                    placeholderTextColor="#64748b"
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    autoFocus
-                    value={newGoogleEmail}
-                    onChangeText={setNewGoogleEmail}
-                  />
-                </View>
-
-                <View style={{ flexDirection: "row", gap: 10, marginTop: 4 }}>
-                  <Pressable
-                    style={styles.googleCancelAddBtn}
-                    onPress={() => setIsAddingNewGoogleAccount(false)}
-                  >
-                    <Text style={styles.googleCancelAddBtnText}>Back</Text>
-                  </Pressable>
-
-                  <Pressable
-                    style={styles.googleConfirmAddBtn}
-                    onPress={handleAddNewGoogleAccount}
-                  >
-                    <Text style={styles.googleConfirmAddBtnText}>Continue ➔</Text>
-                  </Pressable>
-                </View>
-              </View>
-            ) : (
-              /* Account Chooser List */
-              <View style={{ gap: 12 }}>
-                <View style={styles.googleAccountsList}>
-                  {knownGoogleAccounts.map((account, idx) => {
-                    const initial = (account.name || account.email || "G").charAt(0).toUpperCase();
-                    const bgColors = ["#1a73e8", "#0f9d58", "#ea4335", "#8e24aa"];
-                    const avatarBg = bgColors[idx % bgColors.length];
-
-                    return (
-                      <Pressable
-                        key={account.email}
-                        style={({ pressed }) => [
-                          styles.googleAccountRow,
-                          pressed && styles.googleAccountRowPressed,
-                        ]}
-                        onPress={() => handleSelectGoogleAccount(account)}
-                      >
-                        <View style={[styles.googleAvatarCircle, { backgroundColor: avatarBg }]}>
-                          <Text style={styles.googleAvatarInitial}>{initial}</Text>
-                        </View>
-
-                        <View style={styles.googleAccountInfoCol}>
-                          <Text style={styles.googleAccountName} numberOfLines={1}>
-                            {account.name || "Google User"}
-                          </Text>
-                          <Text style={styles.googleAccountEmail} numberOfLines={1}>
-                            {account.email}
-                          </Text>
-                        </View>
-
-                        <CheckCircle2 size={18} color="#10b981" />
-                      </Pressable>
-                    );
-                  })}
-
-                  {/* Use another account row */}
-                  <Pressable
-                    style={({ pressed }) => [
-                      styles.googleAccountRow,
-                      styles.googleAddAccountRow,
-                      pressed && styles.googleAccountRowPressed,
-                    ]}
-                    onPress={() => {
-                      triggerHaptic();
-                      setIsAddingNewGoogleAccount(true);
-                    }}
-                  >
-                    <View style={styles.googleAddAvatarCircle}>
-                      <Plus size={20} color="#9cb6ab" />
-                    </View>
-                    <View style={styles.googleAccountInfoCol}>
-                      <Text style={styles.googleAddAccountText}>Use another account</Text>
-                    </View>
-                  </Pressable>
-                </View>
-
-                {/* Google Disclaimer */}
-                <Text style={styles.googleChooserDisclaimer}>
-                  To continue, Google will share your name and email address with Lumen OS.
-                </Text>
-              </View>
-            )}
+      {isSigningInGoogle && (
+        <View style={styles.googleRedirectOverlay}>
+          <View style={styles.googleRedirectBox}>
+            <ActivityIndicator size="large" color="#4285f4" />
+            <Text style={styles.googleRedirectTitle}>Connecting to Google...</Text>
+            <Text style={styles.googleRedirectSub}>
+              Opening official accounts.google.com in browser
+            </Text>
           </View>
         </View>
-      </Modal>
+      )}
     </View>
   );
 }
@@ -1682,5 +1546,42 @@ const styles = StyleSheet.create({
     color: "#0b120f",
     fontSize: 14,
     fontWeight: "900",
+  },
+  googleRedirectOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0, 0, 0, 0.75)",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 9999,
+  },
+  googleRedirectBox: {
+    backgroundColor: "#0d1b15",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(66, 133, 244, 0.4)",
+    paddingVertical: 28,
+    paddingHorizontal: 24,
+    alignItems: "center",
+    maxWidth: 320,
+    width: "85%",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  googleRedirectTitle: {
+    color: "#ffffff",
+    fontSize: 17,
+    fontWeight: "800",
+    marginTop: 16,
+    textAlign: "center",
+  },
+  googleRedirectSub: {
+    color: "#94a3b8",
+    fontSize: 12,
+    marginTop: 6,
+    textAlign: "center",
+    lineHeight: 17,
   },
 });
