@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
   Image,
+  Animated,
+  Easing,
   StyleSheet,
   Pressable,
   Dimensions,
@@ -20,6 +22,7 @@ import { storage } from "@/services/storage";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetMyProfileQueryKey } from "@workspace/api-client-react";
 import { GoogleIcon } from "@/components/GoogleIcon";
+import { Background3DBioField } from "@/components/Background3DBioField";
 import {
   saveGoogleUserSession,
   getStoredGoogleUser,
@@ -69,6 +72,30 @@ export default function WelcomeScreen() {
 
   // Google OAuth Browser Redirect State
   const [isSigningInGoogle, setIsSigningInGoogle] = useState(false);
+
+  // Cinematic 3D Ken Burns Breathing Zoom on Background Photography
+  const kenBurnsScale = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(kenBurnsScale, {
+          toValue: 1.055,
+          duration: 11000,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(kenBurnsScale, {
+          toValue: 1.0,
+          duration: 11000,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, []);
 
   const triggerHaptic = (style: Haptics.ImpactFeedbackStyle = Haptics.ImpactFeedbackStyle.Light) => {
     if (Platform.OS !== "web") {
@@ -331,13 +358,23 @@ export default function WelcomeScreen() {
   return (
     <View style={styles.container}>
       {/* ========================================================= */}
-      {/* FULLSCREEN BACKGROUND PHOTOGRAPHY (Reference Aesthetic)    */}
+      {/* FULLSCREEN BACKGROUND PHOTOGRAPHY WITH 3D KEN BURNS ZOOM    */}
       {/* ========================================================= */}
-      <Image
+      <Animated.Image
         source={require("../../assets/cover-bg.jpg")}
-        style={styles.coverImageBg}
+        style={[
+          styles.coverImageBg,
+          {
+            transform: [{ scale: kenBurnsScale }],
+          },
+        ]}
         resizeMode="cover"
       />
+
+      {/* ========================================================= */}
+      {/* 3D BIO-CONSTELLATION PARTICLE MESH (GPU 120FPS PARALLAX)   */}
+      {/* ========================================================= */}
+      <Background3DBioField pointerEvents="none" interactive={true} />
 
       {/* Cinematic Dual Vignette Overlays for Maximum Legibility */}
       <Svg width="100%" height="100%" style={StyleSheet.absoluteFillObject} pointerEvents="none">

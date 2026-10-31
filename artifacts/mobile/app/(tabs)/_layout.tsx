@@ -67,7 +67,11 @@ const PRIMARY_TABS: Record<
  *  - Elevated dark capsule bar with smooth rounded ends (radius 36)
  *  - Zero sharp squares, zero clipped labels, zero leaked auxiliary tabs
  */
-function FloatingCapsuleTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+const FloatingCapsuleTabBar = React.memo(function FloatingCapsuleTabBar({
+  state,
+  descriptors,
+  navigation,
+}: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   // STRICT FILTER: Only include the 4 allowed primary tabs
   const validRoutes = state.routes.filter((route) => route.name in PRIMARY_TABS);
@@ -77,7 +81,7 @@ function FloatingCapsuleTabBar({ state, descriptors, navigation }: BottomTabBarP
 
   return (
     <View style={[styles.floatingBarWrapper, { bottom: bottomInset }]} pointerEvents="box-none">
-      <View style={styles.floatingBar}>
+      <View style={styles.floatingBar} renderToHardwareTextureAndroid={true}>
         {validRoutes.map((route) => {
           const tabConfig = PRIMARY_TABS[route.name];
           const isFocused = state.routes[state.index]?.name === route.name;
@@ -123,7 +127,7 @@ function FloatingCapsuleTabBar({ state, descriptors, navigation }: BottomTabBarP
       </View>
     </View>
   );
-}
+});
 
 function TabsContent() {
   const { isLeftOpen, closeLeftMenu, isRightOpen, closeRightMenu } = useSlideMenu();

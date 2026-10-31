@@ -225,6 +225,9 @@ export default function AnalyticsScreen() {
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
+        removeClippedSubviews={Platform.OS === "android"}
+        overScrollMode="never"
       >
         {/* ========================================================= */}
         {/* 1. MONTH SELECTOR & MONTHLY SCORE HERO CARD               */}

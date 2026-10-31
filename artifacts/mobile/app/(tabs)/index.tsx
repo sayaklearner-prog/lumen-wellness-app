@@ -1046,6 +1046,9 @@ export default function DashboardScreen() {
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
+        removeClippedSubviews={Platform.OS === "android"}
+        overScrollMode="never"
         refreshControl={
           <RefreshControl
             refreshing={refreshing}

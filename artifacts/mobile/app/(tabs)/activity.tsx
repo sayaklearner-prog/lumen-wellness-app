@@ -575,7 +575,13 @@ export default function ActivityScreen() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
+        removeClippedSubviews={Platform.OS === "android"}
+        overScrollMode="never"
+      >
         {/* ========================================================================= */}
         {/* TAB 1: FITNESS WATCH INTERFACE (ACCELEROMETER + GYROSCOPE REAL-TIME HUD) */}
         {/* ========================================================================= */}
