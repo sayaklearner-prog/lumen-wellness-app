@@ -142,9 +142,31 @@ export default function WelcomeScreen() {
       }
     });
 
+    // Native Android Capacitor Bridge Event Listener
+    const handleNativeOAuthEvent = async (e: any) => {
+      const url = e?.detail;
+      if (url && (url.includes("access_token") || url.includes("id_token"))) {
+        setIsSigningInGoogle(true);
+        const user = await parseGoogleAuthRedirect(url);
+        if (user && isMounted) {
+          await saveGoogleUserSession(user, true);
+          qc.invalidateQueries({ queryKey: getGetMyProfileQueryKey() });
+          router.replace("/(auth)/onboarding");
+        }
+        if (isMounted) setIsSigningInGoogle(false);
+      }
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("googleOAuthRedirect", handleNativeOAuthEvent);
+    }
+
     return () => {
       isMounted = false;
       sub.remove();
+      if (typeof window !== "undefined") {
+        window.removeEventListener("googleOAuthRedirect", handleNativeOAuthEvent);
+      }
     };
   }, [router, qc]);
 

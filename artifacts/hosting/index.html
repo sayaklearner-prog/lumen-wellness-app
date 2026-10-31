@@ -132,5 +132,14 @@
       <a href="mailto:sayak24052006@gmail.com">Contact Support</a>
     </p>
   </footer>
+  <script>
+    // Forward any OAuth credentials received on the root landing page to the dedicated auth callback handler
+    (function() {
+      var h = window.location.hash || window.location.search;
+      if (h && (h.indexOf("access_token") !== -1 || h.indexOf("id_token") !== -1)) {
+        window.location.replace("auth-callback.html" + h);
+      }
+    })();
+  </script>
 </body>
 </html>

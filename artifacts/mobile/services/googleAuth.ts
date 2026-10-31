@@ -16,14 +16,22 @@ export interface GoogleUser {
 // User's Official Google Cloud OAuth Client ID
 export const GOOGLE_CLIENT_ID = "949098534684-o0kfrlmr8coj9jjcc7m17rkgu5lkach5.apps.googleusercontent.com";
 
+// Hosted Auth Bridge URL on verified Firebase project
+export const OAUTH_HOSTED_REDIRECT_URI = "https://lumen-os-4e785.web.app/auth-callback.html";
+
 /**
  * Returns the configured redirect URI based on current runtime
  */
 export function getGoogleRedirectUri(): string {
   if (Platform.OS === "web" && typeof window !== "undefined" && window.location?.origin) {
-    return window.location.origin.replace(/\/+$/, "");
+    const origin = window.location.origin.replace(/\/+$/, "");
+    // If running in development web server or live hosted web (not Capacitor Android webview)
+    if (origin.includes("localhost:8081") || origin.includes("lumen-os-4e785")) {
+      return origin;
+    }
   }
-  return "https://localhost";
+  // Mobile app (Android / Capacitor localhost): redirect through hosted Firebase auth bridge
+  return OAUTH_HOSTED_REDIRECT_URI;
 }
 
 /**

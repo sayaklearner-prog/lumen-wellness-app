@@ -18,6 +18,22 @@ export default function RootIndex() {
   useEffect(() => {
     let isMounted = true;
 
+    // Native Android Capacitor Bridge Event Listener
+    const handleNativeOAuthEvent = async (e: any) => {
+      const url = e?.detail;
+      if (url && (url.includes("access_token") || url.includes("id_token"))) {
+        const user = await parseGoogleAuthRedirect(url);
+        if (user && isMounted) {
+          await saveGoogleUserSession(user, true);
+          router.replace("/(auth)/onboarding");
+        }
+      }
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("googleOAuthRedirect", handleNativeOAuthEvent);
+    }
+
     async function checkInitialRoute() {
       try {
         // 1. Check for incoming Google OAuth Callback (access_token or id_token)
@@ -86,6 +102,9 @@ export default function RootIndex() {
 
     return () => {
       isMounted = false;
+      if (typeof window !== "undefined") {
+        window.removeEventListener("googleOAuthRedirect", handleNativeOAuthEvent);
+      }
     };
   }, [router]);
 
