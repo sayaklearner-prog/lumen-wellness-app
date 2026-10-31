@@ -45,10 +45,42 @@ export const GOOGLE_OAUTH_CONFIG = {
 };
 
 /**
+ * Returns the currently active Google Client ID (from env or stored preference)
+ */
+export async function getActiveGoogleClientId(): Promise<string> {
+  const envId =
+    process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID ||
+    process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+  if (envId && envId.trim() && !envId.startsWith("YOUR_GOOGLE_CLIENT_ID")) {
+    return envId.trim();
+  }
+
+  try {
+    const stored = await storage.getItem("lumen_google_client_id");
+    if (stored && stored.trim() && !stored.startsWith("YOUR_GOOGLE_CLIENT_ID")) {
+      return stored.trim();
+    }
+  } catch {}
+
+  return "";
+}
+
+/**
+ * Persists a user-configured Google OAuth 2.0 Client ID
+ */
+export async function setActiveGoogleClientId(clientId: string): Promise<void> {
+  const clean = clientId.trim();
+  await storage.setItem("lumen_google_client_id", clean);
+  if (Platform.OS === "web" && typeof localStorage !== "undefined") {
+    localStorage.setItem("lumen_google_client_id", clean);
+  }
+}
+
+/**
  * Returns true if a real, valid Google OAuth Client ID has been configured.
  */
-export function isGoogleOAuthConfigured(): boolean {
-  const cid = GOOGLE_OAUTH_CONFIG.clientId?.trim();
+export function isGoogleOAuthConfigured(explicitClientId?: string): boolean {
+  const cid = (explicitClientId || GOOGLE_OAUTH_CONFIG.clientId)?.trim();
   if (!cid) return false;
   if (cid.startsWith("YOUR_GOOGLE_CLIENT_ID")) return false;
   return true;
@@ -72,13 +104,17 @@ export function getGoogleRedirectUri(): string {
 /**
  * Builds the official Google OAuth 2.0 authorization URL
  */
-export function buildGoogleAuthUrl(prompt: "select_account" | "consent" = "select_account"): string {
+export function buildGoogleAuthUrl(
+  prompt: "select_account" | "consent" = "select_account",
+  overrideClientId?: string
+): string {
   const activeClientId =
-    Platform.OS === "android" && GOOGLE_OAUTH_CONFIG.androidClientId
+    overrideClientId ||
+    (Platform.OS === "android" && GOOGLE_OAUTH_CONFIG.androidClientId
       ? GOOGLE_OAUTH_CONFIG.androidClientId
       : Platform.OS === "ios" && GOOGLE_OAUTH_CONFIG.iosClientId
       ? GOOGLE_OAUTH_CONFIG.iosClientId
-      : GOOGLE_OAUTH_CONFIG.clientId;
+      : GOOGLE_OAUTH_CONFIG.clientId);
 
   const redirectUri = getGoogleRedirectUri();
   const scopeStr = GOOGLE_OAUTH_CONFIG.scopes.join(" ");
@@ -138,23 +174,30 @@ export function parseOAuthRedirectUrl(url: string): {
   error?: string;
 } {
   try {
-    // Parse query params or hash fragment params
-    const hashIndex = url.indexOf("#");
-    const queryIndex = url.indexOf("?");
-    let paramString = "";
+    let accessToken: string | undefined;
+    let idToken: string | undefined;
+    let error: string | undefined;
 
-    if (hashIndex !== -1) {
-      paramString = url.substring(hashIndex + 1);
-    } else if (queryIndex !== -1) {
-      paramString = url.substring(queryIndex + 1);
+    const qIndex = url.indexOf("?");
+    const hIndex = url.indexOf("#");
+
+    if (qIndex !== -1) {
+      const qStr = hIndex !== -1 && hIndex > qIndex ? url.substring(qIndex + 1, hIndex) : url.substring(qIndex + 1);
+      const qParams = new URLSearchParams(qStr);
+      accessToken = qParams.get("access_token") || undefined;
+      idToken = qParams.get("id_token") || undefined;
+      error = qParams.get("error") || undefined;
     }
 
-    const searchParams = new URLSearchParams(paramString);
-    return {
-      accessToken: searchParams.get("access_token") || undefined,
-      idToken: searchParams.get("id_token") || undefined,
-      error: searchParams.get("error") || undefined,
-    };
+    if (hIndex !== -1) {
+      const hStr = url.substring(hIndex + 1);
+      const hParams = new URLSearchParams(hStr);
+      if (!accessToken) accessToken = hParams.get("access_token") || undefined;
+      if (!idToken) idToken = hParams.get("id_token") || undefined;
+      if (!error) error = hParams.get("error") || undefined;
+    }
+
+    return { accessToken, idToken, error };
   } catch {
     return {};
   }

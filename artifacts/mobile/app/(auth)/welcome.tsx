@@ -27,6 +27,8 @@ import {
   parseOAuthRedirectUrl,
   saveGoogleUserSession,
   getStoredGoogleUser,
+  getActiveGoogleClientId,
+  setActiveGoogleClientId,
   GoogleUser,
 } from "@/services/googleAuth";
 import { authService } from "@/services/authService";
@@ -71,6 +73,8 @@ export default function WelcomeScreen() {
 
   // Google Sign-In Interactive Modal State
   const [showGoogleModal, setShowGoogleModal] = useState(false);
+  const [googleClientIdInput, setGoogleClientIdInput] = useState("");
+  const [googleActiveTab, setGoogleActiveTab] = useState<"oauth" | "instant">("oauth");
   const [gmailAddress, setGmailAddress] = useState("");
   const [gmailName, setGmailName] = useState("");
   const [modalSubmitting, setModalSubmitting] = useState(false);
@@ -84,7 +88,7 @@ export default function WelcomeScreen() {
     }
   };
 
-  // Check for existing signed-in Google user preview
+  // Check for existing signed-in Google user preview & active Client ID
   useEffect(() => {
     async function checkSaved() {
       const u = await getStoredGoogleUser();
@@ -92,6 +96,10 @@ export default function WelcomeScreen() {
         setSavedUserPreview(u);
         if (!gmailAddress) setGmailAddress(u.email);
         if (!gmailName) setGmailName(u.name);
+      }
+      const activeId = await getActiveGoogleClientId();
+      if (activeId) {
+        setGoogleClientIdInput(activeId);
       }
     }
     checkSaved();
@@ -129,15 +137,13 @@ export default function WelcomeScreen() {
               signedInAt: new Date().toISOString(),
             };
 
-            const isSignUp = authMode === "signup";
+            // Always set isSignUp to true so we navigate directly to Personal Details
+            const isSignUp = true;
             await saveGoogleUserSession(googleUser, isSignUp);
             qc.invalidateQueries({ queryKey: getGetMyProfileQueryKey() });
 
-            if (isSignUp) {
-              router.replace("/(auth)/onboarding");
-            } else {
-              router.replace("/(tabs)");
-            }
+            // Automatically navigate directly to Personal Details (Step 1 of Onboarding)
+            router.replace("/(auth)/onboarding");
           }
         } catch (err: any) {
           Alert.alert("Authentication", "Failed to retrieve Google profile: " + err?.message);
@@ -158,13 +164,15 @@ export default function WelcomeScreen() {
     return () => sub.remove();
   }, [authMode]);
 
-  // Primary Google / Gmail action handler
+  // Primary Google / Gmail action handler from Cover Page
   const handleGoogleAuthPress = async () => {
     triggerHaptic();
 
-    if (isGoogleOAuthConfigured()) {
+    const activeClientId = await getActiveGoogleClientId();
+
+    if (activeClientId) {
       setIsLoading(true);
-      const authUrl = buildGoogleAuthUrl(authMode === "signup" ? "select_account" : "consent");
+      const authUrl = buildGoogleAuthUrl("select_account", activeClientId);
       try {
         if (Platform.OS === "web" && typeof window !== "undefined") {
           window.location.href = authUrl;
@@ -178,7 +186,38 @@ export default function WelcomeScreen() {
       return;
     }
 
+    // Open Google modal for user to connect via official OAuth or Instant Sign-In
     setShowGoogleModal(true);
+  };
+
+  // Launch official Google OAuth login page (accounts.google.com)
+  const handleLaunchGoogleOAuth = async (clientIdToUse?: string) => {
+    triggerHaptic(Haptics.ImpactFeedbackStyle.Medium);
+    const cid = (clientIdToUse || googleClientIdInput).trim();
+
+    if (!cid) {
+      Alert.alert(
+        "Client ID Required",
+        "Please enter your Google Cloud OAuth Client ID (or switch to the Instant Sign-In tab)."
+      );
+      return;
+    }
+
+    await setActiveGoogleClientId(cid);
+    setIsLoading(true);
+    setShowGoogleModal(false);
+
+    const authUrl = buildGoogleAuthUrl("select_account", cid);
+    try {
+      if (Platform.OS === "web" && typeof window !== "undefined") {
+        window.location.href = authUrl;
+      } else {
+        await Linking.openURL(authUrl);
+      }
+    } catch (err: any) {
+      setIsLoading(false);
+      Alert.alert("OAuth Error", "Unable to launch Google login page: " + err?.message);
+    }
   };
 
   // Complete Google Sign-In / Sign-Up from Google Account Dialog
@@ -209,17 +248,15 @@ export default function WelcomeScreen() {
         signedInAt: new Date().toISOString(),
       };
 
-      const isSignUp = authMode === "signup";
+      // Always navigate directly to Personal Details (Step 1 of Onboarding)
+      const isSignUp = true;
       await saveGoogleUserSession(googleUser, isSignUp);
 
       qc.invalidateQueries({ queryKey: getGetMyProfileQueryKey() });
       setShowGoogleModal(false);
 
-      if (isSignUp) {
-        router.replace("/(auth)/onboarding");
-      } else {
-        router.replace("/(tabs)");
-      }
+      // Open Personal Details page (Step 1 of Onboarding)
+      router.replace("/(auth)/onboarding");
     } catch (err: any) {
       Alert.alert("Sign In Error", "Failed to complete Google login: " + err?.message);
     } finally {
@@ -819,14 +856,65 @@ export default function WelcomeScreen() {
               keyboardShouldPersistTaps="handled"
               contentContainerStyle={styles.modalScrollContent}
             >
+              {/* Two Google Options: Official accounts.google.com vs Instant Google Sign-In */}
+              <View style={styles.authModeSegment}>
+                <Pressable
+                  style={[
+                    styles.segmentTab,
+                    googleActiveTab === "oauth" && styles.segmentTabActive,
+                  ]}
+                  onPress={() => {
+                    triggerHaptic();
+                    setGoogleActiveTab("oauth");
+                  }}
+                >
+                  <Sparkles size={13} color={googleActiveTab === "oauth" ? "#0b1612" : "#9cb6ae"} />
+                  <Text
+                    style={[
+                      styles.segmentTabText,
+                      googleActiveTab === "oauth" && styles.segmentTabTextActive,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    Official Google Page
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  style={[
+                    styles.segmentTab,
+                    googleActiveTab === "instant" && styles.segmentTabActive,
+                  ]}
+                  onPress={() => {
+                    triggerHaptic();
+                    setGoogleActiveTab("instant");
+                  }}
+                >
+                  <User size={13} color={googleActiveTab === "instant" ? "#0b1612" : "#9cb6ae"} />
+                  <Text
+                    style={[
+                      styles.segmentTabText,
+                      googleActiveTab === "instant" && styles.segmentTabTextActive,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    Instant Google Login
+                  </Text>
+                </Pressable>
+              </View>
+
               <View style={styles.modalHeader}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1, marginRight: 8 }}>
                   <GoogleIcon size={22} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.modalHeaderTitle} numberOfLines={1}>
-                      {authMode === "signup" ? "Sign Up with Google" : "Sign In with Google"}
+                      {googleActiveTab === "oauth" ? "Google OAuth Page" : "Google Sign-In"}
                     </Text>
-                    <Text style={styles.modalHeaderSub} numberOfLines={1}>Direct Google Identity Platform</Text>
+                    <Text style={styles.modalHeaderSub} numberOfLines={1}>
+                      {googleActiveTab === "oauth"
+                        ? "Connects to accounts.google.com"
+                        : "Direct Google Identity Platform"}
+                    </Text>
                   </View>
                 </View>
                 <Pressable style={styles.modalCloseBtn} onPress={() => setShowGoogleModal(false)}>
@@ -834,62 +922,125 @@ export default function WelcomeScreen() {
                 </Pressable>
               </View>
 
-              {savedUserPreview && (
-                <Pressable
-                  style={styles.savedAccountCard}
-                  onPress={() => handleCompleteGoogleModal(savedUserPreview.email, savedUserPreview.name)}
-                >
-                  <View style={styles.savedAvatar}>
-                    <Text style={styles.savedAvatarText}>
-                      {(savedUserPreview.name || savedUserPreview.email)[0].toUpperCase()}
+              {/* TAB 1: OFFICIAL GOOGLE OAUTH LOGIN PAGE */}
+              {googleActiveTab === "oauth" && (
+                <View style={{ gap: 12 }}>
+                  <View style={styles.googleOAuthHintBox}>
+                    <ShieldCheck size={16} color="#10b981" />
+                    <Text style={styles.googleOAuthHintText}>
+                      Connects directly to Google's official accounts.google.com authentication page. Enter your Google Cloud Client ID below:
                     </Text>
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.savedName}>{savedUserPreview.name}</Text>
-                    <Text style={styles.savedEmail}>{savedUserPreview.email}</Text>
+
+                  <View style={styles.modalInputBox}>
+                    <Lock size={18} color="#10b981" />
+                    <TextInput
+                      style={styles.modalTextInput}
+                      placeholder="Google OAuth Client ID (.apps.googleusercontent.com)"
+                      placeholderTextColor="#64748b"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      value={googleClientIdInput}
+                      onChangeText={setGoogleClientIdInput}
+                    />
                   </View>
-                  <CheckCircle2 size={18} color="#10b981" />
-                </Pressable>
+
+                  <Pressable
+                    style={styles.googleSubmitBtn}
+                    onPress={() => handleLaunchGoogleOAuth()}
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <ActivityIndicator size="small" color="#0b1612" />
+                    ) : (
+                      <>
+                        <GoogleIcon size={18} />
+                        <Text style={styles.googleSubmitBtnText}>Launch accounts.google.com ➔</Text>
+                      </>
+                    )}
+                  </Pressable>
+
+                  <View style={styles.modalDividerRow}>
+                    <View style={styles.modalDividerLine} />
+                    <Text style={styles.modalDividerText}>OR</Text>
+                    <View style={styles.modalDividerLine} />
+                  </View>
+
+                  <Pressable
+                    style={styles.googleSecondaryPill}
+                    onPress={() => {
+                      triggerHaptic();
+                      setGoogleActiveTab("instant");
+                    }}
+                  >
+                    <Text style={styles.googleSecondaryPillText}>
+                      Switch to Instant Google Account Sign-In
+                    </Text>
+                  </Pressable>
+                </View>
               )}
 
-              <View style={styles.modalInputBox}>
-                <User size={18} color="#10b981" />
-                <TextInput
-                  style={styles.modalTextInput}
-                  placeholder="Full Name (e.g., Alex Rivera)"
-                  placeholderTextColor="#64748b"
-                  value={gmailName}
-                  onChangeText={setGmailName}
-                />
-              </View>
+              {/* TAB 2: INSTANT GOOGLE ACCOUNT SIGN-IN */}
+              {googleActiveTab === "instant" && (
+                <View style={{ gap: 12 }}>
+                  {savedUserPreview && (
+                    <Pressable
+                      style={styles.savedAccountCard}
+                      onPress={() => handleCompleteGoogleModal(savedUserPreview.email, savedUserPreview.name)}
+                    >
+                      <View style={styles.savedAvatar}>
+                        <Text style={styles.savedAvatarText}>
+                          {(savedUserPreview.name || savedUserPreview.email)[0].toUpperCase()}
+                        </Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.savedName}>{savedUserPreview.name}</Text>
+                        <Text style={styles.savedEmail}>{savedUserPreview.email}</Text>
+                      </View>
+                      <CheckCircle2 size={18} color="#10b981" />
+                    </Pressable>
+                  )}
 
-              <View style={[styles.modalInputBox, { marginTop: 4 }]}>
-                <Mail size={18} color="#10b981" />
-                <TextInput
-                  style={styles.modalTextInput}
-                  placeholder="Gmail address (e.g., alex@gmail.com)"
-                  placeholderTextColor="#64748b"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  value={gmailAddress}
-                  onChangeText={setGmailAddress}
-                />
-              </View>
+                  <View style={styles.modalInputBox}>
+                    <User size={18} color="#10b981" />
+                    <TextInput
+                      style={styles.modalTextInput}
+                      placeholder="Full Name (e.g., Sayak Mondal)"
+                      placeholderTextColor="#64748b"
+                      value={gmailName}
+                      onChangeText={setGmailName}
+                    />
+                  </View>
 
-              <Pressable
-                style={styles.googleSubmitBtn}
-                onPress={() => handleCompleteGoogleModal()}
-                disabled={modalSubmitting}
-              >
-                {modalSubmitting ? (
-                  <ActivityIndicator size="small" color="#0b1612" />
-                ) : (
-                  <>
-                    <GoogleIcon size={18} />
-                    <Text style={styles.googleSubmitBtnText}>Continue with Account</Text>
-                  </>
-                )}
-              </Pressable>
+                  <View style={styles.modalInputBox}>
+                    <Mail size={18} color="#10b981" />
+                    <TextInput
+                      style={styles.modalTextInput}
+                      placeholder="Gmail address (e.g., user@gmail.com)"
+                      placeholderTextColor="#64748b"
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      value={gmailAddress}
+                      onChangeText={setGmailAddress}
+                    />
+                  </View>
+
+                  <Pressable
+                    style={styles.googleSubmitBtn}
+                    onPress={() => handleCompleteGoogleModal()}
+                    disabled={modalSubmitting}
+                  >
+                    {modalSubmitting ? (
+                      <ActivityIndicator size="small" color="#0b1612" />
+                    ) : (
+                      <>
+                        <GoogleIcon size={18} />
+                        <Text style={styles.googleSubmitBtnText}>Continue to Personal Details ➔</Text>
+                      </>
+                    )}
+                  </Pressable>
+                </View>
+              )}
             </ScrollView>
           </View>
         </View>
@@ -1552,5 +1703,35 @@ const styles = StyleSheet.create({
     color: "#0b1612",
     fontSize: 15,
     fontWeight: "800",
+  },
+  googleOAuthHintBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.28)",
+  },
+  googleOAuthHintText: {
+    color: "#dbeae3",
+    fontSize: 12,
+    lineHeight: 17,
+    flex: 1,
+  },
+  googleSecondaryPill: {
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    paddingVertical: 12,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.14)",
+  },
+  googleSecondaryPillText: {
+    color: "#c2d4cb",
+    fontSize: 13,
+    fontWeight: "700",
   },
 });

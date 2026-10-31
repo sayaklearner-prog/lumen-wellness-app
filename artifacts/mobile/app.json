@@ -2,6 +2,7 @@
   "expo": {
     "name": "Lumen OS",
     "slug": "lumen-wellness-app",
+    "scheme": "lumen",
     "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
