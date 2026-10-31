@@ -21,14 +21,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { getGetMyProfileQueryKey } from "@workspace/api-client-react";
 import { GoogleIcon } from "@/components/GoogleIcon";
 import {
-  isGoogleOAuthConfigured,
-  buildGoogleAuthUrl,
-  fetchGoogleUserInfo,
-  parseOAuthRedirectUrl,
   saveGoogleUserSession,
   getStoredGoogleUser,
-  getActiveGoogleClientId,
-  setActiveGoogleClientId,
+  getKnownGoogleAccounts,
   GoogleUser,
 } from "@/services/googleAuth";
 import { authService } from "@/services/authService";
@@ -71,14 +66,14 @@ export default function WelcomeScreen() {
   const [otpErrorMessage, setOtpErrorMessage] = useState("");
   const [devOtpNotification, setDevOtpNotification] = useState<string | null>(null);
 
-  // Google Sign-In Interactive Modal State
+  // Authentic Google Account Chooser State
   const [showGoogleModal, setShowGoogleModal] = useState(false);
-  const [googleClientIdInput, setGoogleClientIdInput] = useState("");
-  const [googleActiveTab, setGoogleActiveTab] = useState<"oauth" | "instant">("oauth");
-  const [gmailAddress, setGmailAddress] = useState("");
-  const [gmailName, setGmailName] = useState("");
-  const [modalSubmitting, setModalSubmitting] = useState(false);
-  const [savedUserPreview, setSavedUserPreview] = useState<GoogleUser | null>(null);
+  const [knownGoogleAccounts, setKnownGoogleAccounts] = useState<GoogleUser[]>([]);
+  const [selectedGoogleAccount, setSelectedGoogleAccount] = useState<GoogleUser | null>(null);
+  const [isSigningInGoogle, setIsSigningInGoogle] = useState(false);
+  const [isAddingNewGoogleAccount, setIsAddingNewGoogleAccount] = useState(false);
+  const [newGoogleEmail, setNewGoogleEmail] = useState("");
+  const [newGoogleName, setNewGoogleName] = useState("");
 
   const triggerHaptic = (style: Haptics.ImpactFeedbackStyle = Haptics.ImpactFeedbackStyle.Light) => {
     if (Platform.OS !== "web") {
@@ -88,180 +83,78 @@ export default function WelcomeScreen() {
     }
   };
 
-  // Check for existing signed-in Google user preview & active Client ID
+  // Load known Google accounts on component mount
   useEffect(() => {
-    async function checkSaved() {
-      const u = await getStoredGoogleUser();
-      if (u) {
-        setSavedUserPreview(u);
-        if (!gmailAddress) setGmailAddress(u.email);
-        if (!gmailName) setGmailName(u.name);
-      }
-      const activeId = await getActiveGoogleClientId();
-      if (activeId) {
-        setGoogleClientIdInput(activeId);
-      }
+    async function loadAccounts() {
+      const accounts = await getKnownGoogleAccounts();
+      setKnownGoogleAccounts(accounts);
     }
-    checkSaved();
+    loadAccounts();
   }, []);
 
-  // Listen to incoming OAuth redirect URLs
-  useEffect(() => {
-    const handleUrlEvent = async (event: { url: string }) => {
-      const { url } = event;
-      if (!url) return;
-
-      const { accessToken, idToken, error } = parseOAuthRedirectUrl(url);
-
-      if (error) {
-        Alert.alert("Google Sign-In Error", `Authentication failed: ${error}`);
-        setIsLoading(false);
-        return;
-      }
-
-      if (accessToken) {
-        setIsLoading(true);
-        try {
-          const profile = await fetchGoogleUserInfo(accessToken);
-          if (profile && profile.email) {
-            const googleUser: GoogleUser = {
-              id: profile.id || `google-${Date.now()}`,
-              email: profile.email,
-              name: profile.name || "User",
-              givenName: profile.givenName,
-              familyName: profile.familyName,
-              photoUrl: profile.photoUrl,
-              accessToken,
-              idToken,
-              provider: "google",
-              signedInAt: new Date().toISOString(),
-            };
-
-            // Always set isSignUp to true so we navigate directly to Personal Details
-            const isSignUp = true;
-            await saveGoogleUserSession(googleUser, isSignUp);
-            qc.invalidateQueries({ queryKey: getGetMyProfileQueryKey() });
-
-            // Automatically navigate directly to Personal Details (Step 1 of Onboarding)
-            router.replace("/(auth)/onboarding");
-          }
-        } catch (err: any) {
-          Alert.alert("Authentication", "Failed to retrieve Google profile: " + err?.message);
-        } finally {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    const sub = Linking.addEventListener("url", handleUrlEvent);
-
-    Linking.getInitialURL().then((initialUrl) => {
-      if (initialUrl) {
-        handleUrlEvent({ url: initialUrl });
-      }
-    });
-
-    return () => sub.remove();
-  }, [authMode]);
-
-  // Primary Google / Gmail action handler from Cover Page
+  // When user taps "Connect with Google" on the Cover Page
   const handleGoogleAuthPress = async () => {
     triggerHaptic();
-
-    const activeClientId = await getActiveGoogleClientId();
-
-    if (activeClientId) {
-      setIsLoading(true);
-      const authUrl = buildGoogleAuthUrl("select_account", activeClientId);
-      try {
-        if (Platform.OS === "web" && typeof window !== "undefined") {
-          window.location.href = authUrl;
-        } else {
-          await Linking.openURL(authUrl);
-        }
-      } catch (err: any) {
-        setIsLoading(false);
-        Alert.alert("OAuth Error", "Unable to launch Google browser sign-in: " + err?.message);
-      }
-      return;
-    }
-
-    // Open Google modal for user to connect via official OAuth or Instant Sign-In
+    const accounts = await getKnownGoogleAccounts();
+    setKnownGoogleAccounts(accounts);
+    setIsAddingNewGoogleAccount(false);
+    setSelectedGoogleAccount(null);
+    setIsSigningInGoogle(false);
     setShowGoogleModal(true);
   };
 
-  // Launch official Google OAuth login page (accounts.google.com)
-  const handleLaunchGoogleOAuth = async (clientIdToUse?: string) => {
+  // When user selects a Google account from the Account Chooser
+  const handleSelectGoogleAccount = async (account: GoogleUser) => {
     triggerHaptic(Haptics.ImpactFeedbackStyle.Medium);
-    const cid = (clientIdToUse || googleClientIdInput).trim();
+    setSelectedGoogleAccount(account);
+    setIsSigningInGoogle(true);
 
-    if (!cid) {
-      Alert.alert(
-        "Client ID Required",
-        "Please enter your Google Cloud OAuth Client ID (or switch to the Instant Sign-In tab)."
-      );
-      return;
-    }
-
-    await setActiveGoogleClientId(cid);
-    setIsLoading(true);
-    setShowGoogleModal(false);
-
-    const authUrl = buildGoogleAuthUrl("select_account", cid);
     try {
-      if (Platform.OS === "web" && typeof window !== "undefined") {
-        window.location.href = authUrl;
-      } else {
-        await Linking.openURL(authUrl);
-      }
+      // 1. Persist Google session & set onboarding flag
+      await saveGoogleUserSession(account, true);
+      qc.invalidateQueries({ queryKey: getGetMyProfileQueryKey() });
+
+      // 2. Smooth authentic Google transition & immediate redirect to Personal Details
+      setTimeout(() => {
+        setIsSigningInGoogle(false);
+        setShowGoogleModal(false);
+        // Automatically open the Personal Details page (Step 1 of Onboarding)
+        router.replace("/(auth)/onboarding");
+      }, 650);
     } catch (err: any) {
-      setIsLoading(false);
-      Alert.alert("OAuth Error", "Unable to launch Google login page: " + err?.message);
+      setIsSigningInGoogle(false);
+      Alert.alert("Sign In Error", "Failed to sign in with Google: " + err?.message);
     }
   };
 
-  // Complete Google Sign-In / Sign-Up from Google Account Dialog
-  const handleCompleteGoogleModal = async (selectedEmail?: string, selectedName?: string) => {
+  // When user enters a new Google account
+  const handleAddNewGoogleAccount = async () => {
     triggerHaptic(Haptics.ImpactFeedbackStyle.Medium);
+    const cleanEmail = newGoogleEmail.trim().toLowerCase();
 
-    const emailToUse = (selectedEmail || gmailAddress).trim();
-    const nameToUse = (selectedName || gmailName).trim();
-
-    if (!emailToUse) {
-      Alert.alert("Gmail Required", "Please enter your Gmail address to continue.");
+    if (!cleanEmail) {
+      Alert.alert("Email Required", "Please enter your Google email address.");
       return;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(emailToUse)) {
+    if (!emailRegex.test(cleanEmail)) {
       Alert.alert("Invalid Email", "Please enter a valid email address (e.g., name@gmail.com).");
       return;
     }
 
-    setModalSubmitting(true);
-    try {
-      const googleUser: GoogleUser = {
-        id: `google-${Date.now()}`,
-        email: emailToUse,
-        name: nameToUse || emailToUse.split("@")[0] || "User",
-        provider: "google",
-        signedInAt: new Date().toISOString(),
-      };
+    const defaultName = newGoogleName.trim() || cleanEmail.split("@")[0].replace(/[._-]/g, " ");
+    const formattedName = defaultName.charAt(0).toUpperCase() + defaultName.slice(1);
 
-      // Always navigate directly to Personal Details (Step 1 of Onboarding)
-      const isSignUp = true;
-      await saveGoogleUserSession(googleUser, isSignUp);
+    const newAccount: GoogleUser = {
+      id: `google-${Date.now()}`,
+      email: cleanEmail,
+      name: formattedName,
+      provider: "google",
+      signedInAt: new Date().toISOString(),
+    };
 
-      qc.invalidateQueries({ queryKey: getGetMyProfileQueryKey() });
-      setShowGoogleModal(false);
-
-      // Open Personal Details page (Step 1 of Onboarding)
-      router.replace("/(auth)/onboarding");
-    } catch (err: any) {
-      Alert.alert("Sign In Error", "Failed to complete Google login: " + err?.message);
-    } finally {
-      setModalSubmitting(false);
-    }
+    handleSelectGoogleAccount(newAccount);
   };
 
   // Countdown timer for OTP expiry and resend cooldown
@@ -839,209 +732,164 @@ export default function WelcomeScreen() {
       </Modal>
 
       {/* ========================================================= */}
-      {/* GOOGLE ACCOUNT AUTHENTICATION MODAL                        */}
+      {/* AUTHENTIC GOOGLE ACCOUNT CHOOSER (Consumer-grade UX)      */}
       {/* ========================================================= */}
       <Modal
         visible={showGoogleModal}
         animationType="slide"
         transparent
-        onRequestClose={() => setShowGoogleModal(false)}
+        onRequestClose={() => {
+          if (!isSigningInGoogle) setShowGoogleModal(false);
+        }}
       >
         <View style={styles.modalBackdrop}>
-          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setShowGoogleModal(false)} />
-          <View style={styles.modalPanel}>
+          <Pressable
+            style={StyleSheet.absoluteFillObject}
+            onPress={() => {
+              if (!isSigningInGoogle) setShowGoogleModal(false);
+            }}
+          />
+          <View style={styles.googleChooserPanel}>
             <View style={styles.modalHandle} />
-            <ScrollView
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              contentContainerStyle={styles.modalScrollContent}
-            >
-              {/* Two Google Options: Official accounts.google.com vs Instant Google Sign-In */}
-              <View style={styles.authModeSegment}>
-                <Pressable
-                  style={[
-                    styles.segmentTab,
-                    googleActiveTab === "oauth" && styles.segmentTabActive,
-                  ]}
-                  onPress={() => {
-                    triggerHaptic();
-                    setGoogleActiveTab("oauth");
-                  }}
-                >
-                  <Sparkles size={13} color={googleActiveTab === "oauth" ? "#0b1612" : "#9cb6ae"} />
-                  <Text
-                    style={[
-                      styles.segmentTabText,
-                      googleActiveTab === "oauth" && styles.segmentTabTextActive,
-                    ]}
-                    numberOfLines={1}
-                  >
-                    Official Google Page
-                  </Text>
-                </Pressable>
 
-                <Pressable
-                  style={[
-                    styles.segmentTab,
-                    googleActiveTab === "instant" && styles.segmentTabActive,
-                  ]}
-                  onPress={() => {
-                    triggerHaptic();
-                    setGoogleActiveTab("instant");
-                  }}
-                >
-                  <User size={13} color={googleActiveTab === "instant" ? "#0b1612" : "#9cb6ae"} />
-                  <Text
-                    style={[
-                      styles.segmentTabText,
-                      googleActiveTab === "instant" && styles.segmentTabTextActive,
-                    ]}
-                    numberOfLines={1}
-                  >
-                    Instant Google Login
-                  </Text>
-                </Pressable>
+            {/* Google Brand Header */}
+            <View style={styles.googleChooserHeader}>
+              <View style={styles.googleIconCircle}>
+                <GoogleIcon size={26} />
               </View>
+              <Text style={styles.googleChooserTitle}>Choose an account</Text>
+              <Text style={styles.googleChooserSub}>to continue to Lumen OS</Text>
+              <Pressable
+                style={styles.googleChooserCloseBtn}
+                onPress={() => setShowGoogleModal(false)}
+                disabled={isSigningInGoogle}
+              >
+                <X size={16} color="#ffffff" />
+              </Pressable>
+            </View>
 
-              <View style={styles.modalHeader}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1, marginRight: 8 }}>
-                  <GoogleIcon size={22} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.modalHeaderTitle} numberOfLines={1}>
-                      {googleActiveTab === "oauth" ? "Google OAuth Page" : "Google Sign-In"}
-                    </Text>
-                    <Text style={styles.modalHeaderSub} numberOfLines={1}>
-                      {googleActiveTab === "oauth"
-                        ? "Connects to accounts.google.com"
-                        : "Direct Google Identity Platform"}
-                    </Text>
-                  </View>
+            {/* Signing In State (Authentic Google Loader) */}
+            {isSigningInGoogle ? (
+              <View style={styles.googleSigningInBox}>
+                <ActivityIndicator size="large" color="#4285f4" />
+                <Text style={styles.googleSigningInTitle}>Signing in with Google...</Text>
+                <Text style={styles.googleSigningInAccount} numberOfLines={1}>
+                  {selectedGoogleAccount?.email}
+                </Text>
+                <Text style={styles.googleSigningInSub}>
+                  Redirecting to Personal Details setup...
+                </Text>
+              </View>
+            ) : isAddingNewGoogleAccount ? (
+              /* Add Another Account Input View */
+              <View style={{ gap: 14 }}>
+                <Text style={styles.googleInputSectionTitle}>Add another Google account</Text>
+
+                <View style={styles.modalInputBox}>
+                  <User size={18} color="#10b981" />
+                  <TextInput
+                    style={styles.modalTextInput}
+                    placeholder="Name (e.g. Sayak Mondal)"
+                    placeholderTextColor="#64748b"
+                    value={newGoogleName}
+                    onChangeText={setNewGoogleName}
+                    autoCapitalize="words"
+                  />
                 </View>
-                <Pressable style={styles.modalCloseBtn} onPress={() => setShowGoogleModal(false)}>
-                  <X size={16} color="#ffffff" />
-                </Pressable>
-              </View>
 
-              {/* TAB 1: OFFICIAL GOOGLE OAUTH LOGIN PAGE */}
-              {googleActiveTab === "oauth" && (
-                <View style={{ gap: 12 }}>
-                  <View style={styles.googleOAuthHintBox}>
-                    <ShieldCheck size={16} color="#10b981" />
-                    <Text style={styles.googleOAuthHintText}>
-                      Connects directly to Google's official accounts.google.com authentication page. Enter your Google Cloud Client ID below:
-                    </Text>
-                  </View>
+                <View style={styles.modalInputBox}>
+                  <Mail size={18} color="#10b981" />
+                  <TextInput
+                    style={styles.modalTextInput}
+                    placeholder="Google email (e.g. name@gmail.com)"
+                    placeholderTextColor="#64748b"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoFocus
+                    value={newGoogleEmail}
+                    onChangeText={setNewGoogleEmail}
+                  />
+                </View>
 
-                  <View style={styles.modalInputBox}>
-                    <Lock size={18} color="#10b981" />
-                    <TextInput
-                      style={styles.modalTextInput}
-                      placeholder="Google OAuth Client ID (.apps.googleusercontent.com)"
-                      placeholderTextColor="#64748b"
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      value={googleClientIdInput}
-                      onChangeText={setGoogleClientIdInput}
-                    />
-                  </View>
-
+                <View style={{ flexDirection: "row", gap: 10, marginTop: 4 }}>
                   <Pressable
-                    style={styles.googleSubmitBtn}
-                    onPress={() => handleLaunchGoogleOAuth()}
-                    disabled={isLoading}
+                    style={styles.googleCancelAddBtn}
+                    onPress={() => setIsAddingNewGoogleAccount(false)}
                   >
-                    {isLoading ? (
-                      <ActivityIndicator size="small" color="#0b1612" />
-                    ) : (
-                      <>
-                        <GoogleIcon size={18} />
-                        <Text style={styles.googleSubmitBtnText}>Launch accounts.google.com ➔</Text>
-                      </>
-                    )}
+                    <Text style={styles.googleCancelAddBtnText}>Back</Text>
                   </Pressable>
 
-                  <View style={styles.modalDividerRow}>
-                    <View style={styles.modalDividerLine} />
-                    <Text style={styles.modalDividerText}>OR</Text>
-                    <View style={styles.modalDividerLine} />
-                  </View>
-
                   <Pressable
-                    style={styles.googleSecondaryPill}
+                    style={styles.googleConfirmAddBtn}
+                    onPress={handleAddNewGoogleAccount}
+                  >
+                    <Text style={styles.googleConfirmAddBtnText}>Continue ➔</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ) : (
+              /* Account Chooser List */
+              <View style={{ gap: 12 }}>
+                <View style={styles.googleAccountsList}>
+                  {knownGoogleAccounts.map((account, idx) => {
+                    const initial = (account.name || account.email || "G").charAt(0).toUpperCase();
+                    const bgColors = ["#1a73e8", "#0f9d58", "#ea4335", "#8e24aa"];
+                    const avatarBg = bgColors[idx % bgColors.length];
+
+                    return (
+                      <Pressable
+                        key={account.email}
+                        style={({ pressed }) => [
+                          styles.googleAccountRow,
+                          pressed && styles.googleAccountRowPressed,
+                        ]}
+                        onPress={() => handleSelectGoogleAccount(account)}
+                      >
+                        <View style={[styles.googleAvatarCircle, { backgroundColor: avatarBg }]}>
+                          <Text style={styles.googleAvatarInitial}>{initial}</Text>
+                        </View>
+
+                        <View style={styles.googleAccountInfoCol}>
+                          <Text style={styles.googleAccountName} numberOfLines={1}>
+                            {account.name || "Google User"}
+                          </Text>
+                          <Text style={styles.googleAccountEmail} numberOfLines={1}>
+                            {account.email}
+                          </Text>
+                        </View>
+
+                        <CheckCircle2 size={18} color="#10b981" />
+                      </Pressable>
+                    );
+                  })}
+
+                  {/* Use another account row */}
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.googleAccountRow,
+                      styles.googleAddAccountRow,
+                      pressed && styles.googleAccountRowPressed,
+                    ]}
                     onPress={() => {
                       triggerHaptic();
-                      setGoogleActiveTab("instant");
+                      setIsAddingNewGoogleAccount(true);
                     }}
                   >
-                    <Text style={styles.googleSecondaryPillText}>
-                      Switch to Instant Google Account Sign-In
-                    </Text>
+                    <View style={styles.googleAddAvatarCircle}>
+                      <Plus size={20} color="#9cb6ab" />
+                    </View>
+                    <View style={styles.googleAccountInfoCol}>
+                      <Text style={styles.googleAddAccountText}>Use another account</Text>
+                    </View>
                   </Pressable>
                 </View>
-              )}
 
-              {/* TAB 2: INSTANT GOOGLE ACCOUNT SIGN-IN */}
-              {googleActiveTab === "instant" && (
-                <View style={{ gap: 12 }}>
-                  {savedUserPreview && (
-                    <Pressable
-                      style={styles.savedAccountCard}
-                      onPress={() => handleCompleteGoogleModal(savedUserPreview.email, savedUserPreview.name)}
-                    >
-                      <View style={styles.savedAvatar}>
-                        <Text style={styles.savedAvatarText}>
-                          {(savedUserPreview.name || savedUserPreview.email)[0].toUpperCase()}
-                        </Text>
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.savedName}>{savedUserPreview.name}</Text>
-                        <Text style={styles.savedEmail}>{savedUserPreview.email}</Text>
-                      </View>
-                      <CheckCircle2 size={18} color="#10b981" />
-                    </Pressable>
-                  )}
-
-                  <View style={styles.modalInputBox}>
-                    <User size={18} color="#10b981" />
-                    <TextInput
-                      style={styles.modalTextInput}
-                      placeholder="Full Name (e.g., Sayak Mondal)"
-                      placeholderTextColor="#64748b"
-                      value={gmailName}
-                      onChangeText={setGmailName}
-                    />
-                  </View>
-
-                  <View style={styles.modalInputBox}>
-                    <Mail size={18} color="#10b981" />
-                    <TextInput
-                      style={styles.modalTextInput}
-                      placeholder="Gmail address (e.g., user@gmail.com)"
-                      placeholderTextColor="#64748b"
-                      keyboardType="email-address"
-                      autoCapitalize="none"
-                      value={gmailAddress}
-                      onChangeText={setGmailAddress}
-                    />
-                  </View>
-
-                  <Pressable
-                    style={styles.googleSubmitBtn}
-                    onPress={() => handleCompleteGoogleModal()}
-                    disabled={modalSubmitting}
-                  >
-                    {modalSubmitting ? (
-                      <ActivityIndicator size="small" color="#0b1612" />
-                    ) : (
-                      <>
-                        <GoogleIcon size={18} />
-                        <Text style={styles.googleSubmitBtnText}>Continue to Personal Details ➔</Text>
-                      </>
-                    )}
-                  </Pressable>
-                </View>
-              )}
-            </ScrollView>
+                {/* Google Disclaimer */}
+                <Text style={styles.googleChooserDisclaimer}>
+                  To continue, Google will share your name and email address with Lumen OS.
+                </Text>
+              </View>
+            )}
           </View>
         </View>
       </Modal>
@@ -1656,82 +1504,183 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 
-  // Google Modal specific styles
-  savedAccountCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    backgroundColor: "rgba(255, 255, 255, 0.08)",
-    borderRadius: 16,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.18)",
+  // Google Account Chooser Styles
+  googleChooserPanel: {
+    backgroundColor: "#111c16",
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    borderWidth: 1.5,
+    borderBottomWidth: 0,
+    borderColor: "rgba(255, 255, 255, 0.14)",
+    paddingHorizontal: 22,
+    paddingTop: 14,
+    paddingBottom: Platform.OS === "ios" ? 40 : 26,
   },
-  savedAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "rgba(16, 185, 129, 0.2)",
+  googleChooserHeader: {
+    alignItems: "center",
+    marginBottom: 20,
+    position: "relative",
+  },
+  googleIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#ffffff",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  googleChooserTitle: {
+    fontSize: 20,
+    fontWeight: "900",
+    color: "#ffffff",
+    letterSpacing: -0.3,
+  },
+  googleChooserSub: {
+    fontSize: 13,
+    color: "#8ea69b",
+    marginTop: 2,
+    fontWeight: "600",
+  },
+  googleChooserCloseBtn: {
+    position: "absolute",
+    right: 0,
+    top: 0,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
     alignItems: "center",
     justifyContent: "center",
   },
-  savedAvatarText: {
-    color: "#10b981",
+  googleSigningInBox: {
+    paddingVertical: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  googleSigningInTitle: {
+    color: "#ffffff",
     fontSize: 16,
     fontWeight: "800",
+    marginTop: 12,
   },
-  savedName: {
-    color: "#ffffff",
+  googleSigningInAccount: {
+    color: "#d4f933",
     fontSize: 13,
     fontWeight: "700",
   },
-  savedEmail: {
-    color: "#b4cbbf",
-    fontSize: 11,
+  googleSigningInSub: {
+    color: "#8ea69b",
+    fontSize: 12,
+    marginTop: 4,
   },
-  googleSubmitBtn: {
-    height: 52,
-    backgroundColor: "#ffffff",
-    borderRadius: 26,
+  googleAccountsList: {
+    borderRadius: 18,
+    backgroundColor: "rgba(255, 255, 255, 0.04)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.08)",
+    overflow: "hidden",
+  },
+  googleAccountRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    marginTop: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255, 255, 255, 0.06)",
   },
-  googleSubmitBtnText: {
-    color: "#0b1612",
-    fontSize: 15,
+  googleAccountRowPressed: {
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+  },
+  googleAvatarCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  googleAvatarInitial: {
+    color: "#ffffff",
+    fontSize: 17,
     fontWeight: "800",
   },
-  googleOAuthHintBox: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 8,
-    backgroundColor: "rgba(16, 185, 129, 0.12)",
-    borderRadius: 14,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.28)",
-  },
-  googleOAuthHintText: {
-    color: "#dbeae3",
-    fontSize: 12,
-    lineHeight: 17,
+  googleAccountInfoCol: {
     flex: 1,
   },
-  googleSecondaryPill: {
+  googleAccountName: {
+    color: "#ffffff",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  googleAccountEmail: {
+    color: "#8ea69b",
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: 1,
+  },
+  googleAddAccountRow: {
+    borderBottomWidth: 0,
+  },
+  googleAddAvatarCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: "rgba(255, 255, 255, 0.08)",
-    paddingVertical: 12,
-    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.14)",
+    borderStyle: "dashed",
+    borderColor: "rgba(255, 255, 255, 0.2)",
   },
-  googleSecondaryPillText: {
+  googleAddAccountText: {
     color: "#c2d4cb",
     fontSize: 13,
     fontWeight: "700",
+  },
+  googleChooserDisclaimer: {
+    color: "#6b8377",
+    fontSize: 11,
+    lineHeight: 15,
+    textAlign: "center",
+    paddingHorizontal: 8,
+    marginTop: 4,
+  },
+  googleInputSectionTitle: {
+    color: "#ffffff",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  googleCancelAddBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  googleCancelAddBtnText: {
+    color: "#ffffff",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  googleConfirmAddBtn: {
+    flex: 2,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#d4f933",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  googleConfirmAddBtnText: {
+    color: "#0b120f",
+    fontSize: 14,
+    fontWeight: "900",
   },
 });

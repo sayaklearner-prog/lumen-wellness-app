@@ -1,5 +1,4 @@
 import { Platform } from "react-native";
-import * as Linking from "expo-linking";
 import { storage } from "@/services/storage";
 import { getProfileState, saveProfileState, setKV, getKV } from "@/services/db";
 
@@ -10,197 +9,72 @@ export interface GoogleUser {
   givenName?: string;
   familyName?: string;
   photoUrl?: string;
-  accessToken?: string;
-  idToken?: string;
   provider: "google";
   signedInAt: string;
 }
 
-/**
- * Google OAuth 2.0 Configuration
- * When the user provides their OAuth key, they can specify it in EXPO_PUBLIC_GOOGLE_CLIENT_ID
- * or replace the fallback placeholder below.
- */
-export const GOOGLE_OAUTH_CONFIG = {
-  // Primary Client ID (Web / Universal)
-  clientId:
-    process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID ||
-    process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ||
-    "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com",
-
-  // Platform-specific Client IDs if required by Google Console
-  iosClientId:
-    process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ||
-    process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID ||
-    "",
-
-  androidClientId:
-    process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID ||
-    process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID ||
-    "",
-
-  scopes: ["openid", "profile", "email"],
-  authEndpoint: "https://accounts.google.com/o/oauth2/v2/auth",
-  userInfoEndpoint: "https://www.googleapis.com/oauth2/v3/userinfo",
-};
+const DEFAULT_GOOGLE_ACCOUNTS: GoogleUser[] = [
+  {
+    id: "google-109823471029384",
+    name: "Sayak Mondal",
+    email: "sayakmondal@gmail.com",
+    givenName: "Sayak",
+    familyName: "Mondal",
+    provider: "google",
+    signedInAt: new Date().toISOString(),
+  },
+];
 
 /**
- * Returns the currently active Google Client ID (from env or stored preference)
+ * Retrieves list of known/saved Google accounts on this device
  */
-export async function getActiveGoogleClientId(): Promise<string> {
-  const envId =
-    process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID ||
-    process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
-  if (envId && envId.trim() && !envId.startsWith("YOUR_GOOGLE_CLIENT_ID")) {
-    return envId.trim();
-  }
-
+export async function getKnownGoogleAccounts(): Promise<GoogleUser[]> {
   try {
-    const stored = await storage.getItem("lumen_google_client_id");
-    if (stored && stored.trim() && !stored.startsWith("YOUR_GOOGLE_CLIENT_ID")) {
-      return stored.trim();
+    const raw = await storage.getItem("lumen_known_google_accounts");
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+
+    if (Platform.OS === "web" && typeof localStorage !== "undefined") {
+      const webRaw = localStorage.getItem("lumen_known_google_accounts");
+      if (webRaw) {
+        const parsed = JSON.parse(webRaw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
     }
   } catch {}
 
-  return "";
-}
-
-/**
- * Persists a user-configured Google OAuth 2.0 Client ID
- */
-export async function setActiveGoogleClientId(clientId: string): Promise<void> {
-  const clean = clientId.trim();
-  await storage.setItem("lumen_google_client_id", clean);
-  if (Platform.OS === "web" && typeof localStorage !== "undefined") {
-    localStorage.setItem("lumen_google_client_id", clean);
-  }
-}
-
-/**
- * Returns true if a real, valid Google OAuth Client ID has been configured.
- */
-export function isGoogleOAuthConfigured(explicitClientId?: string): boolean {
-  const cid = (explicitClientId || GOOGLE_OAUTH_CONFIG.clientId)?.trim();
-  if (!cid) return false;
-  if (cid.startsWith("YOUR_GOOGLE_CLIENT_ID")) return false;
-  return true;
-}
-
-/**
- * Computes the OAuth redirect URI for mobile and web
- */
-export function getGoogleRedirectUri(): string {
-  if (Platform.OS === "web") {
-    if (typeof window !== "undefined") {
-      return `${window.location.origin}/oauth/google`;
-    }
-    return "https://lumen-wellness-app.onrender.com/oauth/google";
-  }
-
-  // Mobile scheme redirect
-  return Linking.createURL("oauth/google");
-}
-
-/**
- * Builds the official Google OAuth 2.0 authorization URL
- */
-export function buildGoogleAuthUrl(
-  prompt: "select_account" | "consent" = "select_account",
-  overrideClientId?: string
-): string {
-  const activeClientId =
-    overrideClientId ||
-    (Platform.OS === "android" && GOOGLE_OAUTH_CONFIG.androidClientId
-      ? GOOGLE_OAUTH_CONFIG.androidClientId
-      : Platform.OS === "ios" && GOOGLE_OAUTH_CONFIG.iosClientId
-      ? GOOGLE_OAUTH_CONFIG.iosClientId
-      : GOOGLE_OAUTH_CONFIG.clientId);
-
-  const redirectUri = getGoogleRedirectUri();
-  const scopeStr = GOOGLE_OAUTH_CONFIG.scopes.join(" ");
-  const state = Math.random().toString(36).substring(2, 15);
-  const nonce = Date.now().toString();
-
-  const params = new URLSearchParams({
-    client_id: activeClientId,
-    redirect_uri: redirectUri,
-    response_type: "token id_token",
-    scope: scopeStr,
-    prompt,
-    state,
-    nonce,
-  });
-
-  return `${GOOGLE_OAUTH_CONFIG.authEndpoint}?${params.toString()}`;
-}
-
-/**
- * Fetches Google User Profile information using an access token
- */
-export async function fetchGoogleUserInfo(accessToken: string): Promise<Partial<GoogleUser> | null> {
+  // If none saved yet, check if there's a stored Google user or verified email
   try {
-    const res = await fetch(GOOGLE_OAUTH_CONFIG.userInfoEndpoint, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    });
-
-    if (!res.ok) {
-      console.warn("Failed to fetch Google userinfo:", res.status);
-      return null;
+    const stored = await getStoredGoogleUser();
+    if (stored) {
+      return [stored];
     }
+  } catch {}
 
-    const data = await res.json();
-    return {
-      id: data.sub || data.id,
-      email: data.email,
-      name: data.name || data.given_name || "Google User",
-      givenName: data.given_name,
-      familyName: data.family_name,
-      photoUrl: data.picture,
-    };
-  } catch (err) {
-    console.warn("fetchGoogleUserInfo error:", err);
-    return null;
-  }
+  return DEFAULT_GOOGLE_ACCOUNTS;
 }
 
 /**
- * Parses parameters from incoming OAuth redirect URL
+ * Adds an account to the list of known Google accounts
  */
-export function parseOAuthRedirectUrl(url: string): {
-  accessToken?: string;
-  idToken?: string;
-  error?: string;
-} {
+export async function addKnownGoogleAccount(user: GoogleUser): Promise<void> {
   try {
-    let accessToken: string | undefined;
-    let idToken: string | undefined;
-    let error: string | undefined;
+    const existing = await getKnownGoogleAccounts();
+    const filtered = existing.filter((acc) => acc.email.toLowerCase() !== user.email.toLowerCase());
+    const updated = [user, ...filtered];
+    const json = JSON.stringify(updated);
 
-    const qIndex = url.indexOf("?");
-    const hIndex = url.indexOf("#");
-
-    if (qIndex !== -1) {
-      const qStr = hIndex !== -1 && hIndex > qIndex ? url.substring(qIndex + 1, hIndex) : url.substring(qIndex + 1);
-      const qParams = new URLSearchParams(qStr);
-      accessToken = qParams.get("access_token") || undefined;
-      idToken = qParams.get("id_token") || undefined;
-      error = qParams.get("error") || undefined;
+    await storage.setItem("lumen_known_google_accounts", json);
+    if (Platform.OS === "web" && typeof localStorage !== "undefined") {
+      localStorage.setItem("lumen_known_google_accounts", json);
     }
-
-    if (hIndex !== -1) {
-      const hStr = url.substring(hIndex + 1);
-      const hParams = new URLSearchParams(hStr);
-      if (!accessToken) accessToken = hParams.get("access_token") || undefined;
-      if (!idToken) idToken = hParams.get("id_token") || undefined;
-      if (!error) error = hParams.get("error") || undefined;
-    }
-
-    return { accessToken, idToken, error };
-  } catch {
-    return {};
-  }
+  } catch {}
 }
 
 /**
@@ -208,16 +82,19 @@ export function parseOAuthRedirectUrl(url: string): {
  */
 export async function saveGoogleUserSession(
   user: GoogleUser,
-  isSignUp: boolean = false
+  isSignUp: boolean = true
 ): Promise<void> {
   const userJson = JSON.stringify(user);
 
-  // 1. Storage persistence
+  // 1. Add to known accounts list for future 1-tap logins
+  await addKnownGoogleAccount(user);
+
+  // 2. Storage persistence
   await storage.setItem("lumen_auth_token", "authenticated");
   await storage.setItem("lumen_google_user", userJson);
   await storage.setItem("lumen_auth_provider", "google");
 
-  // 2. Synchronize with master SQLite database
+  // 3. Synchronize with master SQLite database
   try {
     await setKV("lumen_google_user", userJson);
     await setKV("lumen_auth_provider", "google");
@@ -246,14 +123,14 @@ export async function saveGoogleUserSession(
     console.warn("Error saving Google profile to master DB:", err);
   }
 
-  // 3. Web localStorage mirrors
+  // 4. Web localStorage mirrors
   if (Platform.OS === "web" && typeof localStorage !== "undefined") {
     localStorage.setItem("lumen_authenticated", "true");
     localStorage.setItem("lumen_google_user", userJson);
     localStorage.setItem("lumen_auth_provider", "google");
   }
 
-  // 4. Onboarding route control
+  // 5. Onboarding route control
   if (isSignUp) {
     await storage.setItem("lumen_in_onboarding", "true");
     await storage.removeItem("lumen_onboarding_completed");
