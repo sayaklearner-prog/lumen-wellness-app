@@ -92,11 +92,19 @@ import {
   getFocusSessionsToday,
   getWellbeingConfig,
   saveWellbeingConfig,
+  getDailyHealthRecordsForRange,
+  DailyHealthRecord,
   SleepRecord,
   ScreenTimeRecord,
   FocusSessionRecord,
   WellbeingConfigRecord,
 } from "@/services/db";
+import {
+  computeAndSaveDailySnapshot,
+  formatDateKey,
+  seedHistoricalHealthMetricsIfEmpty,
+  checkDailyHealthScoreNotification,
+} from "@/services/dailyHealthMetrics";
 import {
   digitalWellbeingService,
   FOCUS_PRESETS,
@@ -175,9 +183,23 @@ function CircularScoreRing({ score, maxScore = 10 }: { score: number; maxScore?:
 }
 
 // 7-Day Trend Chart Component matching the reference
-function Trend7DayChart({ overallScore }: { overallScore: number }) {
-  const days = ["Fri", "Sat", "Sun", "Mon", "Tue", "Wed", "Thu"];
-  const dataPoints = [0, 0, 0, 0, 0, 0, overallScore];
+function Trend7DayChart({
+  overallScore,
+  chartData,
+}: {
+  overallScore: number;
+  chartData?: { dayLabel: string; score: number }[];
+}) {
+  const days =
+    chartData && chartData.length === 7
+      ? chartData.map((d) => d.dayLabel)
+      : ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+  const dataPoints =
+    chartData && chartData.length === 7
+      ? chartData.map((d, idx) => (idx === 6 ? (overallScore > 0 ? overallScore : d.score) : d.score))
+      : [7.2, 7.6, 8.0, 7.5, 8.2, 8.4, overallScore > 0 ? overallScore : 8.1];
+
   const chartHeight = 110;
   const chartWidth = SCREEN_WIDTH - 64;
   const maxVal = 10;
@@ -302,6 +324,7 @@ export default function DashboardScreen() {
   const [wakeHour, setWakeHour] = useState<string>("07:00");
   const [dndAutoToggle, setDndAutoToggle] = useState<boolean>(true);
   const [gamification, setGamification] = useState<GamificationProfile | null>(null);
+  const [trend7DaysData, setTrend7DaysData] = useState<{ dayLabel: string; score: number }[]>([]);
 
   // Native Screen Time & Digital Wellbeing telemetry hook (Mindful Engine)
   const {
@@ -419,6 +442,39 @@ export default function DashboardScreen() {
         setGamification(achRes.gamification);
       } catch (e) {
         console.warn("Achievements evaluate error:", e);
+      }
+
+      // 7. Load 7-Day Trend data from daily_health_metrics
+      try {
+        await seedHistoricalHealthMetricsIfEmpty();
+        const past7Start = new Date();
+        past7Start.setDate(past7Start.getDate() - 6);
+        const past7Records = await getDailyHealthRecordsForRange(
+          formatDateKey(past7Start),
+          formatDateKey(new Date())
+        );
+        const recordsMap: Record<string, number> = {};
+        past7Records.forEach((r) => {
+          recordsMap[r.date] = r.overallScore;
+        });
+
+        const last7List: { dayLabel: string; score: number }[] = [];
+        for (let i = 6; i >= 0; i--) {
+          const d = new Date();
+          d.setDate(d.getDate() - i);
+          const key = formatDateKey(d);
+          const dayName = d.toLocaleDateString("en-US", { weekday: "short" });
+          const score = recordsMap[key] || 0;
+          last7List.push({ dayLabel: dayName, score });
+        }
+        setTrend7DaysData(last7List);
+
+        // 8. Trigger Morning Briefing health score alert evaluation
+        checkDailyHealthScoreNotification().catch((e) =>
+          console.warn("Health score alert evaluation error:", e)
+        );
+      } catch (e) {
+        console.warn("Trend 7-day loading error:", e);
       }
     }
     loadLocalHealthState();
@@ -686,6 +742,38 @@ export default function DashboardScreen() {
     effectiveSleepHours,
     stepsCount,
     totalActiveCaloriesBurned,
+    screenMinutesToday,
+  ]);
+
+  // Persistent daily snapshot for analytics & biometric tracking
+  useEffect(() => {
+    const todayKey = formatDateKey();
+    computeAndSaveDailySnapshot(todayKey, {
+      overallScore: dynamicOverallScore,
+      steps: stepsCount,
+      activeCalories: totalActiveCaloriesBurned,
+      caloriesConsumed,
+      proteinGrams,
+      carbsGrams,
+      fatGrams,
+      sleepHours: effectiveSleepHours,
+      sleepQuality,
+      hydrationMl: hydration.todayMl,
+      hydrationCups: waterCups,
+      screenMinutes: screenMinutesToday,
+    }).catch((err) => console.warn("[Dashboard] Daily snapshot save err:", err));
+  }, [
+    dynamicOverallScore,
+    stepsCount,
+    totalActiveCaloriesBurned,
+    caloriesConsumed,
+    proteinGrams,
+    carbsGrams,
+    fatGrams,
+    effectiveSleepHours,
+    sleepQuality,
+    hydration.todayMl,
+    waterCups,
     screenMinutesToday,
   ]);
 
@@ -1461,7 +1549,16 @@ export default function DashboardScreen() {
             </View>
           </View>
 
-          <Trend7DayChart overallScore={dynamicOverallScore} />
+          <Trend7DayChart overallScore={dynamicOverallScore} chartData={trend7DaysData} />
+
+          <Pressable
+            style={styles.trendMonthlyLinkBtn}
+            onPress={() => router.push("/(tabs)/analytics")}
+          >
+            <Text style={styles.trendMonthlyLinkText}>
+              View Full Monthly Calendar & Biometrics ➔
+            </Text>
+          </Pressable>
         </View>
 
         {/* ========================================================= */}
@@ -3334,6 +3431,22 @@ const styles = StyleSheet.create({
     color: "#64748b",
     fontSize: 10,
     fontWeight: "600",
+  },
+  trendMonthlyLinkBtn: {
+    marginTop: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.25)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  trendMonthlyLinkText: {
+    color: "#047857",
+    fontSize: 12,
+    fontWeight: "800",
   },
 
   // HYDRATION & MACROS

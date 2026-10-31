@@ -120,6 +120,29 @@ export interface ProfileRecord {
   updatedAt: string;
 }
 
+export interface DailyHealthRecord {
+  date: string; // "YYYY-MM-DD"
+  overallScore: number; // 0.0 - 10.0
+  steps: number;
+  activeCalories: number;
+  distanceKm: number;
+  nutritionScore: number;
+  caloriesConsumed: number;
+  proteinGrams: number;
+  carbsGrams: number;
+  fatGrams: number;
+  sleepScore: number;
+  sleepHours: number;
+  sleepQuality?: string;
+  hydrationScore: number;
+  hydrationMl: number;
+  hydrationCups: number;
+  screenScore: number;
+  screenMinutes: number;
+  aiInsightsJson?: string;
+  updatedAt: string;
+}
+
 export interface OfflineLog {
   id: number;
   category: string;
@@ -307,6 +330,29 @@ export async function getDb() {
         endpoint TEXT NOT NULL,
         payload TEXT NOT NULL,
         queued_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS daily_health_metrics (
+        date TEXT PRIMARY KEY,
+        overall_score REAL NOT NULL,
+        steps INTEGER DEFAULT 0,
+        active_calories REAL DEFAULT 0,
+        distance_km REAL DEFAULT 0,
+        nutrition_score REAL DEFAULT 0,
+        calories_consumed REAL DEFAULT 0,
+        protein_grams REAL DEFAULT 0,
+        carbs_grams REAL DEFAULT 0,
+        fat_grams REAL DEFAULT 0,
+        sleep_score REAL DEFAULT 0,
+        sleep_hours REAL DEFAULT 0,
+        sleep_quality TEXT DEFAULT 'Normal',
+        hydration_score REAL DEFAULT 0,
+        hydration_ml INTEGER DEFAULT 0,
+        hydration_cups INTEGER DEFAULT 0,
+        screen_score REAL DEFAULT 0,
+        screen_minutes INTEGER DEFAULT 0,
+        ai_insights_json TEXT,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
       );
 
       DELETE FROM workouts WHERE id = 'w-001' OR (duration_minutes <= 1 AND calories_burned <= 12);
@@ -1437,4 +1483,175 @@ export async function deleteOfflineLog(id: number) {
   } catch (err) {
     console.warn("deleteOfflineLog error:", err);
   }
+}
+
+// ============================================================================
+// 12. DAILY HEALTH METRICS & BIOMETRIC ANALYTICS (Persistent Snapshot Engine)
+// ============================================================================
+
+export async function saveDailyHealthRecord(record: DailyHealthRecord): Promise<void> {
+  if (Platform.OS === "web") {
+    const store = getWebStore();
+    store.daily_health_metrics = store.daily_health_metrics || {};
+    store.daily_health_metrics[record.date] = { ...record };
+    saveWebStore(store);
+    return;
+  }
+
+  const db = await getDb();
+  if (!db) return;
+
+  try {
+    await db.runAsync(
+      `INSERT INTO daily_health_metrics (
+        date, overall_score, steps, active_calories, distance_km,
+        nutrition_score, calories_consumed, protein_grams, carbs_grams, fat_grams,
+        sleep_score, sleep_hours, sleep_quality,
+        hydration_score, hydration_ml, hydration_cups,
+        screen_score, screen_minutes, ai_insights_json, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(date) DO UPDATE SET
+        overall_score = excluded.overall_score,
+        steps = excluded.steps,
+        active_calories = excluded.active_calories,
+        distance_km = excluded.distance_km,
+        nutrition_score = excluded.nutrition_score,
+        calories_consumed = excluded.calories_consumed,
+        protein_grams = excluded.protein_grams,
+        carbs_grams = excluded.carbs_grams,
+        fat_grams = excluded.fat_grams,
+        sleep_score = excluded.sleep_score,
+        sleep_hours = excluded.sleep_hours,
+        sleep_quality = excluded.sleep_quality,
+        hydration_score = excluded.hydration_score,
+        hydration_ml = excluded.hydration_ml,
+        hydration_cups = excluded.hydration_cups,
+        screen_score = excluded.screen_score,
+        screen_minutes = excluded.screen_minutes,
+        ai_insights_json = excluded.ai_insights_json,
+        updated_at = excluded.updated_at`,
+      record.date,
+      record.overallScore,
+      record.steps || 0,
+      record.activeCalories || 0,
+      record.distanceKm || 0,
+      record.nutritionScore || 0,
+      record.caloriesConsumed || 0,
+      record.proteinGrams || 0,
+      record.carbsGrams || 0,
+      record.fatGrams || 0,
+      record.sleepScore || 0,
+      record.sleepHours || 0,
+      record.sleepQuality || "Normal",
+      record.hydrationScore || 0,
+      record.hydrationMl || 0,
+      record.hydrationCups || 0,
+      record.screenScore || 0,
+      record.screenMinutes || 0,
+      record.aiInsightsJson || null,
+      record.updatedAt || new Date().toISOString()
+    );
+  } catch (err) {
+    console.warn("saveDailyHealthRecord error:", err);
+  }
+}
+
+export async function getDailyHealthRecord(date: string): Promise<DailyHealthRecord | null> {
+  if (Platform.OS === "web") {
+    const store = getWebStore();
+    return store.daily_health_metrics?.[date] || null;
+  }
+
+  const db = await getDb();
+  if (!db) return null;
+
+  try {
+    const row = await db.getFirstAsync(
+      `SELECT * FROM daily_health_metrics WHERE date = ?`,
+      date
+    );
+    if (!row) return null;
+    return mapDbRowToDailyRecord(row);
+  } catch (err) {
+    console.warn("getDailyHealthRecord error:", err);
+    return null;
+  }
+}
+
+export async function getAllDailyHealthRecords(): Promise<DailyHealthRecord[]> {
+  if (Platform.OS === "web") {
+    const store = getWebStore();
+    const metricsMap = store.daily_health_metrics || {};
+    return Object.values(metricsMap).sort((a: any, b: any) => a.date.localeCompare(b.date)) as DailyHealthRecord[];
+  }
+
+  const db = await getDb();
+  if (!db) return [];
+
+  try {
+    const rows = await db.getAllAsync(
+      `SELECT * FROM daily_health_metrics ORDER BY date ASC`
+    );
+    return rows.map(mapDbRowToDailyRecord);
+  } catch (err) {
+    console.warn("getAllDailyHealthRecords error:", err);
+    return [];
+  }
+}
+
+export async function getDailyHealthRecordsForRange(startDate: string, endDate: string): Promise<DailyHealthRecord[]> {
+  if (Platform.OS === "web") {
+    const store = getWebStore();
+    const metricsMap = store.daily_health_metrics || {};
+    return (Object.values(metricsMap) as DailyHealthRecord[])
+      .filter(r => r.date >= startDate && r.date <= endDate)
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  const db = await getDb();
+  if (!db) return [];
+
+  try {
+    const rows = await db.getAllAsync(
+      `SELECT * FROM daily_health_metrics WHERE date >= ? AND date <= ? ORDER BY date ASC`,
+      startDate,
+      endDate
+    );
+    return rows.map(mapDbRowToDailyRecord);
+  } catch (err) {
+    console.warn("getDailyHealthRecordsForRange error:", err);
+    return [];
+  }
+}
+
+export async function getDailyHealthRecordsForMonth(year: number, month: number): Promise<DailyHealthRecord[]> {
+  const monthStr = `${year}-${String(month).padStart(2, "0")}`;
+  const startDate = `${monthStr}-01`;
+  const endDate = `${monthStr}-31`;
+  return getDailyHealthRecordsForRange(startDate, endDate);
+}
+
+function mapDbRowToDailyRecord(r: any): DailyHealthRecord {
+  return {
+    date: r.date,
+    overallScore: Number(r.overall_score || 0),
+    steps: Number(r.steps || 0),
+    activeCalories: Number(r.active_calories || 0),
+    distanceKm: Number(r.distance_km || 0),
+    nutritionScore: Number(r.nutrition_score || 0),
+    caloriesConsumed: Number(r.calories_consumed || 0),
+    proteinGrams: Number(r.protein_grams || 0),
+    carbsGrams: Number(r.carbs_grams || 0),
+    fatGrams: Number(r.fat_grams || 0),
+    sleepScore: Number(r.sleep_score || 0),
+    sleepHours: Number(r.sleep_hours || 0),
+    sleepQuality: r.sleep_quality || "Normal",
+    hydrationScore: Number(r.hydration_score || 0),
+    hydrationMl: Number(r.hydration_ml || 0),
+    hydrationCups: Number(r.hydration_cups || 0),
+    screenScore: Number(r.screen_score || 0),
+    screenMinutes: Number(r.screen_minutes || 0),
+    aiInsightsJson: r.ai_insights_json || undefined,
+    updatedAt: r.updated_at || new Date().toISOString(),
+  };
 }
