@@ -21,9 +21,9 @@ export const GOOGLE_CLIENT_ID = "949098534684-o0kfrlmr8coj9jjcc7m17rkgu5lkach5.a
  */
 export function getGoogleRedirectUri(): string {
   if (Platform.OS === "web" && typeof window !== "undefined" && window.location?.origin) {
-    return window.location.origin;
+    return window.location.origin.replace(/\/+$/, "");
   }
-  return "http://localhost:8081";
+  return "https://localhost";
 }
 
 /**
