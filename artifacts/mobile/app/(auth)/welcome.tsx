@@ -519,14 +519,15 @@ export default function WelcomeScreen() {
                     if (otpErrorMessage) setOtpErrorMessage("");
                   }}
                 >
-                  <Sparkles size={14} color={authMode === "signup" ? "#0b1612" : "#9cb6ae"} />
+                  <Sparkles size={13} color={authMode === "signup" ? "#0b1612" : "#9cb6ae"} />
                   <Text
                     style={[
                       styles.segmentTabText,
                       authMode === "signup" && styles.segmentTabTextActive,
                     ]}
+                    numberOfLines={1}
                   >
-                    New Member (Sign Up)
+                    Sign Up
                   </Text>
                 </Pressable>
 
@@ -541,35 +542,34 @@ export default function WelcomeScreen() {
                     if (otpErrorMessage) setOtpErrorMessage("");
                   }}
                 >
-                  <KeyRound size={14} color={authMode === "signin" ? "#0b1612" : "#9cb6ae"} />
+                  <KeyRound size={13} color={authMode === "signin" ? "#0b1612" : "#9cb6ae"} />
                   <Text
                     style={[
                       styles.segmentTabText,
                       authMode === "signin" && styles.segmentTabTextActive,
                     ]}
+                    numberOfLines={1}
                   >
-                    Already Member (Sign In)
+                    Sign In
                   </Text>
                 </Pressable>
               </View>
 
               {/* Modal Header */}
               <View style={styles.modalHeader}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1, marginRight: 8 }}>
                   <View style={styles.modalIconGlowCircle}>
-                    <Mail size={22} color="#f5ede4" strokeWidth={2.2} />
+                    <Mail size={20} color="#f5ede4" strokeWidth={2.2} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.modalHeaderTitle}>
-                      {authMode === "signup" ? "Create Your Account" : "Welcome Back"}
+                    <Text style={styles.modalHeaderTitle} numberOfLines={1}>
+                      {authMode === "signup" ? "Create Account" : "Welcome Back"}
                     </Text>
-                    <Text style={styles.modalHeaderSub}>
+                    <Text style={styles.modalHeaderSub} numberOfLines={1}>
                       {otpStage === "enter_email"
-                        ? authMode === "signup"
-                          ? "Step 1 of 2: Confirm email to begin your bio-journey"
-                          : "Step 1 of 2: Enter registered email to access vitals"
+                        ? "Enter email to receive your 6-digit code"
                         : otpStage === "enter_otp"
-                        ? "Step 2 of 2: Enter 6-digit verification code"
+                        ? "Enter the 6-digit verification code"
                         : "Verification Confirmed"}
                     </Text>
                   </View>
@@ -637,7 +637,7 @@ export default function WelcomeScreen() {
                   <Mail size={18} color="#10b981" />
                   <TextInput
                     style={styles.modalTextInput}
-                    placeholder="Enter your email (e.g. name@example.com)"
+                    placeholder="Enter your email"
                     placeholderTextColor="#64748b"
                     keyboardType="email-address"
                     autoCapitalize="none"
@@ -706,7 +706,7 @@ export default function WelcomeScreen() {
               <View style={{ gap: 16 }}>
                 {/* Active Target Email Notice */}
                 <View style={styles.targetEmailRow}>
-                  <Text style={styles.targetEmailText}>
+                  <Text style={styles.targetEmailText} numberOfLines={1}>
                     Code sent to <Text style={{ color: "#ffffff", fontWeight: "800" }}>{otpEmail}</Text>
                   </Text>
                   <Pressable
@@ -812,13 +812,13 @@ export default function WelcomeScreen() {
               contentContainerStyle={styles.modalScrollContent}
             >
               <View style={styles.modalHeader}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-                  <GoogleIcon size={24} />
-                  <View>
-                    <Text style={styles.modalHeaderTitle}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1, marginRight: 8 }}>
+                  <GoogleIcon size={22} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.modalHeaderTitle} numberOfLines={1}>
                       {authMode === "signup" ? "Sign Up with Google" : "Sign In with Google"}
                     </Text>
-                    <Text style={styles.modalHeaderSub}>Direct Google Identity Platform</Text>
+                    <Text style={styles.modalHeaderSub} numberOfLines={1}>Direct Google Identity Platform</Text>
                   </View>
                 </View>
                 <Pressable style={styles.modalCloseBtn} onPress={() => setShowGoogleModal(false)}>
@@ -967,7 +967,8 @@ const styles = StyleSheet.create({
     marginTop: "auto",
     marginBottom: "auto",
     paddingVertical: 14,
-    maxWidth: "80%",
+    width: "100%",
+    paddingRight: 10,
   },
   heroHeadline: {
     fontSize: 38,
@@ -1080,6 +1081,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   modalPanel: {
+    width: "100%",
     maxHeight: "88%",
     backgroundColor: "rgba(14, 25, 20, 0.98)",
     borderTopLeftRadius: 32,
@@ -1087,9 +1089,10 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderBottomWidth: 0,
     borderColor: "rgba(255, 255, 255, 0.16)",
-    paddingHorizontal: 22,
+    paddingHorizontal: 20,
     paddingTop: 12,
     paddingBottom: Platform.OS === "ios" ? 36 : 22,
+    overflow: "hidden",
   },
   modalHandle: {
     width: 40,
@@ -1313,6 +1316,8 @@ const styles = StyleSheet.create({
   targetEmailText: {
     color: "#dbeae3",
     fontSize: 12,
+    flex: 1,
+    marginRight: 8,
   },
   changeEmailLink: {
     color: "#10b981",

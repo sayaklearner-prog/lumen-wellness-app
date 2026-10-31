@@ -198,7 +198,7 @@ function Trend7DayChart({
   const dataPoints =
     chartData && chartData.length === 7
       ? chartData.map((d, idx) => (idx === 6 ? (overallScore > 0 ? overallScore : d.score) : d.score))
-      : [7.2, 7.6, 8.0, 7.5, 8.2, 8.4, overallScore > 0 ? overallScore : 8.1];
+      : [0, 0, 0, 0, 0, 0, overallScore];
 
   const chartHeight = 110;
   const chartWidth = SCREEN_WIDTH - 64;

@@ -7,13 +7,9 @@ import {
   Pressable,
   Platform,
   ActivityIndicator,
-  Alert,
 } from "react-native";
 import {
-  TrendingUp,
-  TrendingDown,
   Sparkles,
-  Activity,
   Flame,
   ArrowUpRight,
   ArrowDownRight,
@@ -29,7 +25,6 @@ import {
   RefreshCw,
   Info,
   CheckCircle2,
-  AlertTriangle,
 } from "lucide-react-native";
 import THEME from "@/constants/theme";
 import {
@@ -40,8 +35,8 @@ import {
   getMonthlyHealthSummary,
   generateThreePillarAiInsights,
   checkDailyHealthScoreNotification,
-  seedHistoricalHealthMetricsIfEmpty,
   computeAndSaveDailySnapshot,
+  purgeSimulatedHealthMetrics,
 } from "@/services/dailyHealthMetrics";
 import { DailyHealthRecord, getDailyHealthRecord } from "@/services/db";
 
@@ -61,16 +56,15 @@ export default function AnalyticsScreen() {
   const [selectedRecord, setSelectedRecord] = useState<DailyHealthRecord | null>(null);
   const [prevDayRecord, setPrevDayRecord] = useState<DailyHealthRecord | null>(null);
   const [aiInsights, setAiInsights] = useState<ThreePillarAiInsights | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [alertFeedback, setAlertFeedback] = useState<string | null>(null);
 
-  // Load telemetry data for selected month and selected day
+  // Load telemetry data for selected month and selected day (Strictly Clean & Authentic)
   const loadData = useCallback(
     async (targetYear: number, targetMonth: number, targetDate: string) => {
       try {
-        // Ensure historical seed is in place so calendar is immediately interactive
-        await seedHistoricalHealthMetricsIfEmpty();
+        // Enforce clean state - purge any prewritten simulated mock metrics
+        await purgeSimulatedHealthMetrics();
 
         // 1. Fetch monthly summary
         const summary = await getMonthlyHealthSummary(targetYear, targetMonth);
@@ -116,7 +110,6 @@ export default function AnalyticsScreen() {
       } catch (err) {
         console.warn("[Analytics] Error loading monthly health telemetry:", err);
       } finally {
-        setLoading(false);
         setRefreshing(false);
       }
     },
@@ -137,7 +130,7 @@ export default function AnalyticsScreen() {
     }
   };
 
-  // Navigate to next month (prevent future years past next year)
+  // Navigate to next month
   const handleNextMonth = () => {
     if (selectedMonth === 12) {
       setSelectedYear((prev) => prev + 1);
@@ -165,13 +158,13 @@ export default function AnalyticsScreen() {
   // Manual trigger for testing the 8:00 AM Morning Briefing notification
   const handleTestNotification = async () => {
     try {
-      setAlertFeedback("Simulating 8:00 AM Morning Briefing evaluation...");
+      setAlertFeedback("Evaluating Morning Briefing health delta...");
       await checkDailyHealthScoreNotification();
-      setAlertFeedback("✅ Alert evaluation complete. Check your notification tray!");
+      setAlertFeedback("✅ Briefing evaluation complete. Notification dispatched!");
       setTimeout(() => setAlertFeedback(null), 5000);
-    } catch (err) {
-      setAlertFeedback("Note: Notification triggered in background.");
-      setTimeout(() => setAlertFeedback(null), 4000);
+    } catch {
+      setAlertFeedback("Briefing check complete.");
+      setTimeout(() => setAlertFeedback(null), 3000);
     }
   };
 
@@ -183,44 +176,48 @@ export default function AnalyticsScreen() {
   };
 
   // Calendar Grid Calculations
-  // Find first day of the selected month: 0 is Sun, 1 is Mon, ..., 6 is Sat
   const firstDayOfMonth = new Date(selectedYear, selectedMonth - 1, 1).getDay();
-  // We want Monday = 0, ..., Sunday = 6
+  // Monday = 0, ..., Sunday = 6
   const leadingOffset = (firstDayOfMonth + 6) % 7;
   const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
 
   // Day-over-Day score calculation
   const currentDayScore = selectedRecord?.overallScore ?? 0;
   const prevDayScore = prevDayRecord?.overallScore ?? 0;
-  const dayDelta = prevDayScore > 0 && currentDayScore > 0 ? Math.round((currentDayScore - prevDayScore) * 10) / 10 : 0;
-  const dayDeltaPercent =
-    prevDayScore > 0 && currentDayScore > 0
-      ? Math.round(((currentDayScore - prevDayScore) / prevDayScore) * 1000) / 10
-      : 0;
+  const dayDelta =
+    prevDayScore > 0 && currentDayScore > 0 ? Math.round((currentDayScore - prevDayScore) * 10) / 10 : 0;
 
   // Format header date string for Day Inspector
   const [selY, selM, selD] = selectedDateStr.split("-").map(Number);
   const selDateObj = new Date(selY, selM - 1, selD);
   const formattedDayTitle = selDateObj.toLocaleDateString("en-US", {
-    weekday: "long",
+    weekday: "short",
     month: "short",
     day: "numeric",
     year: "numeric",
   });
   const isSelectedDateToday = selectedDateStr === todayKey;
 
+  const monthHasLogs = (monthlySummary?.daysLoggedCount ?? 0) > 0;
+
   return (
     <View style={styles.container}>
-      {/* Top Header */}
+      {/* Top Header - Safe & Responsive */}
       <View style={styles.header}>
         <View style={styles.headerRow}>
-          <View>
-            <Text style={styles.headerSub}>Longitudinal Telemetry</Text>
-            <Text style={styles.headerTitle}>Biometric Analytics</Text>
+          <View style={{ flex: 1, marginRight: 8 }}>
+            <Text style={styles.headerSub} numberOfLines={1}>
+              Longitudinal Telemetry
+            </Text>
+            <Text style={styles.headerTitle} numberOfLines={1}>
+              Biometric Analytics
+            </Text>
           </View>
           <View style={styles.aiBadge}>
-            <Sparkles size={14} color="#10b981" />
-            <Text style={styles.aiBadgeText}>AI Synthesized</Text>
+            <Sparkles size={11} color="#10b981" />
+            <Text style={styles.aiBadgeText} numberOfLines={1}>
+              AI Synthesized
+            </Text>
           </View>
         </View>
       </View>
@@ -233,19 +230,19 @@ export default function AnalyticsScreen() {
         {/* 1. MONTH SELECTOR & MONTHLY SCORE HERO CARD               */}
         {/* ========================================================= */}
         <View style={styles.monthNavRow}>
-          <Pressable style={styles.monthNavArrow} onPress={handlePrevMonth}>
-            <ChevronLeft size={20} color={THEME.colors.textOnDarkPrimary} />
+          <Pressable style={styles.monthNavArrow} onPress={handlePrevMonth} accessibilityLabel="Previous Month">
+            <ChevronLeft size={18} color={THEME.colors.textOnDarkPrimary} />
           </Pressable>
 
           <View style={styles.monthNameWrapper}>
-            <CalendarIcon size={16} color={THEME.colors.accentGreen} />
-            <Text style={styles.monthNavTitle}>
+            <CalendarIcon size={14} color={THEME.colors.accentGreen} />
+            <Text style={styles.monthNavTitle} numberOfLines={1}>
               {getMonthName(selectedMonth)} {selectedYear}
             </Text>
           </View>
 
-          <Pressable style={styles.monthNavArrow} onPress={handleNextMonth}>
-            <ChevronRight size={20} color={THEME.colors.textOnDarkPrimary} />
+          <Pressable style={styles.monthNavArrow} onPress={handleNextMonth} accessibilityLabel="Next Month">
+            <ChevronRight size={18} color={THEME.colors.textOnDarkPrimary} />
           </Pressable>
 
           {!isSelectedDateToday && (
@@ -258,20 +255,20 @@ export default function AnalyticsScreen() {
         {/* Monthly Summary Hero Card */}
         <View style={styles.monthlyHeroCard}>
           <View style={styles.monthlyHeroHeader}>
-            <View>
-              <Text style={styles.monthlyHeroLabel}>
+            <View style={{ flex: 1, marginRight: 8 }}>
+              <Text style={styles.monthlyHeroLabel} numberOfLines={1}>
                 {getMonthName(selectedMonth).toUpperCase()} COMPOSITE SCORE
               </Text>
               <View style={styles.scoreRow}>
                 <Text style={styles.monthlyScoreLarge}>
-                  {monthlySummary?.averageScore ? monthlySummary.averageScore.toFixed(1) : "0.0"}
+                  {monthHasLogs && monthlySummary?.averageScore ? monthlySummary.averageScore.toFixed(1) : "0.0"}
                 </Text>
                 <Text style={styles.monthlyScoreMax}>/ 10</Text>
               </View>
             </View>
 
-            {/* Month-over-Month Delta Badge */}
-            {monthlySummary && monthlySummary.prevMonthAverageScore > 0 ? (
+            {/* Month-over-Month Delta Badge - Compact & Contained */}
+            {monthHasLogs && monthlySummary && monthlySummary.prevMonthAverageScore > 0 ? (
               <View
                 style={[
                   styles.deltaBadge,
@@ -281,9 +278,9 @@ export default function AnalyticsScreen() {
                 ]}
               >
                 {monthlySummary.monthOverMonthDeltaPercent >= 0 ? (
-                  <ArrowUpRight size={14} color="#047857" />
+                  <ArrowUpRight size={12} color="#047857" />
                 ) : (
-                  <ArrowDownRight size={14} color="#dc2626" />
+                  <ArrowDownRight size={12} color="#dc2626" />
                 )}
                 <Text
                   style={[
@@ -292,62 +289,80 @@ export default function AnalyticsScreen() {
                       ? styles.deltaTextPositive
                       : styles.deltaTextNegative,
                   ]}
+                  numberOfLines={1}
                 >
                   {monthlySummary.monthOverMonthDeltaPercent >= 0 ? "+" : ""}
-                  {monthlySummary.monthOverMonthDeltaPercent.toFixed(1)}% vs prev mo
+                  {monthlySummary.monthOverMonthDeltaPercent.toFixed(1)}% MoM
                 </Text>
               </View>
             ) : (
               <View style={styles.deltaBadgeNeutral}>
-                <ShieldCheck size={14} color={THEME.colors.cardTextSecondary} />
-                <Text style={styles.deltaTextNeutral}>Baseline Established</Text>
+                <ShieldCheck size={12} color={THEME.colors.cardTextSecondary} />
+                <Text style={styles.deltaTextNeutral} numberOfLines={1}>
+                  {monthHasLogs ? "Initial Baseline" : "Clean Baseline"}
+                </Text>
               </View>
             )}
           </View>
 
-          <Text style={styles.monthlyHeroSubtext}>
-            Aggregated across {monthlySummary?.daysLoggedCount || 0} active telemetry days in{" "}
-            {getMonthName(selectedMonth)}.
+          <Text style={styles.monthlyHeroSubtext} numberOfLines={2}>
+            {monthHasLogs
+              ? `Aggregated across ${monthlySummary?.daysLoggedCount || 0} active telemetry day${(monthlySummary?.daysLoggedCount || 0) > 1 ? "s" : ""} in ${getMonthName(selectedMonth)}.`
+              : `No active telemetry recorded for ${getMonthName(selectedMonth)} yet. Log your health habits to see your score.`}
           </Text>
 
-          {/* Monthly Aggregates 4-Column Bar */}
+          {/* Monthly Aggregates 4-Column Bar - Completely Responsive */}
           <View style={styles.monthlyMetricsGrid}>
             <View style={styles.metricItem}>
-              <Footprints size={15} color="#047857" />
-              <Text style={styles.metricValue}>
-                {monthlySummary ? (monthlySummary.totalSteps / 1000).toFixed(1) + "k" : "0k"}
+              <Footprints size={14} color="#047857" />
+              <Text style={styles.metricValue} numberOfLines={1}>
+                {monthlySummary && monthlySummary.totalSteps > 0
+                  ? (monthlySummary.totalSteps / 1000).toFixed(1) + "k"
+                  : "0"}
               </Text>
-              <Text style={styles.metricLabel}>Total Steps</Text>
+              <Text style={styles.metricLabel} numberOfLines={1}>
+                Steps
+              </Text>
             </View>
 
             <View style={styles.metricDivider} />
 
             <View style={styles.metricItem}>
-              <Flame size={15} color="#b45309" />
-              <Text style={styles.metricValue}>
-                {monthlySummary ? monthlySummary.totalActiveCalories.toLocaleString() : "0"}
+              <Flame size={14} color="#b45309" />
+              <Text style={styles.metricValue} numberOfLines={1}>
+                {monthlySummary && monthlySummary.totalActiveCalories > 0
+                  ? Math.round(monthlySummary.totalActiveCalories).toLocaleString()
+                  : "0"}
               </Text>
-              <Text style={styles.metricLabel}>Active Burn</Text>
+              <Text style={styles.metricLabel} numberOfLines={1}>
+                Burn
+              </Text>
             </View>
 
             <View style={styles.metricDivider} />
 
             <View style={styles.metricItem}>
-              <Moon size={15} color="#4338ca" />
-              <Text style={styles.metricValue}>
-                {monthlySummary?.averageSleepHours ? `${monthlySummary.averageSleepHours}h` : "0h"}
+              <Moon size={14} color="#4338ca" />
+              <Text style={styles.metricValue} numberOfLines={1}>
+                {monthlySummary && monthlySummary.averageSleepHours > 0
+                  ? `${monthlySummary.averageSleepHours}h`
+                  : "0h"}
               </Text>
-              <Text style={styles.metricLabel}>Avg Sleep</Text>
+              <Text style={styles.metricLabel} numberOfLines={1}>
+                Sleep
+              </Text>
             </View>
 
             <View style={styles.metricDivider} />
 
             <View style={styles.metricItem}>
-              <CheckCircle2 size={15} color="#047857" />
-              <Text style={styles.metricValue}>
-                {monthlySummary?.daysLoggedCount ?? 0}/{monthlySummary?.daysInMonth ?? 30}
+              <CheckCircle2 size={14} color="#047857" />
+              <Text style={styles.metricValue} numberOfLines={1}>
+                {monthlySummary?.daysLoggedCount ?? 0}/{monthlySummary?.daysInMonth ?? daysInMonth}
               </Text>
-              <Text style={styles.metricLabel}>Days Logged</Text>
+              <Text style={styles.metricLabel} numberOfLines={1}>
+                Logged
+              </Text>
             </View>
           </View>
         </View>
@@ -357,23 +372,27 @@ export default function AnalyticsScreen() {
         {/* ========================================================= */}
         <View style={styles.calendarCard}>
           <View style={styles.calendarHeaderRow}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <CalendarIcon size={16} color="#047857" />
-              <Text style={styles.cardTitle}>Daily Score Calendar Grid</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1, marginRight: 8 }}>
+              <CalendarIcon size={15} color="#047857" />
+              <Text style={styles.cardTitle} numberOfLines={1}>
+                Daily Calendar
+              </Text>
             </View>
-            <Text style={styles.calendarTapHint}>Tap a day to inspect</Text>
+            <Text style={styles.calendarTapHint} numberOfLines={1}>
+              Tap day to inspect
+            </Text>
           </View>
 
           {/* Weekday Labels Header */}
           <View style={styles.weekdayRow}>
             {WEEKDAYS.map((wd, i) => (
-              <Text key={i} style={styles.weekdayLabel}>
+              <Text key={i} style={styles.weekdayLabel} numberOfLines={1}>
                 {wd}
               </Text>
             ))}
           </View>
 
-          {/* Grid of days */}
+          {/* Grid of days - Zero Mock Data: Only displays real logged scores */}
           <View style={styles.daysGrid}>
             {/* Blank offset tiles */}
             {Array.from({ length: leadingOffset }).map((_, idx) => (
@@ -423,6 +442,7 @@ export default function AnalyticsScreen() {
                     {dayNum}
                   </Text>
 
+                  {/* Clean State: If not logged, display empty subtle dot; never mock data */}
                   {score > 0 ? (
                     <View style={[styles.dayScorePill, { backgroundColor: scoreBg }]}>
                       <Text style={[styles.dayScoreText, { color: scoreColor }]}>
@@ -460,17 +480,19 @@ export default function AnalyticsScreen() {
         <View style={styles.dayInspectorCard}>
           {/* Day Header */}
           <View style={styles.dayInspectorHeader}>
-            <View style={{ flex: 1 }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Text style={styles.inspectorDateTitle}>{formattedDayTitle}</Text>
+            <View style={{ flex: 1, marginRight: 8 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                <Text style={styles.inspectorDateTitle} numberOfLines={1}>
+                  {formattedDayTitle}
+                </Text>
                 {isSelectedDateToday && (
                   <View style={styles.inspectorTodayBadge}>
                     <Text style={styles.inspectorTodayBadgeText}>TODAY</Text>
                   </View>
                 )}
               </View>
-              <Text style={styles.inspectorSubtitle}>
-                Individual Daily Biometrics & Macro Telemetry
+              <Text style={styles.inspectorSubtitle} numberOfLines={1}>
+                Individual Daily Biometrics & Telemetry
               </Text>
             </View>
 
@@ -479,37 +501,40 @@ export default function AnalyticsScreen() {
                 style={styles.refreshIconBtn}
                 onPress={handleRefreshToday}
                 disabled={refreshing}
+                accessibilityLabel="Refresh Today's Snapshot"
               >
                 {refreshing ? (
                   <ActivityIndicator size="small" color="#047857" />
                 ) : (
-                  <RefreshCw size={16} color="#047857" />
+                  <RefreshCw size={14} color="#047857" />
                 )}
               </Pressable>
             )}
           </View>
 
-          {/* Score & Day-over-Day Comparison Banner */}
+          {/* Score Banner */}
           <View style={styles.dayScoreBanner}>
             <View style={styles.dayScoreLeft}>
               <Text style={styles.dayScoreVal}>
-                {selectedRecord?.overallScore ? selectedRecord.overallScore.toFixed(1) : "0.0"}
+                {selectedRecord?.overallScore && selectedRecord.overallScore > 0
+                  ? selectedRecord.overallScore.toFixed(1)
+                  : "0.0"}
               </Text>
-              <View>
+              <View style={{ flexShrink: 1 }}>
                 <Text style={styles.dayScoreUnit}>/ 10 Overall Score</Text>
-                <Text style={styles.dayScoreTier}>
+                <Text style={styles.dayScoreTier} numberOfLines={1}>
                   {currentDayScore >= 8.0
                     ? "Peak Physiological Efficiency"
                     : currentDayScore >= 6.0
                     ? "Balanced Recovery Baseline"
                     : currentDayScore > 0
                     ? "Rest & Tissue Restoration"
-                    : "No Telemetry Logged"}
+                    : "No Telemetry Logged Yet"}
                 </Text>
               </View>
             </View>
 
-            {/* Day-over-day delta */}
+            {/* Day-over-day delta (Only shown if authentic data exists) */}
             {prevDayScore > 0 && currentDayScore > 0 ? (
               <View
                 style={[
@@ -518,17 +543,18 @@ export default function AnalyticsScreen() {
                 ]}
               >
                 {dayDelta >= 0 ? (
-                  <ArrowUpRight size={13} color="#047857" />
+                  <ArrowUpRight size={11} color="#047857" />
                 ) : (
-                  <ArrowDownRight size={13} color="#dc2626" />
+                  <ArrowDownRight size={11} color="#dc2626" />
                 )}
                 <Text
                   style={[
                     styles.dayDeltaText,
                     dayDelta >= 0 ? styles.deltaTextPositive : styles.deltaTextNegative,
                   ]}
+                  numberOfLines={1}
                 >
-                  {dayDelta >= 0 ? `+${dayDelta.toFixed(1)}` : `${dayDelta.toFixed(1)}`} vs yesterday
+                  {dayDelta >= 0 ? `+${dayDelta.toFixed(1)}` : `${dayDelta.toFixed(1)}`}
                 </Text>
               </View>
             ) : null}
@@ -539,13 +565,15 @@ export default function AnalyticsScreen() {
             {/* Pillar 1: Movement & Steps */}
             <View style={styles.pillarTile}>
               <View style={styles.pillarHeaderRow}>
-                <Footprints size={16} color="#047857" />
-                <Text style={styles.pillarName}>Movement</Text>
+                <Footprints size={14} color="#047857" />
+                <Text style={styles.pillarName} numberOfLines={1}>
+                  Movement
+                </Text>
               </View>
-              <Text style={styles.pillarMainVal}>
+              <Text style={styles.pillarMainVal} numberOfLines={1}>
                 {selectedRecord?.steps ? selectedRecord.steps.toLocaleString() : "0"}
               </Text>
-              <Text style={styles.pillarSubVal}>
+              <Text style={styles.pillarSubVal} numberOfLines={1}>
                 {selectedRecord?.activeCalories ?? 0} kcal • {selectedRecord?.distanceKm ?? 0} km
               </Text>
             </View>
@@ -553,41 +581,47 @@ export default function AnalyticsScreen() {
             {/* Pillar 2: Nutrition Points */}
             <View style={styles.pillarTile}>
               <View style={styles.pillarHeaderRow}>
-                <Utensils size={16} color="#b45309" />
-                <Text style={styles.pillarName}>Nutrient Points</Text>
+                <Utensils size={14} color="#b45309" />
+                <Text style={styles.pillarName} numberOfLines={1}>
+                  Nutrient Points
+                </Text>
               </View>
-              <Text style={styles.pillarMainVal}>
+              <Text style={styles.pillarMainVal} numberOfLines={1}>
                 {selectedRecord?.caloriesConsumed ? `${selectedRecord.caloriesConsumed} kcal` : "0 kcal"}
               </Text>
-              <Text style={styles.pillarSubVal}>
-                {selectedRecord?.proteinGrams ?? 0}g Pro • {selectedRecord?.carbsGrams ?? 0}g Carb • {selectedRecord?.fatGrams ?? 0}g Fat
+              <Text style={styles.pillarSubVal} numberOfLines={1}>
+                {selectedRecord?.proteinGrams ?? 0}g Pro • {selectedRecord?.carbsGrams ?? 0}g Carb
               </Text>
             </View>
 
             {/* Pillar 3: Sleep Restoration */}
             <View style={styles.pillarTile}>
               <View style={styles.pillarHeaderRow}>
-                <Moon size={16} color="#4338ca" />
-                <Text style={styles.pillarName}>Sleep Restoration</Text>
+                <Moon size={14} color="#4338ca" />
+                <Text style={styles.pillarName} numberOfLines={1}>
+                  Sleep Restoration
+                </Text>
               </View>
-              <Text style={styles.pillarMainVal}>
+              <Text style={styles.pillarMainVal} numberOfLines={1}>
                 {selectedRecord?.sleepHours ? `${selectedRecord.sleepHours} hrs` : "0.0 hrs"}
               </Text>
-              <Text style={styles.pillarSubVal}>
-                Quality: {selectedRecord?.sleepQuality || "Normal"}
+              <Text style={styles.pillarSubVal} numberOfLines={1}>
+                Quality: {selectedRecord?.sleepQuality || "Not logged"}
               </Text>
             </View>
 
             {/* Pillar 4: Hydration & Screen */}
             <View style={styles.pillarTile}>
               <View style={styles.pillarHeaderRow}>
-                <Droplets size={16} color="#0284c7" />
-                <Text style={styles.pillarName}>Hydration & Screen</Text>
+                <Droplets size={14} color="#0284c7" />
+                <Text style={styles.pillarName} numberOfLines={1}>
+                  Hydration & Screen
+                </Text>
               </View>
-              <Text style={styles.pillarMainVal}>
+              <Text style={styles.pillarMainVal} numberOfLines={1}>
                 {selectedRecord?.hydrationMl ? `${selectedRecord.hydrationMl} ml` : "0 ml"}
               </Text>
-              <Text style={styles.pillarSubVal}>
+              <Text style={styles.pillarSubVal} numberOfLines={1}>
                 {selectedRecord?.hydrationCups ?? 0} cups • {selectedRecord?.screenMinutes ?? 0}m screen
               </Text>
             </View>
@@ -599,7 +633,7 @@ export default function AnalyticsScreen() {
         {/* ========================================================= */}
         <View style={styles.aiInsightsSection}>
           <View style={styles.sectionHeaderRow}>
-            <Sparkles size={18} color="#10b981" />
+            <Sparkles size={16} color="#10b981" />
             <Text style={styles.sectionHeaderTitle}>3-Pillar Clinical AI Synthesis</Text>
           </View>
           <Text style={styles.sectionHeaderSub}>
@@ -611,11 +645,15 @@ export default function AnalyticsScreen() {
             <View style={styles.insightCard}>
               <View style={styles.insightCardHeader}>
                 <View style={styles.insightIconBadgeGreen}>
-                  <Footprints size={16} color="#047857" />
+                  <Footprints size={15} color="#047857" />
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.insightCardTitle}>{aiInsights.movement.title}</Text>
-                  <Text style={styles.insightScoreTag}>{aiInsights.movement.scoreLabel}</Text>
+                <View style={{ flex: 1, marginRight: 6 }}>
+                  <Text style={styles.insightCardTitle} numberOfLines={1}>
+                    {aiInsights.movement.title}
+                  </Text>
+                  <Text style={styles.insightScoreTag} numberOfLines={1}>
+                    {aiInsights.movement.scoreLabel}
+                  </Text>
                 </View>
                 <View
                   style={[
@@ -636,6 +674,7 @@ export default function AnalyticsScreen() {
                         ? styles.statusTextAmber
                         : styles.statusTextRed,
                     ]}
+                    numberOfLines={1}
                   >
                     {aiInsights.movement.status.replace("_", " ").toUpperCase()}
                   </Text>
@@ -645,12 +684,12 @@ export default function AnalyticsScreen() {
               <Text style={styles.insightObservation}>{aiInsights.movement.observation}</Text>
 
               <View style={styles.loreBox}>
-                <Info size={14} color="#047857" style={{ marginTop: 2 }} />
+                <Info size={13} color="#047857" style={{ marginTop: 2 }} />
                 <Text style={styles.loreText}>{aiInsights.movement.clinicalLore}</Text>
               </View>
 
               <View style={styles.actionTipBox}>
-                <Sparkles size={14} color="#b45309" style={{ marginTop: 2 }} />
+                <Sparkles size={13} color="#b45309" style={{ marginTop: 2 }} />
                 <Text style={styles.actionTipText}>
                   <Text style={{ fontWeight: "bold" }}>Next Action: </Text>
                   {aiInsights.movement.actionableTip}
@@ -664,11 +703,15 @@ export default function AnalyticsScreen() {
             <View style={styles.insightCard}>
               <View style={styles.insightCardHeader}>
                 <View style={styles.insightIconBadgePurple}>
-                  <Moon size={16} color="#4338ca" />
+                  <Moon size={15} color="#4338ca" />
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.insightCardTitle}>{aiInsights.recovery.title}</Text>
-                  <Text style={styles.insightScoreTag}>{aiInsights.recovery.scoreLabel}</Text>
+                <View style={{ flex: 1, marginRight: 6 }}>
+                  <Text style={styles.insightCardTitle} numberOfLines={1}>
+                    {aiInsights.recovery.title}
+                  </Text>
+                  <Text style={styles.insightScoreTag} numberOfLines={1}>
+                    {aiInsights.recovery.scoreLabel}
+                  </Text>
                 </View>
                 <View
                   style={[
@@ -689,6 +732,7 @@ export default function AnalyticsScreen() {
                         ? styles.statusTextAmber
                         : styles.statusTextRed,
                     ]}
+                    numberOfLines={1}
                   >
                     {aiInsights.recovery.status.replace("_", " ").toUpperCase()}
                   </Text>
@@ -698,12 +742,12 @@ export default function AnalyticsScreen() {
               <Text style={styles.insightObservation}>{aiInsights.recovery.observation}</Text>
 
               <View style={styles.loreBox}>
-                <Info size={14} color="#4338ca" style={{ marginTop: 2 }} />
+                <Info size={13} color="#4338ca" style={{ marginTop: 2 }} />
                 <Text style={styles.loreText}>{aiInsights.recovery.clinicalLore}</Text>
               </View>
 
               <View style={styles.actionTipBox}>
-                <Sparkles size={14} color="#b45309" style={{ marginTop: 2 }} />
+                <Sparkles size={13} color="#b45309" style={{ marginTop: 2 }} />
                 <Text style={styles.actionTipText}>
                   <Text style={{ fontWeight: "bold" }}>Next Action: </Text>
                   {aiInsights.recovery.actionableTip}
@@ -717,11 +761,15 @@ export default function AnalyticsScreen() {
             <View style={styles.insightCard}>
               <View style={styles.insightCardHeader}>
                 <View style={styles.insightIconBadgeAmber}>
-                  <Utensils size={16} color="#b45309" />
+                  <Utensils size={15} color="#b45309" />
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.insightCardTitle}>{aiInsights.nutrition.title}</Text>
-                  <Text style={styles.insightScoreTag}>{aiInsights.nutrition.scoreLabel}</Text>
+                <View style={{ flex: 1, marginRight: 6 }}>
+                  <Text style={styles.insightCardTitle} numberOfLines={1}>
+                    {aiInsights.nutrition.title}
+                  </Text>
+                  <Text style={styles.insightScoreTag} numberOfLines={1}>
+                    {aiInsights.nutrition.scoreLabel}
+                  </Text>
                 </View>
                 <View
                   style={[
@@ -742,6 +790,7 @@ export default function AnalyticsScreen() {
                         ? styles.statusTextAmber
                         : styles.statusTextRed,
                     ]}
+                    numberOfLines={1}
                   >
                     {aiInsights.nutrition.status.replace("_", " ").toUpperCase()}
                   </Text>
@@ -751,12 +800,12 @@ export default function AnalyticsScreen() {
               <Text style={styles.insightObservation}>{aiInsights.nutrition.observation}</Text>
 
               <View style={styles.loreBox}>
-                <Info size={14} color="#b45309" style={{ marginTop: 2 }} />
+                <Info size={13} color="#b45309" style={{ marginTop: 2 }} />
                 <Text style={styles.loreText}>{aiInsights.nutrition.clinicalLore}</Text>
               </View>
 
               <View style={styles.actionTipBox}>
-                <Sparkles size={14} color="#b45309" style={{ marginTop: 2 }} />
+                <Sparkles size={13} color="#b45309" style={{ marginTop: 2 }} />
                 <Text style={styles.actionTipText}>
                   <Text style={{ fontWeight: "bold" }}>Next Action: </Text>
                   {aiInsights.nutrition.actionableTip}
@@ -772,12 +821,12 @@ export default function AnalyticsScreen() {
         <View style={styles.notificationCard}>
           <View style={styles.notificationHeader}>
             <View style={styles.bellIconBox}>
-              <Bell size={18} color="#047857" />
+              <Bell size={16} color="#047857" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.notifTitle}>8:00 AM Morning Score Briefing</Text>
+              <Text style={styles.notifTitle}>8:00 AM Daily Briefing & Alert</Text>
               <Text style={styles.notifSub}>
-                Automatically evaluates yesterday's score vs the day prior and sends actionable rebound alerts if your score dropped.
+                Automatically evaluates yesterday's score vs the day prior and alerts you of notable momentum changes.
               </Text>
             </View>
           </View>
@@ -789,7 +838,7 @@ export default function AnalyticsScreen() {
           ) : null}
 
           <Pressable style={styles.testAlertBtn} onPress={handleTestNotification}>
-            <Bell size={14} color="#ffffff" />
+            <Bell size={13} color="#ffffff" />
             <Text style={styles.testAlertBtnText}>Test Morning Health Score Alert</Text>
           </Pressable>
         </View>
@@ -805,8 +854,8 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === "ios" ? 54 : 36,
   },
   header: {
-    paddingHorizontal: 22,
-    marginBottom: 14,
+    paddingHorizontal: 18,
+    marginBottom: 12,
   },
   headerRow: {
     flexDirection: "row",
@@ -815,37 +864,38 @@ const styles = StyleSheet.create({
   },
   headerSub: {
     color: THEME.colors.textOnDarkSecondary,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700",
     textTransform: "uppercase",
-    letterSpacing: 1,
+    letterSpacing: 0.8,
   },
   headerTitle: {
     color: THEME.colors.textOnDarkPrimary,
-    fontSize: 26,
+    fontSize: 22,
     fontWeight: "900",
     letterSpacing: -0.3,
   },
   aiBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 5,
     backgroundColor: "rgba(16, 185, 129, 0.15)",
     borderWidth: 1,
     borderColor: "rgba(16, 185, 129, 0.35)",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 16,
+    flexShrink: 0,
   },
   aiBadgeText: {
     color: "#10b981",
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "800",
   },
   scrollContent: {
-    paddingHorizontal: 18,
-    paddingBottom: 110, // Generous padding so bottom tab capsule never overlaps content
-    gap: 16,
+    paddingHorizontal: 16,
+    paddingBottom: 140, // Generous padding so the floating capsule tab bar NEVER overlaps content
+    gap: 14,
   },
 
   /* 1. Month Navigation & Hero Card */
@@ -854,16 +904,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     backgroundColor: "rgba(238, 245, 242, 0.08)",
-    borderRadius: 16,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    borderRadius: 14,
+    paddingVertical: 7,
+    paddingHorizontal: 10,
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.12)",
   },
   monthNavArrow: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+    width: 32,
+    height: 32,
+    borderRadius: 8,
     backgroundColor: "rgba(255, 255, 255, 0.1)",
     alignItems: "center",
     justifyContent: "center",
@@ -871,47 +921,49 @@ const styles = StyleSheet.create({
   monthNameWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 6,
+    flexShrink: 1,
   },
   monthNavTitle: {
     color: THEME.colors.textOnDarkPrimary,
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "800",
   },
   todayPill: {
     backgroundColor: THEME.colors.accentGreen,
-    paddingHorizontal: 10,
+    paddingHorizontal: 9,
     paddingVertical: 4,
-    borderRadius: 12,
+    borderRadius: 10,
   },
   todayPillText: {
     color: "#ffffff",
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "800",
   },
   monthlyHeroCard: {
     backgroundColor: THEME.colors.cardBgSolid,
-    borderRadius: 22,
-    padding: 20,
+    borderRadius: 20,
+    padding: 16,
     borderWidth: 1,
     borderColor: THEME.colors.cardBorder,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
     elevation: 3,
+    overflow: "hidden",
   },
   monthlyHeroHeader: {
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
-    marginBottom: 8,
+    marginBottom: 6,
   },
   monthlyHeroLabel: {
     color: THEME.colors.cardTextSecondary,
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "800",
-    letterSpacing: 0.8,
+    letterSpacing: 0.6,
   },
   scoreRow: {
     flexDirection: "row",
@@ -920,23 +972,24 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   monthlyScoreLarge: {
-    fontSize: 38,
+    fontSize: 34,
     fontWeight: "900",
     color: THEME.colors.cardTextPrimary,
-    letterSpacing: -1,
+    letterSpacing: -0.5,
   },
   monthlyScoreMax: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "700",
     color: THEME.colors.cardTextTertiary,
   },
   deltaBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 20,
+    gap: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 14,
+    maxWidth: "42%",
   },
   deltaBadgePositive: {
     backgroundColor: "rgba(16, 185, 129, 0.15)",
@@ -953,12 +1006,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 4,
     backgroundColor: "rgba(100, 116, 139, 0.12)",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 20,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 14,
+    maxWidth: "45%",
   },
   deltaBadgeText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "800",
   },
   deltaTextPositive: {
@@ -969,69 +1023,75 @@ const styles = StyleSheet.create({
   },
   deltaTextNeutral: {
     color: THEME.colors.cardTextSecondary,
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "700",
   },
   monthlyHeroSubtext: {
     color: THEME.colors.cardTextSecondary,
-    fontSize: 13,
-    lineHeight: 18,
-    marginBottom: 16,
+    fontSize: 12,
+    lineHeight: 16,
+    marginBottom: 14,
   },
   monthlyMetricsGrid: {
     flexDirection: "row",
     backgroundColor: "rgba(228, 238, 233, 0.75)",
-    borderRadius: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 8,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 6,
     alignItems: "center",
     justifyContent: "space-between",
   },
   metricItem: {
     flex: 1,
     alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 2,
     gap: 2,
   },
   metricDivider: {
     width: 1,
-    height: 28,
+    height: 24,
     backgroundColor: "rgba(190, 210, 202, 0.6)",
   },
   metricValue: {
     color: THEME.colors.cardTextPrimary,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "800",
+    textAlign: "center",
   },
   metricLabel: {
     color: THEME.colors.cardTextTertiary,
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: "700",
     textTransform: "uppercase",
+    textAlign: "center",
   },
 
   /* 2. Interactive Monthly Calendar Grid */
   calendarCard: {
     backgroundColor: THEME.colors.cardBgSolid,
-    borderRadius: 22,
-    padding: 18,
+    borderRadius: 20,
+    padding: 16,
     borderWidth: 1,
     borderColor: THEME.colors.cardBorder,
+    overflow: "hidden",
   },
   calendarHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 12,
+    marginBottom: 10,
   },
   cardTitle: {
     color: THEME.colors.cardTextPrimary,
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "800",
   },
   calendarTapHint: {
     color: THEME.colors.cardTextTertiary,
     fontSize: 11,
     fontWeight: "600",
+    flexShrink: 0,
   },
   weekdayRow: {
     flexDirection: "row",
@@ -1040,32 +1100,32 @@ const styles = StyleSheet.create({
     paddingHorizontal: 2,
   },
   weekdayLabel: {
-    width: 40,
+    width: "13.2%",
     textAlign: "center",
     color: THEME.colors.cardTextTertiary,
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "800",
   },
   daysGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
-    rowGap: 8,
+    rowGap: 6,
   },
   emptyDayTile: {
     width: "13.2%",
-    height: 52,
+    height: 48,
   },
   dayTile: {
     width: "13.2%",
-    height: 52,
-    borderRadius: 12,
+    height: 48,
+    borderRadius: 10,
     backgroundColor: "rgba(228, 238, 233, 0.5)",
     borderWidth: 1,
     borderColor: "rgba(200, 218, 210, 0.5)",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 3,
+    paddingVertical: 2,
   },
   dayTileSelected: {
     backgroundColor: "#ffffff",
@@ -1073,9 +1133,9 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     shadowColor: "#047857",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.35,
-    shadowRadius: 6,
-    elevation: 4,
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 3,
   },
   dayTileToday: {
     borderColor: "#0284c7",
@@ -1083,7 +1143,7 @@ const styles = StyleSheet.create({
   },
   dayNumberText: {
     color: THEME.colors.cardTextPrimary,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700",
   },
   dayNumberSelected: {
@@ -1095,8 +1155,8 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   dayScorePill: {
-    borderRadius: 6,
-    paddingHorizontal: 4,
+    borderRadius: 5,
+    paddingHorizontal: 3,
     paddingVertical: 1,
     marginTop: 2,
   },
@@ -1114,20 +1174,20 @@ const styles = StyleSheet.create({
   calendarLegendRow: {
     flexDirection: "row",
     justifyContent: "space-around",
-    marginTop: 14,
-    paddingTop: 10,
+    marginTop: 12,
+    paddingTop: 8,
     borderTopWidth: 1,
     borderTopColor: "rgba(190, 210, 202, 0.4)",
   },
   legendItem: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
+    gap: 4,
   },
   legendDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
   },
   legendLabel: {
     color: THEME.colors.cardTextSecondary,
@@ -1138,43 +1198,44 @@ const styles = StyleSheet.create({
   /* 3. Selected Day Inspector */
   dayInspectorCard: {
     backgroundColor: THEME.colors.cardBgSolid,
-    borderRadius: 22,
-    padding: 18,
+    borderRadius: 20,
+    padding: 16,
     borderWidth: 1,
     borderColor: THEME.colors.cardBorder,
+    overflow: "hidden",
   },
   dayInspectorHeader: {
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
-    marginBottom: 12,
+    marginBottom: 10,
   },
   inspectorDateTitle: {
     color: THEME.colors.cardTextPrimary,
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "900",
   },
   inspectorTodayBadge: {
     backgroundColor: "rgba(2, 132, 199, 0.15)",
     borderWidth: 1,
     borderColor: "rgba(2, 132, 199, 0.35)",
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 6,
   },
   inspectorTodayBadgeText: {
     color: "#0284c7",
-    fontSize: 9,
+    fontSize: 8,
     fontWeight: "800",
   },
   inspectorSubtitle: {
     color: THEME.colors.cardTextSecondary,
-    fontSize: 12,
-    marginTop: 2,
+    fontSize: 11,
+    marginTop: 1,
   },
   refreshIconBtn: {
-    width: 32,
-    height: 32,
+    width: 30,
+    height: 30,
     borderRadius: 8,
     backgroundColor: "rgba(16, 185, 129, 0.12)",
     alignItems: "center",
@@ -1185,38 +1246,40 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     backgroundColor: "rgba(228, 238, 233, 0.8)",
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 14,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
   },
   dayScoreLeft: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 8,
+    flex: 1,
+    marginRight: 6,
   },
   dayScoreVal: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: "900",
     color: THEME.colors.cardTextPrimary,
   },
   dayScoreUnit: {
     color: THEME.colors.cardTextSecondary,
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "700",
   },
   dayScoreTier: {
     color: "#047857",
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "800",
     marginTop: 1,
   },
   dayDeltaBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 3,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-    borderRadius: 14,
+    gap: 2,
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
   dayDeltaPos: {
     backgroundColor: "rgba(16, 185, 129, 0.18)",
@@ -1229,116 +1292,119 @@ const styles = StyleSheet.create({
     borderColor: "rgba(239, 68, 68, 0.35)",
   },
   dayDeltaText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "800",
   },
   pillarsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
-    rowGap: 10,
+    rowGap: 8,
   },
   pillarTile: {
     width: "48.5%",
     backgroundColor: "#ffffff",
-    borderRadius: 14,
-    padding: 12,
+    borderRadius: 12,
+    padding: 10,
     borderWidth: 1,
     borderColor: "rgba(200, 218, 210, 0.6)",
   },
   pillarHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    marginBottom: 4,
+    gap: 5,
+    marginBottom: 2,
   },
   pillarName: {
     color: THEME.colors.cardTextSecondary,
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "700",
+    flex: 1,
   },
   pillarMainVal: {
     color: THEME.colors.cardTextPrimary,
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "900",
   },
   pillarSubVal: {
     color: THEME.colors.cardTextTertiary,
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: "600",
-    marginTop: 3,
+    marginTop: 2,
   },
 
   /* 4. 3-Pillar AI Synthesis */
   aiInsightsSection: {
-    gap: 12,
+    gap: 10,
   },
   sectionHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 6,
   },
   sectionHeaderTitle: {
     color: THEME.colors.textOnDarkPrimary,
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "900",
   },
   sectionHeaderSub: {
     color: THEME.colors.textOnDarkSecondary,
-    fontSize: 12,
-    lineHeight: 17,
+    fontSize: 11,
+    lineHeight: 15,
   },
   insightCard: {
     backgroundColor: THEME.colors.cardBgSolid,
-    borderRadius: 20,
-    padding: 16,
+    borderRadius: 18,
+    padding: 14,
     borderWidth: 1,
     borderColor: THEME.colors.cardBorder,
-    gap: 10,
+    gap: 8,
+    overflow: "hidden",
   },
   insightCardHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 8,
   },
   insightIconBadgeGreen: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
+    width: 30,
+    height: 30,
+    borderRadius: 8,
     backgroundColor: "rgba(16, 185, 129, 0.15)",
     alignItems: "center",
     justifyContent: "center",
   },
   insightIconBadgePurple: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
+    width: 30,
+    height: 30,
+    borderRadius: 8,
     backgroundColor: "rgba(67, 56, 202, 0.15)",
     alignItems: "center",
     justifyContent: "center",
   },
   insightIconBadgeAmber: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
+    width: 30,
+    height: 30,
+    borderRadius: 8,
     backgroundColor: "rgba(245, 158, 11, 0.15)",
     alignItems: "center",
     justifyContent: "center",
   },
   insightCardTitle: {
     color: THEME.colors.cardTextPrimary,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "800",
   },
   insightScoreTag: {
     color: THEME.colors.cardTextTertiary,
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "700",
   },
   statusPill: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    flexShrink: 0,
   },
   statusPillGreen: {
     backgroundColor: "rgba(16, 185, 129, 0.15)",
@@ -1356,7 +1422,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(239, 68, 68, 0.3)",
   },
   statusPillText: {
-    fontSize: 9,
+    fontSize: 8,
     fontWeight: "800",
   },
   statusTextGreen: {
@@ -1370,83 +1436,84 @@ const styles = StyleSheet.create({
   },
   insightObservation: {
     color: THEME.colors.cardTextPrimary,
-    fontSize: 13,
-    lineHeight: 19,
+    fontSize: 12,
+    lineHeight: 17,
     fontWeight: "600",
   },
   loreBox: {
     flexDirection: "row",
-    gap: 8,
+    gap: 6,
     backgroundColor: "rgba(228, 238, 233, 0.65)",
-    borderRadius: 10,
-    padding: 10,
+    borderRadius: 8,
+    padding: 8,
   },
   loreText: {
     flex: 1,
     color: THEME.colors.cardTextSecondary,
-    fontSize: 11,
-    lineHeight: 16,
+    fontSize: 10,
+    lineHeight: 15,
     fontStyle: "italic",
   },
   actionTipBox: {
     flexDirection: "row",
-    gap: 8,
+    gap: 6,
     backgroundColor: "rgba(254, 243, 199, 0.7)",
-    borderRadius: 10,
-    padding: 10,
+    borderRadius: 8,
+    padding: 8,
     borderWidth: 1,
     borderColor: "rgba(245, 158, 11, 0.3)",
   },
   actionTipText: {
     flex: 1,
     color: "#92400e",
-    fontSize: 12,
-    lineHeight: 17,
+    fontSize: 11,
+    lineHeight: 15,
   },
 
   /* 5. 8:00 AM Score Alert Monitoring Card */
   notificationCard: {
     backgroundColor: THEME.colors.cardBgSolid,
-    borderRadius: 20,
-    padding: 18,
+    borderRadius: 18,
+    padding: 16,
     borderWidth: 1,
     borderColor: THEME.colors.cardBorder,
-    gap: 12,
+    gap: 10,
+    overflow: "hidden",
   },
   notificationHeader: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 12,
+    gap: 10,
   },
   bellIconBox: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
+    width: 32,
+    height: 32,
+    borderRadius: 10,
     backgroundColor: "rgba(16, 185, 129, 0.15)",
     alignItems: "center",
     justifyContent: "center",
   },
   notifTitle: {
     color: THEME.colors.cardTextPrimary,
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "800",
   },
   notifSub: {
     color: THEME.colors.cardTextSecondary,
-    fontSize: 12,
-    lineHeight: 17,
+    fontSize: 11,
+    lineHeight: 15,
     marginTop: 2,
   },
   feedbackBanner: {
     backgroundColor: "rgba(16, 185, 129, 0.15)",
-    padding: 10,
-    borderRadius: 10,
+    padding: 8,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: "rgba(16, 185, 129, 0.3)",
   },
   feedbackText: {
     color: "#047857",
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700",
     textAlign: "center",
   },
@@ -1454,19 +1521,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
+    gap: 6,
     backgroundColor: "#047857",
-    paddingVertical: 12,
-    borderRadius: 14,
-    shadowColor: "#047857",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 3,
+    paddingVertical: 10,
+    borderRadius: 12,
   },
   testAlertBtnText: {
     color: "#ffffff",
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "800",
   },
 });

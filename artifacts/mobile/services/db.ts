@@ -1631,6 +1631,22 @@ export async function getDailyHealthRecordsForMonth(year: number, month: number)
   return getDailyHealthRecordsForRange(startDate, endDate);
 }
 
+export async function clearAllDailyHealthRecords(): Promise<void> {
+  if (Platform.OS === "web") {
+    const store = getWebStore();
+    store.daily_health_metrics = {};
+    saveWebStore(store);
+    return;
+  }
+  const db = await getDb();
+  if (!db) return;
+  try {
+    await db.runAsync(`DELETE FROM daily_health_metrics`);
+  } catch (err) {
+    console.warn("clearAllDailyHealthRecords error:", err);
+  }
+}
+
 function mapDbRowToDailyRecord(r: any): DailyHealthRecord {
   return {
     date: r.date,

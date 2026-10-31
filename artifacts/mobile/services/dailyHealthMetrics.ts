@@ -4,6 +4,7 @@ import {
   getDailyHealthRecord,
   getDailyHealthRecordsForMonth,
   getDailyHealthRecordsForRange,
+  clearAllDailyHealthRecords,
   getMeals,
   getWorkouts,
   getLatestSleep,
@@ -317,21 +318,23 @@ export function generateThreePillarAiInsights(
   selectedRecord?: DailyHealthRecord,
   monthlySummary?: MonthlyHealthSummary
 ): ThreePillarAiInsights {
-  const steps = selectedRecord?.steps || (monthlySummary ? Math.round(monthlySummary.totalSteps / Math.max(1, monthlySummary.daysLoggedCount)) : 6800);
-  const sleepHours = selectedRecord?.sleepHours || (monthlySummary ? monthlySummary.averageSleepHours : 7.2);
-  const protein = selectedRecord?.proteinGrams || 72;
-  const hydrationMl = selectedRecord?.hydrationMl || 1800;
+  const steps = selectedRecord?.steps || 0;
+  const sleepHours = selectedRecord?.sleepHours || 0;
+  const protein = selectedRecord?.proteinGrams || 0;
+  const hydrationMl = selectedRecord?.hydrationMl || 0;
 
   // 1. MOVEMENT INSIGHT
   const movementStatus: "optimal" | "balanced" | "needs_attention" =
-    steps >= 9000 ? "optimal" : steps >= 5500 ? "balanced" : "needs_attention";
+    steps >= 9000 ? "optimal" : steps >= 5500 ? "balanced" : steps > 0 ? "needs_attention" : "balanced";
 
   const movementObservation =
     steps >= 9000
       ? `High-efficiency volume with ${steps.toLocaleString()} steps logged. Aerobic glycolysis and continuous micro-contractions stimulated robust skeletal muscle capillary perfusion.`
       : steps >= 5500
       ? `Steady activity at ${steps.toLocaleString()} steps. You reached 68% of baseline threshold, maintaining functional mitochondrial density without neuromuscular overstrain.`
-      : `Movement volume is currently at ${steps.toLocaleString()} steps. An afternoon 15-minute brisk walk will activate GLUT-4 translocation to prevent sedentary fatigue.`;
+      : steps > 0
+      ? `Movement volume is currently at ${steps.toLocaleString()} steps. An afternoon 15-minute brisk walk will activate GLUT-4 translocation to prevent sedentary fatigue.`
+      : `No movement recorded for this date yet. Log your steps or workouts on the Home tab to activate your biomotor telemetry.`;
 
   const movementLore =
     "Mechanical loading triggers osteogenic piezoresistive signaling and activates AMPK pathways, driving non-insulin-mediated glucose clearance.";
@@ -339,18 +342,28 @@ export function generateThreePillarAiInsights(
   const movementTip =
     steps >= 9000
       ? "Log a 10-minute cool-down foam rolling sequence to lower sympathetic tone before evening."
-      : "Aim for a brief 20-minute post-meal walk to accelerate metabolic glucose clearance.";
+      : steps > 0
+      ? "Aim for a brief 20-minute post-meal walk to accelerate metabolic glucose clearance."
+      : "Start with an easy 15-minute morning or post-meal walk to initiate circulation.";
 
   // 2. RECOVERY INSIGHT
   const recoveryStatus: "optimal" | "balanced" | "needs_attention" =
-    sleepHours >= 7.5 && hydrationMl >= 1800 ? "optimal" : sleepHours >= 6.5 ? "balanced" : "needs_attention";
+    sleepHours >= 7.5 && hydrationMl >= 1800
+      ? "optimal"
+      : sleepHours >= 6.5
+      ? "balanced"
+      : (sleepHours > 0 || hydrationMl > 0)
+      ? "needs_attention"
+      : "balanced";
 
   const recoveryObservation =
     sleepHours >= 7.5
       ? `Restorative nocturnal restoration achieved (${sleepHours}h sleep, ${hydrationMl}ml fluid intake). High parasympathetic tone supported slow-wave growth hormone release.`
       : sleepHours >= 6.5
       ? `Moderate recovery (${sleepHours}h sleep). Intracellular fluid pressure is stable with ${hydrationMl}ml logged, though REM density could benefit from an earlier bedtime.`
-      : `Sub-optimal sleep cycle (${sleepHours}h). Elevated morning adenosine debt detected. Prioritize early sleep hygiene and drink 400ml water immediately.`;
+      : (sleepHours > 0 || hydrationMl > 0)
+      ? `Sub-optimal sleep cycle (${sleepHours}h). Elevated morning adenosine debt detected. Prioritize early sleep hygiene and drink 400ml water immediately.`
+      : `No sleep session or hydration volume recorded for this date yet. Sync your sleep and log your water intake to analyze circadian restoration.`;
 
   const recoveryLore =
     "Slow-Wave Sleep (Stage 3 NREM) activates the astrocyte-mediated glymphatic system, flushing neurotoxic metabolic byproducts from cerebral tissue.";
@@ -360,14 +373,16 @@ export function generateThreePillarAiInsights(
 
   // 3. NUTRITION INSIGHT
   const nutritionStatus: "optimal" | "balanced" | "needs_attention" =
-    protein >= 95 ? "optimal" : protein >= 55 ? "balanced" : "needs_attention";
+    protein >= 95 ? "optimal" : protein >= 55 ? "balanced" : protein > 0 ? "needs_attention" : "balanced";
 
   const nutritionObservation =
     protein >= 95
       ? `Protein threshold optimized (${protein}g logged). Hypertrophic myofibrillar protein synthesis (MPS) is fully saturated with low postprandial glycemic variance.`
       : protein >= 55
       ? `Nutrient intake is stable (${protein}g protein). Adding a Greek yogurt or plant/whey shake will reach the optimal 1.6g/kg metabolic muscle repair target.`
-      : `Low amino acid intake (${protein}g protein logged). Muscle tissue preservation requires regular leucine pulses throughout the day.`;
+      : protein > 0
+      ? `Low amino acid intake (${protein}g protein logged). Muscle tissue preservation requires regular leucine pulses throughout the day.`
+      : `No nutrition logs recorded for this date yet. Log your meals on the Home tab to track calories, protein synthesis, and micronutrients.`;
 
   const nutritionLore =
     "Maintaining circulating plasma leucine concentrations above 3g triggers mammalian target of rapamycin (mTORC1) phosphorylation for tissue repair.";
@@ -379,7 +394,7 @@ export function generateThreePillarAiInsights(
     movement: {
       title: "Movement & Biomotor Capacity",
       tag: "Biomotor Engine",
-      scoreLabel: `${steps.toLocaleString()} Steps`,
+      scoreLabel: steps > 0 ? `${steps.toLocaleString()} Steps` : "0 Steps • Unlogged",
       status: movementStatus,
       observation: movementObservation,
       clinicalLore: movementLore,
@@ -388,7 +403,10 @@ export function generateThreePillarAiInsights(
     recovery: {
       title: "Cellular Recovery & Circadian Sleep",
       tag: "Circadian Rhythm",
-      scoreLabel: `${sleepHours}h Sleep • ${hydrationMl}ml Water`,
+      scoreLabel:
+        sleepHours > 0 || hydrationMl > 0
+          ? `${sleepHours}h Sleep • ${hydrationMl}ml Water`
+          : "0.0h Sleep • 0ml Water",
       status: recoveryStatus,
       observation: recoveryObservation,
       clinicalLore: recoveryLore,
@@ -397,7 +415,7 @@ export function generateThreePillarAiInsights(
     nutrition: {
       title: "Metabolic Synthesis & Nutrition",
       tag: "Metabolic State",
-      scoreLabel: `${protein}g Protein`,
+      scoreLabel: protein > 0 ? `${protein}g Protein` : "0g Protein • Unlogged",
       status: nutritionStatus,
       observation: nutritionObservation,
       clinicalLore: nutritionLore,
@@ -480,61 +498,23 @@ export async function checkDailyHealthScoreNotification(): Promise<void> {
 }
 
 /**
- * Historical seed & backfill utility: ensures that the monthly calendar is populated with
- * realistic, clinically grounded historical data across the current and preceding months
- * so the user can immediately interact with the monthly calendar grid and trend analysis.
+ * Purges any previously seeded/simulated metrics and ensures clean slate
+ * for genuine user-logged telemetry only.
+ */
+export async function purgeSimulatedHealthMetrics(): Promise<void> {
+  const PURGE_FLAG_KEY = "lumen_historical_metrics_purged_v3";
+  const alreadyPurged = await getKV(PURGE_FLAG_KEY);
+  if (alreadyPurged === "true") return;
+
+  await clearAllDailyHealthRecords();
+  await setKV("lumen_historical_metrics_seeded_v1", "purged");
+  await setKV(PURGE_FLAG_KEY, "true");
+}
+
+/**
+ * Clean data policy: do not inject fake historical data.
+ * Keeps telemetry completely clean and reflects only actual user logs.
  */
 export async function seedHistoricalHealthMetricsIfEmpty(): Promise<void> {
-  const SEED_FLAG_KEY = "lumen_historical_metrics_seeded_v1";
-  const alreadySeeded = await getKV(SEED_FLAG_KEY);
-  if (alreadySeeded === "true") return;
-
-  const today = new Date();
-  const daysToSeed = 45; // Backfill past 45 days
-
-  for (let i = daysToSeed; i >= 1; i--) {
-    const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - i);
-    const dateKey = formatDateKey(d);
-
-    const existing = await getDailyHealthRecord(dateKey);
-    if (!existing || existing.overallScore === 0) {
-      // Generate realistic longitudinal curve
-      const dayOfWeek = d.getDay(); // 0 is Sun, 6 is Sat
-      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-
-      // Realistic variation
-      const baseVariation = Math.sin(i * 0.4) * 0.9;
-      const score = Math.min(9.8, Math.max(5.8, Math.round((7.8 + baseVariation + (isWeekend ? 0.3 : 0)) * 10) / 10));
-      const steps = Math.round(7200 + Math.sin(i * 0.5) * 2200 + (isWeekend ? 1500 : 0));
-      const activeCals = Math.round(steps * 0.042);
-      const sleepHours = Math.round((7.2 + Math.cos(i * 0.3) * 0.8) * 10) / 10;
-      const hydrationMl = Math.round(1750 + Math.sin(i * 0.6) * 600);
-      const protein = Math.round(85 + Math.cos(i * 0.7) * 25);
-      const calories = Math.round(1950 + Math.sin(i * 0.4) * 350);
-
-      await saveDailyHealthRecord({
-        date: dateKey,
-        overallScore: score,
-        steps,
-        activeCalories: activeCals,
-        distanceKm: Math.round((steps * 0.00078) * 10) / 10,
-        nutritionScore: Math.min(10, Math.round((score * 0.95) * 10) / 10),
-        caloriesConsumed: calories,
-        proteinGrams: protein,
-        carbsGrams: Math.round(calories * 0.5 / 4),
-        fatGrams: Math.round(calories * 0.25 / 9),
-        sleepScore: Math.min(10, Math.round((sleepHours / 8.0 * 9.2) * 10) / 10),
-        sleepHours,
-        sleepQuality: sleepHours >= 7.5 ? "Restorative" : sleepHours >= 6.8 ? "Deep" : "Normal",
-        hydrationScore: Math.min(10, Math.round((hydrationMl / 2000 * 9.5) * 10) / 10),
-        hydrationMl,
-        hydrationCups: Math.round(hydrationMl / 250),
-        screenScore: Math.round((7.5 - Math.sin(i * 0.3) * 1.5) * 10) / 10,
-        screenMinutes: Math.round(135 + Math.cos(i * 0.4) * 45),
-        updatedAt: d.toISOString(),
-      });
-    }
-  }
-
-  await setKV(SEED_FLAG_KEY, "true");
+  await purgeSimulatedHealthMetrics();
 }
