@@ -32,7 +32,6 @@ import {
 import { authService } from "@/services/authService";
 import THEME from "@/constants/theme";
 import Svg, { Defs, LinearGradient, Stop, Rect } from "react-native-svg";
-import { LiveBioCore3D } from "@/components/LiveBioCore3D";
 import {
   ArrowRight,
   ShieldCheck,
@@ -462,16 +461,25 @@ export default function WelcomeScreen() {
           </View>
         </View>
 
-        {/* Bottom Section: 3D Living Bio-Core Animation & 4 Wellness Pillars */}
+        {/* Bottom Section: Frosted Brand Pill & 4 Wellness Pillars */}
         <View style={styles.bottomSection}>
-          {/* Left: Unique 3D Living Bio-Core Animation (replaces Join 50K) */}
-          <LiveBioCore3D
+          {/* Left: Frosted Luxury Brand Tag Pill */}
+          <Pressable
+            style={({ pressed }) => [
+              styles.frostedBrandTagPill,
+              pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
+            ]}
             onPress={() => {
               triggerHaptic();
               setAuthMode("signup");
               setShowOtpModal(true);
             }}
-          />
+          >
+            <View style={styles.brandTagDot} />
+            <Text style={styles.brandTagText} numberOfLines={1}>
+              Lumen OS • Advanced Bio-Intelligence
+            </Text>
+          </Pressable>
 
           {/* Right: Vertical Line + 4 Wellness Pillars */}
           <View style={styles.pillarsCol}>
@@ -1046,12 +1054,42 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
-  // Bottom Section: 3D Bio-Core & Pillars
+  // Bottom Section: Frosted Brand Tag & Pillars
   bottomSection: {
     flexDirection: "row",
     alignItems: "flex-end",
     justifyContent: "space-between",
     paddingBottom: 4,
+    gap: 12,
+  },
+  frostedBrandTagPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    backgroundColor: "rgba(255, 255, 255, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.22)",
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    maxWidth: "68%",
+  },
+  brandTagDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#10b981",
+    shadowColor: "#10b981",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.9,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  brandTagText: {
+    color: "#ffffff",
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.3,
   },
 
   pillarsCol: {
