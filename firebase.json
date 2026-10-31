@@ -1,0 +1,10 @@
+{
+  "hosting": {
+    "public": "artifacts/hosting",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ]
+  }
+}
