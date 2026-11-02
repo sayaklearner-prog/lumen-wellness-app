@@ -1,11 +1,53 @@
 import { useEffect, useState, useRef } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, Platform, TextInput, Image, ActivityIndicator, Alert } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Pressable,
+  Platform,
+  TextInput,
+  Image,
+  ActivityIndicator,
+  Alert,
+  Modal,
+} from "react-native";
 import * as ImagePicker from "expo-image-picker";
-import { useListMeals, useCreateMeal, useDeleteMeal, useRecognizeFood, useGetProfile, getListMealsQueryKey, getGetTodayDashboardQueryKey } from "@workspace/api-client-react";
+import Svg, { Circle, Defs, LinearGradient, Stop } from "react-native-svg";
+import {
+  useListMeals,
+  useCreateMeal,
+  useDeleteMeal,
+  useRecognizeFood,
+  useGetProfile,
+  useUpdateProfile,
+  getListMealsQueryKey,
+  getGetTodayDashboardQueryKey,
+} from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { 
-  Utensils, Plus, Trash2, Camera, Sparkles, Check, 
-  ChevronRight, Apple, Flame, Award, Image as ImageIcon, RefreshCw, X, Sliders
+import {
+  Plus,
+  Trash2,
+  Camera,
+  Sparkles,
+  Check,
+  Apple,
+  Flame,
+  Image as ImageIcon,
+  X,
+  Sliders,
+  Sunrise,
+  Sun,
+  Sunset,
+  Moon,
+  Target,
+  Dumbbell,
+  Droplet,
+  Menu,
+  Scan,
+  RefreshCw,
+  Clock,
+  Layers,
 } from "lucide-react-native";
 import { queueOfflineLog, getMeals, saveMeal, deleteMeal, MealRecord } from "@/services/db";
 import { storage } from "@/services/storage";
@@ -17,9 +59,19 @@ export default function NutritionScreen() {
   const qc = useQueryClient();
   const { openLeftMenu, openMenu } = useSlideMenu();
   const { data: profile } = useGetProfile();
+  const updateProfileMutation = useUpdateProfile();
+
+  // Targets (default 2,000 kcal and 130g protein, customizable by user)
+  const [calorieTarget, setCalorieTarget] = useState<number>(2000);
+  const [proteinTarget, setProteinTarget] = useState<number>(130);
+  const [showTargetModal, setShowTargetModal] = useState<boolean>(false);
+  const [tempCalTarget, setTempCalTarget] = useState<string>("2000");
+  const [tempProTarget, setTempProTarget] = useState<string>("130");
+
+  // Meal list & log form state
   const [showLogForm, setShowLogForm] = useState(false);
-  const [mealType, setMealType] = useState("breakfast");
-  const [localMeals, setLocalMeals] = useState<Array<any>>([]);
+  const [mealType, setMealType] = useState<"breakfast" | "lunch" | "dinner" | "snack">("breakfast");
+  const [localMeals, setLocalMeals] = useState<Array<MealRecord>>([]);
   const [isSaving, setIsSaving] = useState(false);
 
   // Form states
@@ -29,27 +81,6 @@ export default function NutritionScreen() {
   const [carbs, setCarbs] = useState("");
   const [fat, setFat] = useState("");
   const [vitamins, setVitamins] = useState("");
-
-  // Load locally saved meals from master SQLite database & device storage on mount
-  useEffect(() => {
-    async function loadCachedMeals() {
-      try {
-        const dbMeals = await getMeals();
-        if (dbMeals && dbMeals.length > 0) {
-          setLocalMeals(dbMeals);
-          return;
-        }
-        const raw = await storage.getItem("lumen_local_meals");
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (Array.isArray(parsed) && parsed.length > 0) setLocalMeals(parsed);
-        }
-      } catch (err) {
-        console.warn("Could not load cached meals:", err);
-      }
-    }
-    loadCachedMeals();
-  }, []);
 
   // AI Food Vision Scanner States
   const [showScanModal, setShowScanModal] = useState(false);
@@ -74,7 +105,105 @@ export default function NutritionScreen() {
   const createMealMutation = useCreateMeal();
   const deleteMealMutation = useDeleteMeal();
 
-  // Process image with AI Vision
+  // Load custom targets from storage / profile
+  useEffect(() => {
+    async function initTargets() {
+      try {
+        const storedCal = await storage.getItem("lumen_calorie_target");
+        const storedPro = await storage.getItem("lumen_protein_target");
+
+        if (storedCal) {
+          const val = parseInt(storedCal, 10);
+          if (val > 0) setCalorieTarget(val);
+        } else if (profile?.dailyCalorieTarget && profile.dailyCalorieTarget > 0) {
+          setCalorieTarget(profile.dailyCalorieTarget);
+        }
+
+        if (storedPro) {
+          const val = parseInt(storedPro, 10);
+          if (val > 0) setProteinTarget(val);
+        } else if (profile?.dailyProteinTarget && profile.dailyProteinTarget > 0) {
+          setProteinTarget(profile.dailyProteinTarget);
+        }
+      } catch (err) {
+        console.warn("Could not load nutrient targets:", err);
+      }
+    }
+    initTargets();
+  }, [profile]);
+
+  // Load locally saved meals from master SQLite database & purge any legacy dummy mock data
+  useEffect(() => {
+    async function loadCachedMeals() {
+      try {
+        const isMockMeal = (m: any) =>
+          m &&
+          (m.name === "Avocado Sourdough Toast & Poached Egg" ||
+            m.name === "Avocado Toast & Poached Egg" ||
+            m.name === "Grilled Chicken & Brown Rice Bowl" ||
+            m.name === "Wild Atlantic Salmon & Quinoa" ||
+            m.name === "Whey Protein Super Smoothie" ||
+            m.id === "meal-scan-mock");
+
+        const dbMeals = await getMeals();
+        if (dbMeals && dbMeals.length > 0) {
+          const cleaned = dbMeals.filter((m) => !isMockMeal(m));
+          setLocalMeals(cleaned);
+          if (cleaned.length !== dbMeals.length) {
+            await storage.setItem("lumen_local_meals", JSON.stringify(cleaned));
+          }
+          return;
+        }
+
+        const raw = await storage.getItem("lumen_local_meals");
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            const cleaned = parsed.filter((m) => !isMockMeal(m));
+            setLocalMeals(cleaned);
+            if (cleaned.length !== parsed.length) {
+              await storage.setItem("lumen_local_meals", JSON.stringify(cleaned));
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("Could not load cached meals:", err);
+      }
+    }
+    loadCachedMeals();
+  }, []);
+
+  // Save updated goals
+  const handleSaveTargets = async () => {
+    const newCal = parseInt(tempCalTarget, 10) || 2000;
+    const newPro = parseInt(tempProTarget, 10) || 130;
+    setCalorieTarget(newCal);
+    setProteinTarget(newPro);
+    setShowTargetModal(false);
+
+    try {
+      await storage.setItem("lumen_calorie_target", String(newCal));
+      await storage.setItem("lumen_protein_target", String(newPro));
+      await updateProfileMutation.mutateAsync({
+        data: {
+          dailyCalorieTarget: newCal,
+          dailyProteinTarget: newPro,
+        } as any,
+      });
+      qc.invalidateQueries({ queryKey: getGetTodayDashboardQueryKey() });
+    } catch (err) {
+      console.warn("Saved goals locally:", err);
+    }
+  };
+
+  // Open targets modal with current values
+  const handleOpenTargetsModal = () => {
+    setTempCalTarget(String(calorieTarget));
+    setTempProTarget(String(proteinTarget));
+    setShowTargetModal(true);
+  };
+
+  // Process food photo with AI Vision (NO prewritten fallback mock data)
   const processImageForNutrition = async (uri: string, base64?: string | null) => {
     setSelectedImageUri(uri);
     setIsScanning(true);
@@ -109,39 +238,31 @@ export default function NutritionScreen() {
         } as any,
       });
 
-      if (res) {
+      if (res && (res.name || res.mealName)) {
         const recognized = {
           name: res.name || res.mealName || "Detected Meal",
           mealType: res.mealType || res.suggestedMealType || "lunch",
-          calories: Number(res.calories ?? res.totalCalories ?? 450),
-          proteinGrams: Number(res.proteinGrams ?? res.totalProteinGrams ?? 32),
-          carbsGrams: Number(res.carbsGrams ?? res.totalCarbsGrams ?? 40),
-          fatGrams: Number(res.fatGrams ?? res.totalFatGrams ?? 16),
-          vitamins: res.vitamins || "Vitamin A, Vitamin C, Calcium & Iron",
+          calories: Number(res.calories ?? res.totalCalories ?? 0),
+          proteinGrams: Number(res.proteinGrams ?? res.totalProteinGrams ?? 0),
+          carbsGrams: Number(res.carbsGrams ?? res.totalCarbsGrams ?? 0),
+          fatGrams: Number(res.fatGrams ?? res.totalFatGrams ?? 0),
+          vitamins: res.vitamins || "Micronutrients identified",
           items: Array.isArray(res.items) ? res.items : [],
           notes: res.notes || res.modelNotes || "Calibrated via Lumen Computer Vision.",
           confidence: Number(res.confidence ?? 0.94),
         };
         setScanResult(recognized);
+      } else {
+        throw new Error("Unable to identify food contents from this image.");
       }
-    } catch {
-      // Offline / heuristic fallback
-      setScanResult({
-        name: "Avocado Sourdough Toast & Poached Egg",
-        mealType: "breakfast",
-        calories: 440,
-        proteinGrams: 16,
-        carbsGrams: 41,
-        fatGrams: 24,
-        vitamins: "Vitamin E, Folate, Lutein & Potassium",
-        items: [
-          { name: "Toasted sourdough bread", portion: "2 slices", calories: 190, proteinGrams: 8, carbsGrams: 32, fatGrams: 2 },
-          { name: "Fresh avocado, mashed", portion: "1/2 avocado", calories: 160, proteinGrams: 2, carbsGrams: 9, fatGrams: 15 },
-          { name: "Poached pasture-raised egg", portion: "1 large", calories: 90, proteinGrams: 6, carbsGrams: 0, fatGrams: 7 },
-        ],
-        notes: "Rich in heart-healthy monounsaturated fats and bioavailable choline.",
-        confidence: 0.93,
-      });
+    } catch (err: any) {
+      console.warn("Food scan recognition error:", err);
+      Alert.alert(
+        "Scanning Notice",
+        "Could not detect meal items from this image. Please take a clearer photo in good lighting or enter the meal details manually.",
+        [{ text: "OK" }]
+      );
+      setScanResult(null);
     } finally {
       setIsScanning(false);
     }
@@ -170,7 +291,6 @@ export default function NutritionScreen() {
       }
     } catch (err: any) {
       console.warn("Camera error:", err);
-      // Fallback on web
       if (Platform.OS === "web" && fileInputRef.current) {
         fileInputRef.current.click();
       } else {
@@ -223,7 +343,7 @@ export default function NutritionScreen() {
     }
   };
 
-  // 1-Tap Log Meal
+  // 1-Tap Log Scanned Meal
   const handleCommitScannedMeal = async () => {
     if (!scanResult) return;
     const scannedMeal: MealRecord = {
@@ -241,7 +361,6 @@ export default function NutritionScreen() {
       loggedAt: new Date().toISOString(),
     };
 
-    // Immediately persist to SQLite master DB and local state
     await saveMeal(scannedMeal);
     const updated = [scannedMeal, ...localMeals];
     setLocalMeals(updated);
@@ -266,13 +385,13 @@ export default function NutritionScreen() {
       setShowScanModal(false);
       setSelectedImageUri(null);
       setScanResult(null);
-      Alert.alert("Meal Added! 🎉", `"${scanResult.name}" (${scanResult.calories} kcal) logged to ${scanResult.mealType}.`);
+      Alert.alert("Meal Logged! 🎉", `"${scanResult.name}" (${scanResult.calories} kcal) added to ${scanResult.mealType}.`);
     } catch {
       await queueOfflineLog("meal", "/api/meals", scannedMeal);
       setShowScanModal(false);
       setSelectedImageUri(null);
       setScanResult(null);
-      Alert.alert("Saved to Database", `"${scanResult.name}" saved to offline health database.`);
+      Alert.alert("Saved Locally", `"${scanResult.name}" saved to offline health database.`);
     }
   };
 
@@ -280,25 +399,12 @@ export default function NutritionScreen() {
   const handleCustomizeScannedMeal = () => {
     if (!scanResult) return;
     setFoodName(scanResult.name);
-    setMealType(scanResult.mealType);
+    setMealType((scanResult.mealType as any) || "lunch");
     setCalories(String(scanResult.calories));
     setProtein(String(scanResult.proteinGrams));
     setCarbs(String(scanResult.carbsGrams));
     setFat(String(scanResult.fatGrams));
     setVitamins(scanResult.vitamins);
-    setShowScanModal(false);
-    setShowLogForm(true);
-  };
-
-  // Apply quick preset
-  const handleApplyPreset = (preset: { name: string; mealType: string; calories: number; protein: number; carbs: number; fat: number; vitamins: string }) => {
-    setFoodName(preset.name);
-    setMealType(preset.mealType);
-    setCalories(String(preset.calories));
-    setProtein(String(preset.protein));
-    setCarbs(String(preset.carbs));
-    setFat(String(preset.fat));
-    setVitamins(preset.vitamins);
     setShowScanModal(false);
     setShowLogForm(true);
   };
@@ -312,17 +418,16 @@ export default function NutritionScreen() {
       id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       name: nameToSave,
       mealType: mealType,
-      calories: parseInt(calories) || 0,
-      proteinGrams: parseInt(protein) || 0,
-      carbsGrams: parseInt(carbs) || 0,
-      fatGrams: parseInt(fat) || 0,
+      calories: parseInt(calories, 10) || 0,
+      proteinGrams: parseInt(protein, 10) || 0,
+      carbsGrams: parseInt(carbs, 10) || 0,
+      fatGrams: parseInt(fat, 10) || 0,
       vitamins: vitamins.trim() || undefined,
       items: [],
       source: "manual",
       loggedAt: new Date().toISOString(),
     };
 
-    // 1. Immediately persist to SQLite master database & device storage
     await saveMeal(newMeal);
     const updatedLocal = [newMeal, ...localMeals];
     setLocalMeals(updatedLocal);
@@ -332,7 +437,6 @@ export default function NutritionScreen() {
       console.warn("Storage save error:", e);
     }
 
-    // 2. Optimistically update React Query cache
     qc.setQueryData(getListMealsQueryKey(), (old: any) => [newMeal, ...(Array.isArray(old) ? old : [])]);
     qc.setQueryData(getGetTodayDashboardQueryKey(), (old: any) => {
       if (!old) return old;
@@ -344,11 +448,10 @@ export default function NutritionScreen() {
           proteinGrams: (old.todayTotals?.proteinGrams || 0) + newMeal.proteinGrams,
           carbsGrams: (old.todayTotals?.carbsGrams || 0) + newMeal.carbsGrams,
           fatGrams: (old.todayTotals?.fatGrams || 0) + newMeal.fatGrams,
-        }
+        },
       };
     });
 
-    // 3. Sync to server
     try {
       await createMealMutation.mutateAsync({
         data: {
@@ -366,44 +469,68 @@ export default function NutritionScreen() {
       qc.invalidateQueries({ queryKey: getListMealsQueryKey() });
       qc.invalidateQueries({ queryKey: getGetTodayDashboardQueryKey() });
     } catch (err) {
-      console.warn("Server sync error (saved locally in SQLite):", err);
+      console.warn("Saved locally in SQLite:", err);
       await queueOfflineLog("meal", "/api/meals", newMeal);
     } finally {
       setIsSaving(false);
       setFoodName("");
+      setCalories("");
+      setProtein("");
+      setCarbs("");
+      setFat("");
+      setVitamins("");
       setShowLogForm(false);
-      Alert.alert("Meal Saved! 🎉", `"${newMeal.name}" (${newMeal.calories} kcal) saved to ${newMeal.mealType}.`);
+      Alert.alert("Meal Logged! 🎉", `"${newMeal.name}" (${newMeal.calories} kcal) saved to ${newMeal.mealType}.`);
     }
   };
 
-  const handleDeleteMeal = async (id: string) => {
-    await deleteMeal(id);
-    const remainingLocal = localMeals.filter(m => String(m.id) !== String(id));
-    setLocalMeals(remainingLocal);
-    try {
-      await storage.setItem("lumen_local_meals", JSON.stringify(remainingLocal));
-    } catch {}
+  const handleDeleteMeal = async (id: string, name: string) => {
+    Alert.alert(
+      "Remove Meal",
+      `Are you sure you want to remove "${name}" from today's log?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: async () => {
+            await deleteMeal(id);
+            const remainingLocal = localMeals.filter((m) => String(m.id) !== String(id));
+            setLocalMeals(remainingLocal);
+            try {
+              await storage.setItem("lumen_local_meals", JSON.stringify(remainingLocal));
+            } catch {}
 
-    qc.setQueryData(getListMealsQueryKey(), (old: any) => 
-      Array.isArray(old) ? old.filter((m: any) => String(m.id) !== String(id)) : []
+            qc.setQueryData(getListMealsQueryKey(), (old: any) =>
+              Array.isArray(old) ? old.filter((m: any) => String(m.id) !== String(id)) : []
+            );
+
+            if (!String(id).startsWith("local-") && !String(id).startsWith("meal-")) {
+              try {
+                await deleteMealMutation.mutateAsync({ mealId: id });
+                qc.invalidateQueries({ queryKey: getListMealsQueryKey() });
+                qc.invalidateQueries({ queryKey: getGetTodayDashboardQueryKey() });
+              } catch (err) {
+                console.warn("Delete server error:", err);
+              }
+            }
+          },
+        },
+      ]
     );
-
-    if (!String(id).startsWith("local-") && !String(id).startsWith("meal-")) {
-      try {
-        await deleteMealMutation.mutateAsync({ mealId: id });
-        qc.invalidateQueries({ queryKey: getListMealsQueryKey() });
-        qc.invalidateQueries({ queryKey: getGetTodayDashboardQueryKey() });
-      } catch (err) {
-        console.warn("Delete server error:", err);
-      }
-    }
   };
 
   // Merge server meals with local meals for total continuity
   const serverMeals = Array.isArray(meals) ? meals : [];
   const allMeals: Array<any> = [...serverMeals];
   for (const lm of localMeals) {
-    if (!allMeals.some(m => String(m.id) === String(lm.id) || (m.name === lm.name && (m.mealType || m.meal_type) === (lm.mealType || lm.meal_type)))) {
+    if (
+      !allMeals.some(
+        (m) =>
+          String(m.id) === String(lm.id) ||
+          (m.name === lm.name && (m.mealType || (m as any).meal_type) === (lm.mealType || (lm as any).meal_type))
+      )
+    ) {
       allMeals.push(lm);
     }
   }
@@ -413,63 +540,267 @@ export default function NutritionScreen() {
   const totalCarbs = allMeals.reduce((acc: number, m: any) => acc + (m.carbsGrams ?? m.carbs_grams ?? 0), 0);
   const totalFat = allMeals.reduce((acc: number, m: any) => acc + (m.fatGrams ?? m.fat_grams ?? 0), 0);
 
-  const mealTypes = ["breakfast", "lunch", "dinner", "snack"];
+  // Concentric Hero Gauge calculations
+  const DIAL_SIZE = 220;
+  const STROKE_CAL = 12;
+  const STROKE_PRO = 9;
+
+  const RADIUS_CAL = (DIAL_SIZE - STROKE_CAL - 4) / 2; // ~99
+  const CIRCUMFERENCE_CAL = 2 * Math.PI * RADIUS_CAL;
+  const calPercent = Math.min(100, Math.max(0, Math.round((totalCalories / calorieTarget) * 100)));
+  const offsetCal = CIRCUMFERENCE_CAL - (calPercent / 100) * CIRCUMFERENCE_CAL;
+
+  const RADIUS_PRO = (DIAL_SIZE - 48) / 2; // ~86
+  const CIRCUMFERENCE_PRO = 2 * Math.PI * RADIUS_PRO;
+  const proPercent = Math.min(100, Math.max(0, Math.round((totalProtein / proteinTarget) * 100)));
+  const offsetPro = CIRCUMFERENCE_PRO - (proPercent / 100) * CIRCUMFERENCE_PRO;
+
+  const calRemaining = Math.max(0, calorieTarget - totalCalories);
+  const mealTypes: Array<"breakfast" | "lunch" | "dinner" | "snack"> = [
+    "breakfast",
+    "lunch",
+    "dinner",
+    "snack",
+  ];
+
+  const getMealIcon = (type: string) => {
+    switch (type) {
+      case "breakfast":
+        return <Sunrise size={16} color="#10b981" />;
+      case "lunch":
+        return <Sun size={16} color="#38bdf8" />;
+      case "dinner":
+        return <Sunset size={16} color="#f59e0b" />;
+      case "snack":
+        return <Moon size={16} color="#a855f7" />;
+      default:
+        return <Apple size={16} color="#10b981" />;
+    }
+  };
 
   return (
     <View style={styles.container}>
-      {/* Ambient atmospheric backlight glow */}
       <AmbientAtmosphere variant="dashboard" />
 
-      {/* Header */}
+      {/* TOP HEADER */}
       <View style={styles.header}>
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-          <View>
-            <Text style={styles.headerSub}>Nutrition Tracker</Text>
-            <Text style={styles.headerTitle}>Meals & Macros</Text>
+        <View style={styles.headerRow}>
+          <Pressable onPress={openLeftMenu} style={styles.menuBtn} accessibilityLabel="Open Menu">
+            <Menu size={22} color="#f8fafc" />
+          </Pressable>
+
+          <View style={{ flex: 1, minWidth: 0, marginHorizontal: 12 }}>
+            <Text style={styles.headerSub} numberOfLines={1}>
+              METABOLIC & NUTRITION ENGINE
+            </Text>
+            <Text style={styles.headerTitle} numberOfLines={1}>
+              Nutrients & Macros
+            </Text>
           </View>
-          <Pressable onPress={openMenu} accessibilityLabel="Open Navigation Menu">
-            <View style={styles.avatarCircleSmall}>
-              <Text style={styles.avatarInitialSmall}>
-                {profile?.name ? profile.name[0].toUpperCase() : "A"}
-              </Text>
-            </View>
+
+          <Pressable style={styles.targetBadgeBtn} onPress={handleOpenTargetsModal}>
+            <Target size={14} color="#10b981" />
+            <Text style={styles.targetBadgeText} numberOfLines={1}>
+              {calorieTarget} kcal
+            </Text>
           </Pressable>
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Macro Progress Ring Summary card */}
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryTitle}>Today's Totals</Text>
-          <View style={styles.macroRow}>
-            <View style={styles.macroCol}>
-              <Text style={styles.macroVal}>{totalCalories}</Text>
-              <Text style={styles.macroLabel}>Calories</Text>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* ========================================================================= */}
+        {/* HERO BIO-METER: CONCENTRIC CALORIE & PROTEIN DIAL */}
+        {/* ========================================================================= */}
+        <View style={styles.heroGaugeCard}>
+          <View style={styles.heroGaugeTopRow}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Sparkles size={14} color="#10b981" />
+              <Text style={styles.heroGaugeTitle}>DAILY METABOLIC METERS</Text>
             </View>
-            <View style={styles.macroCol}>
-              <Text style={[styles.macroVal, { color: "#047857" }]}>{totalProtein}g</Text>
-              <Text style={styles.macroLabel}>Protein</Text>
+            <Pressable style={styles.heroEditTargetBtn} onPress={handleOpenTargetsModal}>
+              <Sliders size={12} color="#94a3b8" />
+              <Text style={styles.heroEditTargetBtnText}>Adjust Goals</Text>
+            </Pressable>
+          </View>
+
+          {/* Concentric Gauge SVG Hub */}
+          <View style={styles.gaugeCenterContainer}>
+            <View style={{ width: DIAL_SIZE, height: DIAL_SIZE, alignItems: "center", justifyContent: "center" }}>
+              <Svg width={DIAL_SIZE} height={DIAL_SIZE} style={StyleSheet.absoluteFill}>
+                <Defs>
+                  <LinearGradient id="calGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <Stop offset="0%" stopColor="#10b981" />
+                    <Stop offset="100%" stopColor="#059669" />
+                  </LinearGradient>
+                  <LinearGradient id="proGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <Stop offset="0%" stopColor="#38bdf8" />
+                    <Stop offset="100%" stopColor="#0284c7" />
+                  </LinearGradient>
+                </Defs>
+
+                {/* Outer Ring: Calorie Background Track */}
+                <Circle
+                  cx={DIAL_SIZE / 2}
+                  cy={DIAL_SIZE / 2}
+                  r={RADIUS_CAL}
+                  stroke="rgba(16, 185, 129, 0.12)"
+                  strokeWidth={STROKE_CAL}
+                  fill="transparent"
+                />
+                {/* Outer Ring: Calorie Progress */}
+                <Circle
+                  cx={DIAL_SIZE / 2}
+                  cy={DIAL_SIZE / 2}
+                  r={RADIUS_CAL}
+                  stroke="url(#calGradient)"
+                  strokeWidth={STROKE_CAL}
+                  strokeDasharray={CIRCUMFERENCE_CAL}
+                  strokeDashoffset={offsetCal}
+                  strokeLinecap="round"
+                  fill="transparent"
+                  transform={`rotate(-90 ${DIAL_SIZE / 2} ${DIAL_SIZE / 2})`}
+                />
+
+                {/* Inner Ring: Protein Background Track */}
+                <Circle
+                  cx={DIAL_SIZE / 2}
+                  cy={DIAL_SIZE / 2}
+                  r={RADIUS_PRO}
+                  stroke="rgba(56, 189, 248, 0.12)"
+                  strokeWidth={STROKE_PRO}
+                  fill="transparent"
+                />
+                {/* Inner Ring: Protein Progress */}
+                <Circle
+                  cx={DIAL_SIZE / 2}
+                  cy={DIAL_SIZE / 2}
+                  r={RADIUS_PRO}
+                  stroke="url(#proGradient)"
+                  strokeWidth={STROKE_PRO}
+                  strokeDasharray={CIRCUMFERENCE_PRO}
+                  strokeDashoffset={offsetPro}
+                  strokeLinecap="round"
+                  fill="transparent"
+                  transform={`rotate(-90 ${DIAL_SIZE / 2} ${DIAL_SIZE / 2})`}
+                />
+              </Svg>
+
+              {/* Inside Gauge Readout */}
+              <View style={styles.gaugeInnerCore}>
+                <View style={styles.gaugeFlamePill}>
+                  <Flame size={14} color="#10b981" />
+                  <Text style={styles.gaugeFlamePillText}>{calPercent}%</Text>
+                </View>
+
+                <Text style={styles.gaugeCaloriesNum} numberOfLines={1}>
+                  {totalCalories}
+                </Text>
+                <Text style={styles.gaugeCaloriesLabel}>KCAL CONSUMED</Text>
+
+                <View style={styles.gaugeProteinMiniPill}>
+                  <Text style={styles.gaugeProteinMiniPillText} numberOfLines={1}>
+                    🥩 {totalProtein}g / {proteinTarget}g Protein
+                  </Text>
+                </View>
+
+                <Text style={styles.gaugeRemainingSub}>
+                  {calRemaining > 0 ? `${calRemaining} kcal remaining` : "Target Achieved 🔥"}
+                </Text>
+              </View>
             </View>
-            <View style={styles.macroCol}>
-              <Text style={[styles.macroVal, { color: "#1d4ed8" }]}>{totalCarbs}g</Text>
-              <Text style={styles.macroLabel}>Carbs</Text>
+          </View>
+
+          {/* Macro Status Pods underneath Dial */}
+          <View style={styles.macroPodsRow}>
+            {/* Protein Pod */}
+            <View style={[styles.macroPod, { borderColor: "rgba(56, 189, 248, 0.25)" }]}>
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                  <Dumbbell size={13} color="#38bdf8" />
+                  <Text style={styles.macroPodLabel}>PROTEIN</Text>
+                </View>
+                <Text style={[styles.macroPodPercent, { color: "#38bdf8" }]}>{proPercent}%</Text>
+              </View>
+              <Text style={styles.macroPodVal}>{totalProtein}g</Text>
+              <View style={styles.macroPodTrack}>
+                <View style={[styles.macroPodFill, { width: `${proPercent}%`, backgroundColor: "#38bdf8" }]} />
+              </View>
+              <Text style={styles.macroPodSub}>Target: {proteinTarget}g</Text>
             </View>
-            <View style={styles.macroCol}>
-              <Text style={[styles.macroVal, { color: "#b45309" }]}>{totalFat}g</Text>
-              <Text style={styles.macroLabel}>Fat</Text>
+
+            {/* Carbs Pod */}
+            <View style={[styles.macroPod, { borderColor: "rgba(168, 85, 247, 0.25)" }]}>
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                  <Apple size={13} color="#a855f7" />
+                  <Text style={styles.macroPodLabel}>CARBS</Text>
+                </View>
+              </View>
+              <Text style={styles.macroPodVal}>{totalCarbs}g</Text>
+              <View style={styles.macroPodTrack}>
+                <View
+                  style={[
+                    styles.macroPodFill,
+                    {
+                      width: `${Math.min(100, Math.round((totalCarbs / 250) * 100))}%`,
+                      backgroundColor: "#a855f7",
+                    },
+                  ]}
+                />
+              </View>
+              <Text style={styles.macroPodSub}>Energy fuel</Text>
+            </View>
+
+            {/* Fats Pod */}
+            <View style={[styles.macroPod, { borderColor: "rgba(245, 158, 11, 0.25)" }]}>
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                  <Droplet size={13} color="#f59e0b" />
+                  <Text style={styles.macroPodLabel}>FATS</Text>
+                </View>
+              </View>
+              <Text style={styles.macroPodVal}>{totalFat}g</Text>
+              <View style={styles.macroPodTrack}>
+                <View
+                  style={[
+                    styles.macroPodFill,
+                    {
+                      width: `${Math.min(100, Math.round((totalFat / 70) * 100))}%`,
+                      backgroundColor: "#f59e0b",
+                    },
+                  ]}
+                />
+              </View>
+              <Text style={styles.macroPodSub}>Healthy lipids</Text>
             </View>
           </View>
         </View>
 
-        {/* Scan & Add triggers */}
+        {/* ========================================================================= */}
+        {/* 1-TAP ACTION COMMAND ROW */}
+        {/* ========================================================================= */}
         <View style={styles.actionRow}>
-          <Pressable style={styles.scanBtn} onPress={() => setShowScanModal(!showScanModal)}>
-            <Camera size={18} color="#050b08" style={{ marginRight: 8 }} />
-            <Text style={styles.scanBtnText} numberOfLines={1}>Scan Food Photo</Text>
+          <Pressable
+            style={styles.scanActionBtn}
+            onPress={() => setShowScanModal(!showScanModal)}
+          >
+            <Camera size={18} color="#050b08" strokeWidth={2.5} />
+            <Text style={styles.scanActionBtnText} numberOfLines={1}>
+              Scan Food Photo
+            </Text>
           </Pressable>
-          <Pressable style={styles.manualBtn} onPress={() => { setShowLogForm(true); setShowScanModal(false); }}>
-            <Plus size={18} color="#e2e8f0" style={{ marginRight: 6 }} />
-            <Text style={styles.manualBtnText} numberOfLines={1}>Log Manually</Text>
+
+          <Pressable
+            style={styles.manualActionBtn}
+            onPress={() => {
+              setShowLogForm(true);
+              setShowScanModal(false);
+            }}
+          >
+            <Plus size={18} color="#ffffff" strokeWidth={2.5} />
+            <Text style={styles.manualActionBtnText} numberOfLines={1}>
+              Log Manually
+            </Text>
           </Pressable>
         </View>
 
@@ -484,52 +815,62 @@ export default function NutritionScreen() {
           />
         )}
 
-        {/* AI Food Photo Scanner Panel */}
+        {/* ========================================================================= */}
+        {/* AI BIOMETRIC FOOD SCANNER HUD */}
+        {/* ========================================================================= */}
         {showScanModal && (
-          <View style={styles.formCard}>
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Sparkles size={20} color="#047857" />
-                <Text style={styles.formTitle}>AI Food Vision Scanner</Text>
+          <View style={styles.scannerHudCard}>
+            <View style={styles.scannerHudHeader}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
+                <Scan size={18} color="#10b981" />
+                <Text style={styles.scannerHudTitle}>AI NEURAL FOOD SCANNER</Text>
               </View>
-              <Pressable onPress={() => { setShowScanModal(false); setSelectedImageUri(null); setScanResult(null); }}>
-                <X size={20} color="#0b1612" />
+              <Pressable
+                onPress={() => {
+                  setShowScanModal(false);
+                  setSelectedImageUri(null);
+                  setScanResult(null);
+                }}
+                hitSlop={10}
+              >
+                <X size={20} color="#94a3b8" />
               </Pressable>
             </View>
-            <Text style={{ color: THEME.colors.cardTextSecondary, fontSize: 13, lineHeight: 18, fontWeight: "600" }}>
-              Take a photo using your phone's camera or choose one from your gallery. Our AI vision model recognizes dish contents, portion sizes, calories, and micronutrients.
+
+            <Text style={styles.scannerHudDesc}>
+              Snap a picture with your camera or select from your gallery. Lumen's AI Vision detects food components, portion volume, calories, and micronutrients.
             </Text>
 
-            {/* Camera & Gallery Action Buttons */}
-            <View style={{ flexDirection: "row", gap: 10, marginTop: 4 }}>
+            {/* Trigger Buttons */}
+            <View style={styles.scannerBtnRow}>
               <Pressable
-                style={[styles.scannerActionBtn, { backgroundColor: "#10b981" }]}
+                style={[styles.scannerCaptureBtn, { backgroundColor: "#10b981" }]}
                 onPress={handleTakePhoto}
                 disabled={isScanning}
               >
                 <Camera size={18} color="#050b08" />
-                <Text style={[styles.scannerActionBtnText, { color: "#050b08" }]}>Take Photo</Text>
+                <Text style={[styles.scannerCaptureBtnText, { color: "#050b08" }]}>Snap Food Photo</Text>
               </Pressable>
 
               <Pressable
-                style={[styles.scannerActionBtn, { backgroundColor: "#13211b", borderWidth: 1, borderColor: "#10b981" }]}
+                style={[styles.scannerCaptureBtn, styles.scannerGalleryBtn]}
                 onPress={handlePickFromGallery}
                 disabled={isScanning}
               >
                 <ImageIcon size={18} color="#10b981" />
-                <Text style={[styles.scannerActionBtnText, { color: "#10b981" }]}>Choose Gallery</Text>
+                <Text style={[styles.scannerCaptureBtnText, { color: "#10b981" }]}>Choose Gallery</Text>
               </Pressable>
             </View>
 
-            {/* Photo Preview & Scanning Animation */}
+            {/* Photo Preview & Scanning Beam */}
             {selectedImageUri && (
               <View style={styles.imagePreviewContainer}>
                 <Image source={{ uri: selectedImageUri }} style={styles.previewImage} resizeMode="cover" />
                 {isScanning && (
                   <View style={styles.scanningOverlay}>
                     <ActivityIndicator size="large" color="#10b981" />
-                    <Text style={styles.scanningText}>Analyzing food contents via AI Vision...</Text>
-                    <Text style={styles.scanningSubText}>Calculating calories, macros & vitamins</Text>
+                    <Text style={styles.scanningText}>Analyzing food composition & micro-density...</Text>
+                    <Text style={styles.scanningSubText}>Computing calories, protein & micronutrients</Text>
                   </View>
                 )}
               </View>
@@ -562,24 +903,26 @@ export default function NutritionScreen() {
                     <Text style={styles.resultMacroLabel}>Calories (kcal)</Text>
                   </View>
                   <View style={styles.resultMacroBox}>
-                    <Text style={[styles.resultMacroVal, { color: "#047857" }]}>{scanResult.proteinGrams}g</Text>
+                    <Text style={[styles.resultMacroVal, { color: "#38bdf8" }]}>{scanResult.proteinGrams}g</Text>
                     <Text style={styles.resultMacroLabel}>Protein</Text>
                   </View>
                   <View style={styles.resultMacroBox}>
-                    <Text style={[styles.resultMacroVal, { color: "#1d4ed8" }]}>{scanResult.carbsGrams}g</Text>
+                    <Text style={[styles.resultMacroVal, { color: "#a855f7" }]}>{scanResult.carbsGrams}g</Text>
                     <Text style={styles.resultMacroLabel}>Carbs</Text>
                   </View>
                   <View style={styles.resultMacroBox}>
-                    <Text style={[styles.resultMacroVal, { color: "#b45309" }]}>{scanResult.fatGrams}g</Text>
+                    <Text style={[styles.resultMacroVal, { color: "#f59e0b" }]}>{scanResult.fatGrams}g</Text>
                     <Text style={styles.resultMacroLabel}>Fat</Text>
                   </View>
                 </View>
 
                 {/* Micronutrients Box */}
-                <View style={styles.vitaminsBox}>
-                  <Text style={styles.vitaminsTitle}>🌿 Micronutrients & Vitamins:</Text>
-                  <Text style={styles.vitaminsContent}>{scanResult.vitamins}</Text>
-                </View>
+                {scanResult.vitamins ? (
+                  <View style={styles.vitaminsBox}>
+                    <Text style={styles.vitaminsTitle}>🌿 Micronutrients & Vitamins:</Text>
+                    <Text style={styles.vitaminsContent}>{scanResult.vitamins}</Text>
+                  </View>
+                ) : null}
 
                 {/* Detected Ingredients Breakdown */}
                 {scanResult.items && scanResult.items.length > 0 && (
@@ -587,7 +930,9 @@ export default function NutritionScreen() {
                     <Text style={styles.itemsTitle}>Detected Ingredients & Portions:</Text>
                     {scanResult.items.map((item, idx) => (
                       <View key={idx} style={styles.itemRow}>
-                        <Text style={styles.itemName}>• {item.name} ({item.portion || item.quantity || "1 serving"})</Text>
+                        <Text style={styles.itemName} numberOfLines={1}>
+                          • {item.name} ({item.portion || item.quantity || "1 serving"})
+                        </Text>
                         <Text style={styles.itemCal}>{item.calories} kcal</Text>
                       </View>
                     ))}
@@ -595,159 +940,237 @@ export default function NutritionScreen() {
                 )}
 
                 {/* AI Health Observation */}
-                {scanResult.notes && (
+                {scanResult.notes ? (
                   <Text style={styles.resultNotes}>💡 {scanResult.notes}</Text>
-                )}
+                ) : null}
 
                 {/* One-Tap Commit & Customize Buttons */}
-                <View style={{ flexDirection: "row", gap: 10, marginTop: 6 }}>
+                <View style={{ flexDirection: "row", gap: 10, marginTop: 8 }}>
                   <Pressable style={styles.commitBtn} onPress={handleCommitScannedMeal}>
-                    <Check size={16} color="#ffffff" style={{ marginRight: 6 }} />
+                    <Check size={16} color="#050b08" strokeWidth={2.5} />
                     <Text style={styles.commitBtnText}>1-Tap Log Meal</Text>
                   </Pressable>
 
                   <Pressable style={styles.customizeBtn} onPress={handleCustomizeScannedMeal}>
-                    <Sliders size={16} color={THEME.colors.cardTextPrimary} style={{ marginRight: 6 }} />
+                    <Sliders size={15} color="#f8fafc" />
                     <Text style={styles.customizeBtnText}>Customize</Text>
                   </Pressable>
                 </View>
               </View>
             )}
-
-            {/* Detection Presets fallback */}
-            <Text style={{ color: THEME.colors.cardTextSecondary, fontSize: 11, fontWeight: "bold", textTransform: "uppercase", marginTop: 14, marginBottom: 8 }}>
-              Or Quick Select From Verified Dishes:
-            </Text>
-
-            <View style={{ gap: 8 }}>
-              {[
-                { name: "Avocado Toast & Poached Egg", mealType: "breakfast", calories: 430, protein: 16, carbs: 39, fat: 25, vitamins: "Vitamin E, Folate & Potassium" },
-                { name: "Grilled Chicken & Brown Rice Bowl", mealType: "lunch", calories: 620, protein: 47, carbs: 56, fat: 24, vitamins: "Vitamin B6, Niacin & Iron" },
-                { name: "Wild Atlantic Salmon & Quinoa", mealType: "dinner", calories: 570, protein: 46, carbs: 37, fat: 25, vitamins: "Omega-3, Vitamin D & B12" },
-                { name: "Whey Protein Super Smoothie", mealType: "snack", calories: 310, protein: 32, carbs: 36, fat: 5, vitamins: "Calcium, Vitamin C & Magnesium" },
-              ].map((p, idx) => (
-                <Pressable
-                  key={idx}
-                  style={styles.presetRow}
-                  onPress={() => handleApplyPreset(p)}
-                >
-                  <View>
-                    <Text style={{ color: THEME.colors.cardTextPrimary, fontWeight: "bold", fontSize: 13 }}>{p.name}</Text>
-                    <Text style={{ color: "#047857", fontSize: 11, marginTop: 2, fontWeight: "600" }}>
-                      {p.calories} kcal • P: {p.protein}g • C: {p.carbs}g • F: {p.fat}g
-                    </Text>
-                  </View>
-                  <Text style={{ color: THEME.colors.cardTextSecondary, fontSize: 12, fontWeight: "700" }}>Select ➔</Text>
-                </Pressable>
-              ))}
-            </View>
           </View>
         )}
 
-        {/* Quick Log Form */}
+        {/* ========================================================================= */}
+        {/* MANUAL LOGGING FORM */}
+        {/* ========================================================================= */}
         {showLogForm && (
           <View style={styles.formCard}>
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-              <Text style={styles.formTitle}>Record Meal</Text>
-              <Pressable onPress={() => setShowLogForm(false)}>
-                <X size={18} color="#0b1612" />
+            <View style={styles.formCardHeader}>
+              <Text style={styles.formTitle}>Record Meal Manually</Text>
+              <Pressable onPress={() => setShowLogForm(false)} hitSlop={10}>
+                <X size={18} color="#94a3b8" />
               </Pressable>
             </View>
+
             <View style={styles.mealTypeToggle}>
-              {mealTypes.map(type => (
-                <Pressable 
-                  key={type} 
+              {mealTypes.map((type) => (
+                <Pressable
+                  key={type}
                   style={[styles.typeBtn, mealType === type && styles.typeBtnSelected]}
                   onPress={() => setMealType(type)}
                 >
-                  <Text style={[styles.typeBtnText, mealType === type && styles.typeBtnTextSelected]}>{type}</Text>
+                  <Text style={[styles.typeBtnText, mealType === type && styles.typeBtnTextSelected]}>
+                    {type}
+                  </Text>
                 </Pressable>
               ))}
             </View>
+
             <View style={styles.formGrid}>
               <View style={[styles.inputGroup, { width: "100%" }]}>
-                <Text style={styles.label}>Food Name</Text>
-                <TextInput style={styles.input} value={foodName} onChangeText={setFoodName} placeholder="e.g. Avocado Toast" placeholderTextColor="#6b877c" />
+                <Text style={styles.inputLabel}>Food or Dish Name *</Text>
+                <TextInput
+                  style={styles.input}
+                  value={foodName}
+                  onChangeText={setFoodName}
+                  placeholder="e.g. Scrambled Eggs or Protein Shake"
+                  placeholderTextColor="#64748b"
+                />
               </View>
+
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Calories</Text>
-                <TextInput style={styles.input} keyboardType="numeric" value={calories} onChangeText={setCalories} />
+                <Text style={styles.inputLabel}>Calories (kcal) *</Text>
+                <TextInput
+                  style={styles.input}
+                  keyboardType="numeric"
+                  value={calories}
+                  onChangeText={setCalories}
+                  placeholder="0"
+                  placeholderTextColor="#64748b"
+                />
               </View>
+
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Protein (g)</Text>
-                <TextInput style={styles.input} keyboardType="numeric" value={protein} onChangeText={setProtein} />
+                <Text style={styles.inputLabel}>Protein (g)</Text>
+                <TextInput
+                  style={styles.input}
+                  keyboardType="numeric"
+                  value={protein}
+                  onChangeText={setProtein}
+                  placeholder="0"
+                  placeholderTextColor="#64748b"
+                />
               </View>
+
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Carbs (g)</Text>
-                <TextInput style={styles.input} keyboardType="numeric" value={carbs} onChangeText={setCarbs} />
+                <Text style={styles.inputLabel}>Carbs (g)</Text>
+                <TextInput
+                  style={styles.input}
+                  keyboardType="numeric"
+                  value={carbs}
+                  onChangeText={setCarbs}
+                  placeholder="0"
+                  placeholderTextColor="#64748b"
+                />
               </View>
+
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Fat (g)</Text>
-                <TextInput style={styles.input} keyboardType="numeric" value={fat} onChangeText={setFat} />
+                <Text style={styles.inputLabel}>Healthy Fat (g)</Text>
+                <TextInput
+                  style={styles.input}
+                  keyboardType="numeric"
+                  value={fat}
+                  onChangeText={setFat}
+                  placeholder="0"
+                  placeholderTextColor="#64748b"
+                />
               </View>
+
               <View style={[styles.inputGroup, { width: "100%" }]}>
-                <Text style={styles.label}>Vitamins & Minerals</Text>
-                <TextInput style={styles.input} value={vitamins} onChangeText={setVitamins} placeholder="Vitamin C: 12mg" placeholderTextColor="#6b877c" />
+                <Text style={styles.inputLabel}>Micronutrients & Vitamins (Optional)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={vitamins}
+                  onChangeText={setVitamins}
+                  placeholder="e.g. Vitamin C, Calcium, Iron"
+                  placeholderTextColor="#64748b"
+                />
               </View>
             </View>
+
             <View style={styles.formActionRow}>
               <Pressable style={styles.cancelBtn} onPress={() => setShowLogForm(false)}>
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </Pressable>
-              <Pressable 
-                style={[styles.saveBtn, isSaving && { opacity: 0.7 }]} 
+
+              <Pressable
+                style={[styles.saveBtn, isSaving && { opacity: 0.7 }]}
                 onPress={handleLogMeal}
                 disabled={isSaving}
               >
                 {isSaving ? (
-                  <ActivityIndicator size="small" color="#ffffff" />
+                  <ActivityIndicator size="small" color="#050b08" />
                 ) : (
-                  <Text style={styles.saveBtnText}>Save Meal</Text>
+                  <Text style={styles.saveBtnText}>Save to Today's Log</Text>
                 )}
               </Pressable>
             </View>
           </View>
         )}
 
-        {/* Tabular Daily Schedule grouped by Breakfast, Lunch, Dinner, Snack */}
-        <View style={styles.historyHeader}>
-          <Text style={styles.historyTitle}>Today's Schedule</Text>
+        {/* ========================================================================= */}
+        {/* TODAY'S CULINARY SCHEDULE / TIMELINE */}
+        {/* ========================================================================= */}
+        <View style={styles.scheduleHeaderRow}>
+          <View>
+            <Text style={styles.scheduleTitle}>Today's Nutrition Timeline</Text>
+            <Text style={styles.scheduleSub}>
+              {allMeals.length > 0
+                ? `${allMeals.length} logged entries • ${totalCalories} kcal total`
+                : "No meals logged yet today"}
+            </Text>
+          </View>
         </View>
 
         <View style={styles.scheduleContainer}>
-          {mealTypes.map(type => {
+          {mealTypes.map((type) => {
             const typeMeals = allMeals.filter((m: any) => (m.mealType || m.meal_type) === type);
+            const subtotalCal = typeMeals.reduce((acc: number, m: any) => acc + (m.calories || 0), 0);
+
             return (
               <View key={type} style={styles.scheduleSection}>
-                <Text style={styles.sectionHeader}>{type}</Text>
+                <View style={styles.sectionHeaderRow}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    {getMealIcon(type)}
+                    <Text style={styles.sectionHeaderText}>{type.toUpperCase()}</Text>
+                  </View>
+
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    {subtotalCal > 0 ? (
+                      <View style={styles.sectionSubtotalBadge}>
+                        <Text style={styles.sectionSubtotalText}>{subtotalCal} kcal</Text>
+                      </View>
+                    ) : null}
+
+                    <Pressable
+                      style={styles.sectionAddBtn}
+                      onPress={() => {
+                        setMealType(type);
+                        setShowLogForm(true);
+                      }}
+                      hitSlop={8}
+                    >
+                      <Plus size={14} color="#10b981" />
+                    </Pressable>
+                  </View>
+                </View>
+
                 {typeMeals.length > 0 ? (
-                  typeMeals.map((m: any, idx: number) => (
-                    <View key={idx} style={styles.mealRow}>
-                      <View style={[styles.mealLeft, { minWidth: 0 }]}>
-                        <Apple size={16} color="#047857" />
-                        <View style={{ flex: 1, minWidth: 0 }}>
-                          <Text style={styles.mealName} numberOfLines={1}>{m.name}</Text>
-                          <Text style={styles.mealMacros} numberOfLines={1}>
-                            {m.calories} kcal • P: {m.proteinGrams ?? m.protein_grams ?? 0}g • C: {m.carbsGrams ?? m.carbs_grams ?? 0}g • F: {m.fatGrams ?? m.fat_grams ?? 0}g
-                          </Text>
-                          {m.vitamins && <Text style={styles.mealVitamins} numberOfLines={1}>{m.vitamins}</Text>}
+                  <View style={{ gap: 8 }}>
+                    {typeMeals.map((m: any, idx: number) => (
+                      <View key={m.id || idx} style={styles.mealCard}>
+                        <View style={styles.mealCardTop}>
+                          <View style={{ flex: 1, minWidth: 0 }}>
+                            <Text style={styles.mealCardTitle} numberOfLines={1}>
+                              {m.name}
+                            </Text>
+                            <Text style={styles.mealCardMacros} numberOfLines={1}>
+                              <Text style={{ color: "#10b981", fontWeight: "800" }}>{m.calories} kcal</Text>
+                              {"  •  "}P: {m.proteinGrams ?? m.protein_grams ?? 0}g{"  •  "}
+                              C: {m.carbsGrams ?? m.carbs_grams ?? 0}g{"  •  "}
+                              F: {m.fatGrams ?? m.fat_grams ?? 0}g
+                            </Text>
+                            {m.vitamins ? (
+                              <Text style={styles.mealCardVitamins} numberOfLines={1}>
+                                🌿 {m.vitamins}
+                              </Text>
+                            ) : null}
+                          </View>
+
+                          <Pressable
+                            style={styles.mealDeleteBtn}
+                            onPress={() => handleDeleteMeal(m.id, m.name)}
+                            hitSlop={8}
+                          >
+                            <Trash2 size={15} color="#ef4444" />
+                          </Pressable>
                         </View>
                       </View>
-                      <Pressable onPress={() => handleDeleteMeal(m.id)}>
-                        <Trash2 size={16} color="#b91c1c" />
-                      </Pressable>
-                    </View>
-                  ))
+                    ))}
+                  </View>
                 ) : (
-                  <Pressable 
-                    style={styles.emptySessionRow}
+                  <Pressable
+                    style={styles.emptyMealSlot}
                     onPress={() => {
                       setMealType(type);
                       setShowLogForm(true);
                     }}
                   >
-                    <Plus size={12} color="#10b981" />
-                    <Text style={styles.emptySessionText}>Add food to {type}</Text>
+                    <Plus size={14} color="#10b981" />
+                    <Text style={styles.emptyMealSlotText}>
+                      No {type} logged yet • Tap to record
+                    </Text>
                   </Pressable>
                 )}
               </View>
@@ -755,6 +1178,82 @@ export default function NutritionScreen() {
           })}
         </View>
       </ScrollView>
+
+      {/* ========================================================================= */}
+      {/* TARGET EDITING MODAL */}
+      {/* ========================================================================= */}
+      <Modal visible={showTargetModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Target size={18} color="#10b981" />
+                <Text style={styles.modalTitle}>Daily Nutrient Targets</Text>
+              </View>
+              <Pressable onPress={() => setShowTargetModal(false)} hitSlop={10}>
+                <X size={20} color="#94a3b8" />
+              </Pressable>
+            </View>
+
+            <ScrollView contentContainerStyle={{ gap: 14, paddingVertical: 12 }}>
+              <View>
+                <Text style={styles.inputLabel}>Daily Calorie Target (kcal)</Text>
+                <TextInput
+                  style={styles.input}
+                  keyboardType="numeric"
+                  value={tempCalTarget}
+                  onChangeText={setTempCalTarget}
+                  placeholder="2000"
+                  placeholderTextColor="#64748b"
+                />
+              </View>
+
+              <View>
+                <Text style={styles.inputLabel}>Daily Protein Target (grams)</Text>
+                <TextInput
+                  style={styles.input}
+                  keyboardType="numeric"
+                  value={tempProTarget}
+                  onChangeText={setTempProTarget}
+                  placeholder="130"
+                  placeholderTextColor="#64748b"
+                />
+              </View>
+
+              <Text style={{ fontSize: 11, color: "#94a3b8", fontWeight: "700", marginTop: 4 }}>
+                QUICK TARGET PROFILES:
+              </Text>
+
+              <View style={{ gap: 8 }}>
+                {[
+                  { label: "Standard Wellness", cal: "2000", pro: "130" },
+                  { label: "Athletic & Muscle Building", cal: "2200", pro: "150" },
+                  { label: "Metabolic Lean Cut", cal: "1800", pro: "110" },
+                ].map((item, idx) => (
+                  <Pressable
+                    key={idx}
+                    style={styles.quickProfileBtn}
+                    onPress={() => {
+                      setTempCalTarget(item.cal);
+                      setTempProTarget(item.pro);
+                    }}
+                  >
+                    <Text style={styles.quickProfileLabel}>{item.label}</Text>
+                    <Text style={styles.quickProfileVal}>
+                      {item.cal} kcal • {item.pro}g Protein
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              <Pressable style={styles.saveTargetsBtn} onPress={handleSaveTargets}>
+                <Check size={16} color="#050b08" strokeWidth={3} />
+                <Text style={styles.saveTargetsBtnText}>Update Daily Targets</Text>
+              </Pressable>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -763,97 +1262,275 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: THEME.colors.bgSolid,
-    paddingTop: Platform.OS === "ios" ? 60 : 40,
   },
   header: {
-    paddingHorizontal: 25,
-    marginBottom: 20,
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === "ios" ? 54 : 38,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(200, 218, 210, 0.15)",
+    backgroundColor: THEME.colors.bgSolid,
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  menuBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: "rgba(232, 241, 237, 0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(200, 218, 210, 0.2)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   headerSub: {
-    color: THEME.colors.textOnDarkSecondary,
-    fontSize: 12,
-    fontWeight: "bold",
-    textTransform: "uppercase",
+    fontSize: 9,
+    fontWeight: "800",
+    color: "#10b981",
     letterSpacing: 1,
   },
   headerTitle: {
-    color: THEME.colors.textOnDarkPrimary,
-    fontSize: 28,
-    fontWeight: "900",
-  },
-  scrollContent: {
-    paddingHorizontal: 25,
-    paddingBottom: 110,
-  },
-  summaryCard: {
-    backgroundColor: THEME.colors.cardBg,
-    borderWidth: 1,
-    borderColor: THEME.colors.cardBorder,
-    borderRadius: 24,
-    padding: 20,
-    gap: 15,
-    marginBottom: 20,
-    ...THEME.shadows.card,
-  },
-  summaryTitle: {
-    color: THEME.colors.cardTextSecondary,
-    fontSize: 12,
-    fontWeight: "bold",
-    textTransform: "uppercase",
-  },
-  macroRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  macroCol: {
-    alignItems: "center",
-    gap: 4,
-  },
-  macroVal: {
-    color: THEME.colors.cardTextPrimary,
     fontSize: 18,
     fontWeight: "900",
+    color: THEME.colors.textOnDarkPrimary,
   },
-  macroLabel: {
-    color: THEME.colors.cardTextSecondary,
+  targetBadgeBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.35)",
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 20,
+  },
+  targetBadgeText: {
     fontSize: 11,
+    fontWeight: "800",
+    color: "#10b981",
   },
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 100,
+    gap: 16,
+  },
+
+  // HERO BIO-METER CARD
+  heroGaugeCard: {
+    backgroundColor: THEME.colors.cardBg,
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: THEME.colors.cardBorder,
+    padding: 18,
+    gap: 16,
+    ...THEME.shadows.card,
+  },
+  heroGaugeTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  heroGaugeTitle: {
+    fontSize: 10,
+    fontWeight: "900",
+    color: THEME.colors.cardTextSecondary,
+    letterSpacing: 0.8,
+  },
+  heroEditTargetBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(232, 241, 237, 0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(200, 218, 210, 0.2)",
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+  },
+  heroEditTargetBtnText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: THEME.colors.cardTextSecondary,
+  },
+  gaugeCenterContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 4,
+  },
+  gaugeInnerCore: {
+    alignItems: "center",
+    justifyContent: "center",
+    maxWidth: 150,
+  },
+  gaugeFlamePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginBottom: 4,
+  },
+  gaugeFlamePillText: {
+    fontSize: 10,
+    fontWeight: "900",
+    color: "#10b981",
+  },
+  gaugeCaloriesNum: {
+    fontSize: 32,
+    fontWeight: "900",
+    color: THEME.colors.cardTextPrimary,
+    letterSpacing: -0.5,
+  },
+  gaugeCaloriesLabel: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: THEME.colors.cardTextSecondary,
+    letterSpacing: 1,
+  },
+  gaugeProteinMiniPill: {
+    backgroundColor: "rgba(56, 189, 248, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(56, 189, 248, 0.25)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    marginTop: 6,
+  },
+  gaugeProteinMiniPillText: {
+    fontSize: 9.5,
+    fontWeight: "800",
+    color: "#38bdf8",
+  },
+  gaugeRemainingSub: {
+    fontSize: 9.5,
+    fontWeight: "700",
+    color: THEME.colors.cardTextSecondary,
+    marginTop: 4,
+  },
+
+  // Macro Status Pods
+  macroPodsRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  macroPod: {
+    flex: 1,
+    backgroundColor: "rgba(232, 241, 237, 0.08)",
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 10,
+    gap: 4,
+  },
+  macroPodLabel: {
+    fontSize: 9,
+    fontWeight: "900",
+    color: THEME.colors.cardTextSecondary,
+    letterSpacing: 0.5,
+  },
+  macroPodPercent: {
+    fontSize: 9,
+    fontWeight: "900",
+  },
+  macroPodVal: {
+    fontSize: 16,
+    fontWeight: "900",
+    color: THEME.colors.cardTextPrimary,
+    marginVertical: 2,
+  },
+  macroPodTrack: {
+    height: 4,
+    backgroundColor: "rgba(200, 218, 210, 0.2)",
+    borderRadius: 2,
+    overflow: "hidden",
+  },
+  macroPodFill: {
+    height: "100%",
+    borderRadius: 2,
+  },
+  macroPodSub: {
+    fontSize: 9,
+    color: THEME.colors.cardTextSecondary,
+    marginTop: 2,
+  },
+
+  // 1-Tap Action Row
   actionRow: {
     flexDirection: "row",
     gap: 12,
-    marginBottom: 25,
   },
-  scanBtn: {
+  scanActionBtn: {
     flex: 1,
     height: 48,
-    backgroundColor: THEME.colors.accentGreen,
-    borderRadius: 24,
+    backgroundColor: "#10b981",
+    borderRadius: 16,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: 8,
+    ...THEME.shadows.card,
   },
-  scanBtnText: {
-    color: "#ffffff",
+  scanActionBtnText: {
     fontSize: 13,
-    fontWeight: "bold",
+    fontWeight: "900",
+    color: "#050b08",
+    letterSpacing: 0.2,
   },
-  manualBtn: {
+  manualActionBtn: {
     flex: 1,
     height: 48,
-    borderWidth: 1,
-    borderColor: "rgba(200, 218, 210, 0.4)",
     backgroundColor: "rgba(232, 241, 237, 0.12)",
-    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "rgba(200, 218, 210, 0.3)",
+    borderRadius: 16,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: 6,
   },
-  manualBtnText: {
-    color: THEME.colors.textOnDarkPrimary,
+  manualActionBtnText: {
     fontSize: 13,
-    fontWeight: "bold",
+    fontWeight: "800",
+    color: THEME.colors.textOnDarkPrimary,
   },
-  scannerActionBtn: {
+
+  // AI Food Scanner HUD
+  scannerHudCard: {
+    backgroundColor: THEME.colors.cardBg,
+    borderRadius: 24,
+    borderWidth: 1.5,
+    borderColor: "rgba(16, 185, 129, 0.4)",
+    padding: 18,
+    gap: 12,
+    ...THEME.shadows.card,
+  },
+  scannerHudHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  scannerHudTitle: {
+    fontSize: 12,
+    fontWeight: "900",
+    color: "#10b981",
+    letterSpacing: 0.8,
+  },
+  scannerHudDesc: {
+    fontSize: 11,
+    color: THEME.colors.cardTextSecondary,
+    lineHeight: 16,
+  },
+  scannerBtnRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 4,
+  },
+  scannerCaptureBtn: {
     flex: 1,
     height: 44,
     borderRadius: 14,
@@ -862,12 +1539,17 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 8,
   },
-  scannerActionBtnText: {
-    fontSize: 13,
-    fontWeight: "bold",
+  scannerGalleryBtn: {
+    backgroundColor: "rgba(232, 241, 237, 0.1)",
+    borderWidth: 1,
+    borderColor: "#10b981",
+  },
+  scannerCaptureBtnText: {
+    fontSize: 12,
+    fontWeight: "900",
   },
   imagePreviewContainer: {
-    marginTop: 12,
+    marginTop: 8,
     borderRadius: 16,
     overflow: "hidden",
     position: "relative",
@@ -894,28 +1576,29 @@ const styles = StyleSheet.create({
   scanningText: {
     color: "#ffffff",
     fontWeight: "bold",
-    fontSize: 14,
+    fontSize: 13,
     textAlign: "center",
   },
   scanningSubText: {
-    color: THEME.colors.accentGreen,
-    fontSize: 12,
+    color: "#10b981",
+    fontSize: 11,
     textAlign: "center",
   },
+
+  // Scan Result Card
   resultCard: {
-    marginTop: 14,
-    backgroundColor: THEME.colors.cardBg,
+    backgroundColor: "rgba(232, 241, 237, 0.08)",
     borderWidth: 1,
-    borderColor: THEME.colors.cardBorder,
-    borderRadius: 24,
+    borderColor: "rgba(200, 218, 210, 0.25)",
+    borderRadius: 20,
     padding: 16,
-    gap: 12,
-    ...THEME.shadows.card,
+    gap: 10,
+    marginTop: 6,
   },
   resultDishName: {
+    fontSize: 16,
+    fontWeight: "900",
     color: THEME.colors.cardTextPrimary,
-    fontSize: 18,
-    fontWeight: "bold",
   },
   confidenceBadge: {
     flexDirection: "row",
@@ -925,24 +1608,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.3)",
   },
   confidenceText: {
-    color: THEME.colors.accentGreen,
-    fontSize: 11,
-    fontWeight: "bold",
+    fontSize: 10,
+    fontWeight: "900",
+    color: "#10b981",
   },
   mealTypeBadge: {
-    backgroundColor: "rgba(232, 241, 237, 0.5)",
+    backgroundColor: "rgba(232, 241, 237, 0.15)",
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
   },
   mealTypeBadgeText: {
+    fontSize: 9,
+    fontWeight: "900",
     color: THEME.colors.cardTextSecondary,
-    fontSize: 10,
-    fontWeight: "bold",
   },
   resultMacroGrid: {
     flexDirection: "row",
@@ -951,53 +1632,54 @@ const styles = StyleSheet.create({
   },
   resultMacroBox: {
     flex: 1,
-    backgroundColor: "#ffffff",
+    backgroundColor: "rgba(232, 241, 237, 0.08)",
     paddingVertical: 8,
-    paddingHorizontal: 6,
+    paddingHorizontal: 4,
     borderRadius: 12,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "rgba(200, 218, 210, 0.6)",
+    borderColor: "rgba(200, 218, 210, 0.15)",
   },
   resultMacroVal: {
+    fontSize: 13,
+    fontWeight: "900",
     color: THEME.colors.cardTextPrimary,
-    fontSize: 14,
-    fontWeight: "bold",
   },
   resultMacroLabel: {
+    fontSize: 9,
+    fontWeight: "700",
     color: THEME.colors.cardTextSecondary,
-    fontSize: 10,
     marginTop: 2,
   },
   vitaminsBox: {
-    backgroundColor: "#ffffff",
+    backgroundColor: "rgba(16, 185, 129, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.2)",
     padding: 10,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(200, 218, 210, 0.6)",
   },
   vitaminsTitle: {
-    color: THEME.colors.accentGreen,
-    fontSize: 11,
-    fontWeight: "bold",
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#10b981",
   },
   vitaminsContent: {
+    fontSize: 11,
     color: THEME.colors.cardTextPrimary,
-    fontSize: 12,
     marginTop: 2,
   },
   itemsBox: {
-    backgroundColor: "#ffffff",
+    backgroundColor: "rgba(232, 241, 237, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(200, 218, 210, 0.15)",
     padding: 10,
     borderRadius: 12,
     gap: 4,
-    borderWidth: 1,
-    borderColor: "rgba(200, 218, 210, 0.6)",
   },
   itemsTitle: {
+    fontSize: 10,
+    fontWeight: "800",
     color: THEME.colors.cardTextSecondary,
-    fontSize: 11,
-    fontWeight: "bold",
     marginBottom: 2,
   },
   itemRow: {
@@ -1006,241 +1688,330 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   itemName: {
-    color: THEME.colors.cardTextPrimary,
     fontSize: 11,
+    color: THEME.colors.cardTextPrimary,
     flex: 1,
   },
   itemCal: {
+    fontSize: 10,
     color: THEME.colors.cardTextSecondary,
-    fontSize: 11,
+    fontWeight: "700",
   },
   resultNotes: {
+    fontSize: 10.5,
     color: THEME.colors.cardTextSecondary,
-    fontSize: 11,
     fontStyle: "italic",
-    lineHeight: 16,
+    lineHeight: 15,
   },
   commitBtn: {
     flex: 1,
     height: 42,
-    backgroundColor: THEME.colors.accentGreen,
-    borderRadius: 21,
+    backgroundColor: "#10b981",
+    borderRadius: 12,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: 6,
   },
   commitBtnText: {
-    color: "#ffffff",
-    fontSize: 13,
-    fontWeight: "bold",
+    fontSize: 12,
+    fontWeight: "900",
+    color: "#050b08",
   },
   customizeBtn: {
-    height: 42,
     paddingHorizontal: 16,
-    borderRadius: 21,
+    height: 42,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(200, 218, 210, 0.4)",
-    backgroundColor: "rgba(232, 241, 237, 0.2)",
+    borderColor: "rgba(200, 218, 210, 0.3)",
+    backgroundColor: "rgba(232, 241, 237, 0.1)",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: 6,
   },
   customizeBtnText: {
+    fontSize: 12,
+    fontWeight: "800",
     color: THEME.colors.cardTextPrimary,
-    fontSize: 13,
-    fontWeight: "bold",
   },
-  presetRow: {
-    backgroundColor: THEME.colors.cardBg,
-    padding: 12,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: THEME.colors.cardBorder,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
+
+  // Manual Log Form Card
   formCard: {
     backgroundColor: THEME.colors.cardBg,
+    borderRadius: 24,
     borderWidth: 1,
     borderColor: THEME.colors.cardBorder,
-    borderRadius: 24,
-    padding: 20,
-    gap: 15,
-    marginBottom: 25,
+    padding: 18,
+    gap: 12,
     ...THEME.shadows.card,
   },
+  formCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
   formTitle: {
+    fontSize: 14,
+    fontWeight: "900",
     color: THEME.colors.cardTextPrimary,
-    fontWeight: "bold",
-    fontSize: 16,
   },
   mealTypeToggle: {
     flexDirection: "row",
-    backgroundColor: "rgba(232, 241, 237, 0.5)",
-    borderRadius: 14,
+    backgroundColor: "rgba(232, 241, 237, 0.1)",
+    borderRadius: 12,
     padding: 3,
     borderWidth: 1,
-    borderColor: "rgba(200, 218, 210, 0.5)",
+    borderColor: "rgba(200, 218, 210, 0.2)",
   },
   typeBtn: {
     flex: 1,
-    height: 32,
-    borderRadius: 11,
+    paddingVertical: 8,
+    borderRadius: 9,
     alignItems: "center",
     justifyContent: "center",
   },
   typeBtnSelected: {
-    backgroundColor: THEME.colors.accentTeal,
+    backgroundColor: "#10b981",
   },
   typeBtnText: {
-    color: THEME.colors.cardTextSecondary,
     fontSize: 11,
-    fontWeight: "bold",
+    fontWeight: "700",
+    color: THEME.colors.cardTextSecondary,
     textTransform: "capitalize",
   },
   typeBtnTextSelected: {
-    color: "#ffffff",
+    color: "#050b08",
+    fontWeight: "900",
   },
   formGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 12,
+    gap: 10,
   },
   inputGroup: {
-    width: "47%",
-    gap: 6,
+    width: "48%",
+    gap: 4,
   },
-  label: {
+  inputLabel: {
+    fontSize: 10,
+    fontWeight: "800",
     color: THEME.colors.cardTextSecondary,
-    fontSize: 11,
   },
   input: {
-    backgroundColor: "#ffffff",
+    backgroundColor: "rgba(232, 241, 237, 0.1)",
     borderWidth: 1,
-    borderColor: "rgba(200, 218, 210, 0.7)",
+    borderColor: "rgba(200, 218, 210, 0.25)",
     borderRadius: 12,
-    height: 40,
-    color: THEME.colors.cardTextPrimary,
     paddingHorizontal: 12,
-    fontSize: 13,
+    paddingVertical: 9,
+    fontSize: 12,
+    color: THEME.colors.cardTextPrimary,
   },
   formActionRow: {
     flexDirection: "row",
     justifyContent: "flex-end",
+    alignItems: "center",
     gap: 10,
-    marginTop: 5,
+    marginTop: 4,
   },
   cancelBtn: {
-    paddingHorizontal: 16,
-    height: 36,
-    alignItems: "center",
-    justifyContent: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   },
   cancelBtnText: {
+    fontSize: 12,
+    fontWeight: "800",
     color: THEME.colors.cardTextSecondary,
-    fontSize: 13,
-    fontWeight: "bold",
   },
   saveBtn: {
-    backgroundColor: THEME.colors.accentGreen,
-    paddingHorizontal: 20,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
+    backgroundColor: "#10b981",
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 12,
   },
   saveBtnText: {
-    color: "#ffffff",
-    fontSize: 13,
-    fontWeight: "bold",
+    fontSize: 12,
+    fontWeight: "900",
+    color: "#050b08",
   },
-  historyHeader: {
-    marginBottom: 15,
+
+  // Today's Timeline
+  scheduleHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 4,
   },
-  historyTitle: {
+  scheduleTitle: {
+    fontSize: 15,
+    fontWeight: "900",
     color: THEME.colors.textOnDarkPrimary,
-    fontSize: 18,
-    fontWeight: "bold",
+  },
+  scheduleSub: {
+    fontSize: 11,
+    color: THEME.colors.textOnDarkSecondary,
+    marginTop: 2,
   },
   scheduleContainer: {
-    gap: 15,
+    gap: 12,
   },
   scheduleSection: {
     backgroundColor: THEME.colors.cardBg,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: THEME.colors.cardBorder,
-    borderRadius: 24,
-    padding: 16,
+    padding: 14,
     gap: 10,
     ...THEME.shadows.card,
   },
-  sectionHeader: {
-    color: "#047857",
-    fontSize: 12,
-    fontWeight: "800",
-    textTransform: "uppercase",
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(200, 218, 210, 0.45)",
-    paddingBottom: 6,
-  },
-  mealRow: {
+  sectionHeaderRow: {
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "space-between",
-    alignItems: "center",
+    paddingBottom: 6,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(200, 218, 210, 0.3)",
-    paddingBottom: 10,
-    marginBottom: 5,
+    borderBottomColor: "rgba(200, 218, 210, 0.15)",
   },
-  mealLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    flex: 1,
-  },
-  mealName: {
+  sectionHeaderText: {
+    fontSize: 11,
+    fontWeight: "900",
     color: THEME.colors.cardTextPrimary,
-    fontWeight: "bold",
-    fontSize: 13,
+    letterSpacing: 0.5,
   },
-  mealMacros: {
-    color: THEME.colors.cardTextSecondary,
-    fontSize: 11,
-    marginTop: 2,
-    fontWeight: "600",
+  sectionSubtotalBadge: {
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
   },
-  mealVitamins: {
-    color: "#047857",
-    fontSize: 10.5,
-    marginTop: 2,
-    fontWeight: "600",
-    fontStyle: "italic",
+  sectionSubtotalText: {
+    fontSize: 10,
+    fontWeight: "900",
+    color: "#10b981",
   },
-  emptySessionRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingVertical: 4,
-  },
-  emptySessionText: {
-    color: THEME.colors.cardTextSecondary,
-    fontSize: 11,
-    fontWeight: "bold",
-  },
-  avatarCircleSmall: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "rgba(232, 241, 237, 0.15)",
-    borderWidth: 1.5,
-    borderColor: THEME.colors.accentGreen,
+  sectionAddBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 8,
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarInitialSmall: {
-    color: THEME.colors.accentGreen,
+  mealCard: {
+    backgroundColor: "rgba(232, 241, 237, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(200, 218, 210, 0.15)",
+    borderRadius: 14,
+    padding: 12,
+  },
+  mealCardTop: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  mealCardTitle: {
     fontSize: 13,
-    fontWeight: "bold",
+    fontWeight: "800",
+    color: THEME.colors.cardTextPrimary,
+  },
+  mealCardMacros: {
+    fontSize: 11,
+    color: THEME.colors.cardTextSecondary,
+    marginTop: 3,
+    fontWeight: "600",
+  },
+  mealCardVitamins: {
+    fontSize: 10,
+    color: "#10b981",
+    marginTop: 3,
+    fontStyle: "italic",
+  },
+  mealDeleteBtn: {
+    padding: 4,
+  },
+  emptyMealSlot: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: "rgba(200, 218, 210, 0.25)",
+    borderRadius: 12,
+    paddingVertical: 12,
+    backgroundColor: "rgba(232, 241, 237, 0.04)",
+  },
+  emptyMealSlotText: {
+    fontSize: 11,
+    color: THEME.colors.cardTextSecondary,
+    fontWeight: "700",
+  },
+
+  // Target Editor Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(11, 22, 19, 0.8)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  modalCard: {
+    backgroundColor: THEME.colors.drawerBg,
+    borderRadius: 24,
+    borderWidth: 1.5,
+    borderColor: "rgba(200, 218, 210, 0.3)",
+    padding: 20,
+    width: "100%",
+    maxWidth: 400,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(200, 218, 210, 0.15)",
+    paddingBottom: 12,
+  },
+  modalTitle: {
+    fontSize: 15,
+    fontWeight: "900",
+    color: THEME.colors.textOnDarkPrimary,
+  },
+  quickProfileBtn: {
+    backgroundColor: "rgba(232, 241, 237, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(200, 218, 210, 0.2)",
+    padding: 10,
+    borderRadius: 12,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  quickProfileLabel: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: THEME.colors.cardTextPrimary,
+  },
+  quickProfileVal: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#10b981",
+  },
+  saveTargetsBtn: {
+    backgroundColor: "#10b981",
+    paddingVertical: 12,
+    borderRadius: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 6,
+  },
+  saveTargetsBtnText: {
+    fontSize: 13,
+    fontWeight: "900",
+    color: "#050b08",
   },
 });
