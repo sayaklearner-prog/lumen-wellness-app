@@ -1969,20 +1969,20 @@ export default function DashboardScreen() {
                       {[
                         {
                           name: "💼 Productivity & Work",
-                          min: screenTelemetry.categories.productivity.minutes || Math.round(screenMinutesToday * 0.45),
-                          pct: screenTelemetry.categories.productivity.percentage || 45,
+                          min: screenTelemetry.categories.productivity.minutes || 0,
+                          pct: screenTelemetry.categories.productivity.percentage || 0,
                           color: "#10b981",
                         },
                         {
                           name: "💬 Social & Messages",
-                          min: screenTelemetry.categories.social.minutes || Math.round(screenMinutesToday * 0.30),
-                          pct: screenTelemetry.categories.social.percentage || 30,
+                          min: screenTelemetry.categories.social.minutes || 0,
+                          pct: screenTelemetry.categories.social.percentage || 0,
                           color: "#a855f7",
                         },
                         {
                           name: "🎬 Video & Media",
-                          min: screenTelemetry.categories.entertainment.minutes || Math.round(screenMinutesToday * 0.20),
-                          pct: screenTelemetry.categories.entertainment.percentage || 20,
+                          min: screenTelemetry.categories.entertainment.minutes || 0,
+                          pct: screenTelemetry.categories.entertainment.percentage || 0,
                           color: "#38bdf8",
                         },
                         {
@@ -1992,9 +1992,9 @@ export default function DashboardScreen() {
                           color: "#ef4444",
                         },
                         {
-                          name: "⚡ Other & System",
-                          min: screenTelemetry.categories.other.minutes || Math.max(1, Math.round(screenMinutesToday * 0.05)),
-                          pct: screenTelemetry.categories.other.percentage || 5,
+                          name: "⚡ Other & Utilities",
+                          min: screenTelemetry.categories.other.minutes || 0,
+                          pct: screenTelemetry.categories.other.percentage || 0,
                           color: "#ec4899",
                         },
                       ].filter(c => c.min > 0 || c.pct > 0).map((cat, i) => (

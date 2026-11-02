@@ -12,6 +12,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(DigitalWellbeingPlugin.class);
         registerPlugin(StepCounterPlugin.class);
         registerPlugin(LumenNotificationPlugin.class);
+        registerPlugin(GoogleOAuthPlugin.class);
         super.onCreate(savedInstanceState);
         handleOAuthIntent(getIntent());
     }

@@ -262,13 +262,45 @@ public class DigitalWellbeingPlugin extends Plugin {
                     return;
                 }
 
-                Map<String, Long> usageMap = new HashMap<>();
-                Map<String, UsageEvents.Event> lastResumedEvents = new HashMap<>();
-                int unlockCount = 0;
+                PackageManager pm = ctx.getPackageManager();
+                Intent mainIntent = new Intent(Intent.ACTION_MAIN, null);
+                mainIntent.addCategory(Intent.CATEGORY_LAUNCHER);
+                List<ResolveInfo> launchables = pm.queryIntentActivities(mainIntent, 0);
 
-                // Mindful Query Events Algorithm
+                Map<String, ResolveInfo> launchableMap = new HashMap<>();
+                Set<String> launchablePackages = new HashSet<>();
+                for (ResolveInfo ri : launchables) {
+                    if (ri.activityInfo != null && ri.activityInfo.packageName != null) {
+                        String pkg = ri.activityInfo.packageName;
+                        launchablePackages.add(pkg);
+                        launchableMap.put(pkg, ri);
+                    }
+                }
+
+                // Add common user packages that may not expose standard launcher intent
+                launchablePackages.add("com.android.chrome");
+                launchablePackages.add("com.google.android.youtube");
+                launchablePackages.add("com.google.android.gm");
+                launchablePackages.add("com.google.android.apps.messaging");
+
+                // Explicitly ignore Android internal background & system UI packages
+                Set<String> systemIgnored = new HashSet<>();
+                systemIgnored.add("android");
+                systemIgnored.add("com.android.systemui");
+                systemIgnored.add("com.google.android.gms");
+                systemIgnored.add("com.google.android.gsf");
+                systemIgnored.add("com.google.android.inputmethod.latin");
+                systemIgnored.add("com.android.keyguard");
+
+                Map<String, Long> usageMap = new HashMap<>();
+                int unlockCount = 0;
+                String currentForegroundPkg = null;
+                long currentForegroundStart = 0;
+                boolean isScreenInteractive = true;
+
+                // 1. Accurate Event Replay Algorithm (Mindful Engine)
                 try {
-                    UsageEvents events = usm.queryEvents(start - (3 * 3600 * 1000L), end);
+                    UsageEvents events = usm.queryEvents(start, end);
                     if (events != null) {
                         UsageEvents.Event event = new UsageEvents.Event();
                         while (events.hasNextEvent()) {
@@ -277,43 +309,59 @@ public class DigitalWellbeingPlugin extends Plugin {
                             long ts = event.getTimeStamp();
                             int type = event.getEventType();
 
-                            if (ts >= start) {
-                                if (type == UsageEvents.Event.KEYGUARD_HIDDEN) {
-                                    unlockCount++;
-                                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
-                                           type == UsageEvents.Event.SCREEN_INTERACTIVE) {
-                                    unlockCount++;
-                                }
+                            if (ts < start || ts > end) continue;
+
+                            if (type == UsageEvents.Event.KEYGUARD_HIDDEN) {
+                                unlockCount++;
                             }
 
-                            String eventKey = (pkg != null ? pkg : "") + (event.getClassName() != null ? event.getClassName() : "");
-
-                            if (type == UsageEvents.Event.ACTIVITY_RESUMED) {
-                                lastResumedEvents.put(eventKey, event);
-                                event = new UsageEvents.Event();
-                            } else if (type == UsageEvents.Event.ACTIVITY_PAUSED || type == UsageEvents.Event.ACTIVITY_STOPPED) {
-                                UsageEvents.Event lastResumed = lastResumedEvents.remove(eventKey);
-                                if (lastResumed != null && ts > start) {
-                                    long resumeTs = Math.max(lastResumed.getTimeStamp(), start);
-                                    long diff = ts - resumeTs;
-                                    if (diff > 0 && pkg != null) {
-                                        long cur = usageMap.containsKey(pkg) ? usageMap.get(pkg) : 0L;
-                                        usageMap.put(pkg, cur + diff);
+                            if (type == UsageEvents.Event.SCREEN_NON_INTERACTIVE) {
+                                // Screen turned off: close active app session
+                                if (currentForegroundPkg != null && currentForegroundStart > 0 && isScreenInteractive) {
+                                    long duration = ts - currentForegroundStart;
+                                    if (duration > 0 && duration < (12 * 3600 * 1000L)) {
+                                        long cur = usageMap.getOrDefault(currentForegroundPkg, 0L);
+                                        usageMap.put(currentForegroundPkg, cur + duration);
                                     }
+                                }
+                                currentForegroundPkg = null;
+                                currentForegroundStart = 0;
+                                isScreenInteractive = false;
+                            } else if (type == UsageEvents.Event.SCREEN_INTERACTIVE) {
+                                isScreenInteractive = true;
+                                currentForegroundStart = ts;
+                            } else if (type == UsageEvents.Event.ACTIVITY_RESUMED) {
+                                // App came to foreground
+                                if (isScreenInteractive) {
+                                    if (currentForegroundPkg != null && currentForegroundStart > 0) {
+                                        long duration = ts - currentForegroundStart;
+                                        if (duration > 0 && duration < (12 * 3600 * 1000L)) {
+                                            long cur = usageMap.getOrDefault(currentForegroundPkg, 0L);
+                                            usageMap.put(currentForegroundPkg, cur + duration);
+                                        }
+                                    }
+                                    currentForegroundPkg = pkg;
+                                    currentForegroundStart = ts;
+                                }
+                            } else if (type == UsageEvents.Event.ACTIVITY_PAUSED || type == UsageEvents.Event.ACTIVITY_STOPPED) {
+                                if (pkg != null && pkg.equals(currentForegroundPkg) && isScreenInteractive && currentForegroundStart > 0) {
+                                    long duration = ts - currentForegroundStart;
+                                    if (duration > 0 && duration < (12 * 3600 * 1000L)) {
+                                        long cur = usageMap.getOrDefault(currentForegroundPkg, 0L);
+                                        usageMap.put(currentForegroundPkg, cur + duration);
+                                    }
+                                    currentForegroundPkg = null;
+                                    currentForegroundStart = 0;
                                 }
                             }
                         }
 
-                        // Handle apps currently in foreground
-                        for (UsageEvents.Event openEvent : lastResumedEvents.values()) {
-                            String pkg = openEvent.getPackageName();
-                            if (pkg != null) {
-                                long resumeTs = Math.max(openEvent.getTimeStamp(), start);
-                                long diff = end - resumeTs;
-                                if (diff > 0) {
-                                    long cur = usageMap.containsKey(pkg) ? usageMap.get(pkg) : 0L;
-                                    usageMap.put(pkg, cur + diff);
-                                }
+                        // Close currently running foreground session up to now
+                        if (currentForegroundPkg != null && currentForegroundStart > 0 && isScreenInteractive) {
+                            long duration = end - currentForegroundStart;
+                            if (duration > 0 && duration < (12 * 3600 * 1000L)) {
+                                long cur = usageMap.getOrDefault(currentForegroundPkg, 0L);
+                                usageMap.put(currentForegroundPkg, cur + duration);
                             }
                         }
                     }
@@ -321,38 +369,29 @@ public class DigitalWellbeingPlugin extends Plugin {
                     Log.w(TAG, "Error in queryEvents: " + e.getMessage());
                 }
 
-                // Cross-validate with aggregate stats
-                try {
-                    Map<String, UsageStats> agg = usm.queryAndAggregateUsageStats(start, end);
-                    if (agg != null) {
-                        for (Map.Entry<String, UsageStats> entry : agg.entrySet()) {
-                            String pkg = entry.getKey();
-                            long fg = entry.getValue().getTotalTimeInForeground();
-                            if (fg > 0) {
-                                long cur = usageMap.containsKey(pkg) ? usageMap.get(pkg) : 0L;
-                                if (fg > cur) {
-                                    usageMap.put(pkg, fg);
+                // 2. OEM Fallback: If queryEvents was restricted, use queryUsageStats daily interval
+                if (usageMap.isEmpty()) {
+                    try {
+                        List<UsageStats> statsList = usm.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, start, end);
+                        if (statsList != null) {
+                            for (UsageStats us : statsList) {
+                                String pkg = us.getPackageName();
+                                if (pkg == null || systemIgnored.contains(pkg)) continue;
+                                if (!launchablePackages.contains(pkg)) continue;
+                                if (us.getLastTimeUsed() >= start) {
+                                    long fg = us.getTotalTimeInForeground();
+                                    if (fg > 0 && fg <= (end - start)) {
+                                        usageMap.put(pkg, fg);
+                                    }
                                 }
                             }
                         }
-                    }
-                } catch (Exception e) {
-                    Log.w(TAG, "Error in queryAndAggregateUsageStats: " + e.getMessage());
-                }
-
-                PackageManager pm = ctx.getPackageManager();
-                Intent mainIntent = new Intent(Intent.ACTION_MAIN, null);
-                mainIntent.addCategory(Intent.CATEGORY_LAUNCHER);
-                List<ResolveInfo> launchables = pm.queryIntentActivities(mainIntent, 0);
-
-                Map<String, ResolveInfo> launchableMap = new HashMap<>();
-                for (ResolveInfo ri : launchables) {
-                    if (ri.activityInfo != null && ri.activityInfo.packageName != null) {
-                        launchableMap.put(ri.activityInfo.packageName, ri);
+                    } catch (Exception e) {
+                        Log.w(TAG, "Error in queryUsageStats fallback: " + e.getMessage());
                     }
                 }
 
-                // App Usage records list
+                // 3. Build filtered app items list (User-facing applications only)
                 List<AppUsageItem> appItems = new ArrayList<>();
                 long totalScreenMs = 0;
                 long socialMs = 0;
@@ -364,9 +403,12 @@ public class DigitalWellbeingPlugin extends Plugin {
                 for (Map.Entry<String, Long> entry : usageMap.entrySet()) {
                     String pkg = entry.getKey();
                     long timeMs = entry.getValue();
-                    if (timeMs < 1000) continue; // Skip less than 1 second
 
-                    // Ignore system launcher or our own app if desired
+                    // Filter out non-user packages and sub-5 second glitches
+                    if (timeMs < 5000) continue;
+                    if (systemIgnored.contains(pkg)) continue;
+                    if (!launchablePackages.contains(pkg)) continue;
+
                     String appName = pkg;
                     String category = classifyAppCategory(pkg, pm);
 
@@ -426,7 +468,6 @@ public class DigitalWellbeingPlugin extends Plugin {
                 long totalMinutes = totalScreenMs / 60000;
 
                 JSObject categoriesObj = new JSObject();
-
                 categoriesObj.put("productivity", makeCategoryObj(productivityMs / 60000, totalMinutes));
                 categoriesObj.put("social", makeCategoryObj(socialMs / 60000, totalMinutes));
                 categoriesObj.put("entertainment", makeCategoryObj(entertainmentMs / 60000, totalMinutes));
@@ -437,7 +478,7 @@ public class DigitalWellbeingPlugin extends Plugin {
                 ret.put("permissionGranted", true);
                 ret.put("totalScreenSeconds", totalSeconds);
                 ret.put("totalScreenMinutes", totalMinutes);
-                ret.put("unlockCount", Math.max(1, unlockCount));
+                ret.put("unlockCount", unlockCount);
                 ret.put("categories", categoriesObj);
                 ret.put("apps", appsArray);
 
