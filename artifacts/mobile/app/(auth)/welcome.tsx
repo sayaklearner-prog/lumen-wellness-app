@@ -73,30 +73,6 @@ export default function WelcomeScreen() {
   // Google OAuth Browser Redirect State
   const [isSigningInGoogle, setIsSigningInGoogle] = useState(false);
 
-  // Cinematic 3D Ken Burns Breathing Zoom on Background Photography
-  const kenBurnsScale = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(kenBurnsScale, {
-          toValue: 1.055,
-          duration: 11000,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-        Animated.timing(kenBurnsScale, {
-          toValue: 1.0,
-          duration: 11000,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
-  }, []);
-
   const triggerHaptic = (style: Haptics.ImpactFeedbackStyle = Haptics.ImpactFeedbackStyle.Light) => {
     if (Platform.OS !== "web") {
       try {
@@ -358,23 +334,18 @@ export default function WelcomeScreen() {
   return (
     <View style={styles.container}>
       {/* ========================================================= */}
-      {/* FULLSCREEN BACKGROUND PHOTOGRAPHY WITH 3D KEN BURNS ZOOM    */}
+      {/* FULLSCREEN BACKGROUND PHOTOGRAPHY (ROCK-SOLID STABLE)      */}
       {/* ========================================================= */}
-      <Animated.Image
+      <Image
         source={require("../../assets/cover-bg.jpg")}
-        style={[
-          styles.coverImageBg,
-          {
-            transform: [{ scale: kenBurnsScale }],
-          },
-        ]}
+        style={styles.coverImageBg}
         resizeMode="cover"
       />
 
       {/* ========================================================= */}
-      {/* 3D BIO-CONSTELLATION PARTICLE MESH (GPU 120FPS PARALLAX)   */}
+      {/* STATIONARY BIOLUMINESCENT AMBIENT PULSE (ZERO MOVEMENT)    */}
       {/* ========================================================= */}
-      <Background3DBioField pointerEvents="none" interactive={true} />
+      <Background3DBioField pointerEvents="none" />
 
       {/* Cinematic Dual Vignette Overlays for Maximum Legibility */}
       <Svg width="100%" height="100%" style={StyleSheet.absoluteFillObject} pointerEvents="none">
