@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Alert,
   Modal,
+  Linking,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -65,6 +66,7 @@ import {
   getGeminiApiKey,
   setGeminiApiKey,
   testGeminiApiKey,
+  isValidGeminiApiKey,
   DEFAULT_GEMINI_API_KEY,
 } from "@/services/geminiAi";
 
@@ -137,7 +139,7 @@ export default function CoachScreen() {
 
   // Google Gemini AI Engine State
   const [showGeminiModal, setShowGeminiModal] = useState(false);
-  const [geminiKeyInput, setGeminiKeyInput] = useState(DEFAULT_GEMINI_API_KEY);
+  const [geminiKeyInput, setGeminiKeyInput] = useState("");
   const [isTestingGemini, setIsTestingGemini] = useState(false);
   const [geminiTestFeedback, setGeminiTestFeedback] = useState<string | null>(null);
 
@@ -146,7 +148,11 @@ export default function CoachScreen() {
     async function initChatAndContext() {
       try {
         const currentKey = await getGeminiApiKey();
-        setGeminiKeyInput(currentKey);
+        if (currentKey && !currentKey.startsWith("AQ.Ab8")) {
+          setGeminiKeyInput(currentKey);
+        } else {
+          setGeminiKeyInput("");
+        }
 
         const ctx = await buildFullHealthContextModel();
         setHealthContext(ctx);
@@ -316,12 +322,20 @@ export default function CoachScreen() {
   };
 
   const handleSaveGeminiKey = async () => {
-    if (!geminiKeyInput.trim()) {
-      Alert.alert("Empty Key", "Please enter a valid Gemini API key.");
+    const cleanKey = geminiKeyInput.trim();
+    if (!cleanKey) {
+      Alert.alert("Empty Key", "Please paste a valid Google Gemini API key from Google AI Studio.");
       return;
     }
-    await setGeminiApiKey(geminiKeyInput);
-    Alert.alert("Gemini Key Activated", "Your Google Gemini API key has been securely saved and activated.");
+    if (cleanKey.startsWith("AQ.Ab8")) {
+      Alert.alert(
+        "Invalid API Key",
+        "This token is a Firebase/OAuth token, not a Google Gemini API key. Gemini API keys start with AIzaSy... from Google AI Studio."
+      );
+      return;
+    }
+    await setGeminiApiKey(cleanKey);
+    Alert.alert("Gemini Key Activated", "Your Google Gemini API key has been securely saved and activated for AI Coach & Food Scanner.");
     setShowGeminiModal(false);
   };
 
@@ -633,21 +647,66 @@ export default function CoachScreen() {
 
             <ScrollView contentContainerStyle={{ gap: 14, paddingVertical: 10 }}>
               <Text style={styles.geminiModalDesc}>
-                Lumen Chatbot connects directly to Google Gemini to analyze your live nutrition, sleep, steps, and screen time to generate personalized clinical bio-advice.
+                Lumen connects directly to Google Gemini to power your personalized bio-intelligence advisor and instant food photo nutrition scanner.
               </Text>
+
+              {/* Get Free Key Action Banner */}
+              <Pressable
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  backgroundColor: "rgba(56, 189, 248, 0.12)",
+                  borderWidth: 1,
+                  borderColor: "rgba(56, 189, 248, 0.35)",
+                  borderRadius: 12,
+                  padding: 12,
+                }}
+                onPress={() => Linking.openURL("https://aistudio.google.com/app/apikey")}
+              >
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <Text style={{ color: "#38bdf8", fontSize: 12, fontWeight: "800" }}>
+                    Get Free Google Gemini Key ↗
+                  </Text>
+                  <Text style={{ color: THEME.colors.textOnDarkSecondary, fontSize: 10, marginTop: 2 }}>
+                    Open Google AI Studio in browser • 100% free • Takes 30s
+                  </Text>
+                </View>
+                <Sparkles size={16} color="#38bdf8" />
+              </Pressable>
 
               <View>
                 <Text style={styles.fieldLabel}>Active Gemini API Key</Text>
                 <TextInput
                   style={styles.keyInput}
                   value={geminiKeyInput}
-                  onChangeText={setGeminiKeyInput}
-                  placeholder="Paste Gemini API Key..."
+                  onChangeText={(text) => {
+                    setGeminiKeyInput(text);
+                    setGeminiTestFeedback(null);
+                  }}
+                  placeholder="Paste AIzaSy... here"
                   placeholderTextColor="#64748b"
                   autoCapitalize="none"
                   autoCorrect={false}
                 />
               </View>
+
+              {/* Real-time Format Feedback */}
+              {geminiKeyInput.trim().startsWith("AQ.Ab8") && (
+                <View style={[styles.testResultBox, { backgroundColor: "rgba(239, 68, 68, 0.15)", borderColor: "rgba(239, 68, 68, 0.4)" }]}>
+                  <Text style={[styles.testResultText, { color: "#fca5a5" }]}>
+                    ⚠️ This is a Firebase token, not a Gemini API key. Gemini API keys start with AIzaSy... from Google AI Studio.
+                  </Text>
+                </View>
+              )}
+
+              {isValidGeminiApiKey(geminiKeyInput) && (
+                <View style={[styles.testResultBox, styles.testResultSuccess]}>
+                  <Text style={[styles.testResultText, { color: "#86efac" }]}>
+                    ✓ Valid Google Gemini API Key format (AIzaSy...)
+                  </Text>
+                </View>
+              )}
 
               {geminiTestFeedback && (
                 <View style={[styles.testResultBox, geminiTestFeedback.includes("Connected") ? styles.testResultSuccess : styles.testResultInfo]}>
@@ -663,7 +722,7 @@ export default function CoachScreen() {
                 >
                   <Zap size={14} color="#38bdf8" />
                   <Text style={styles.testKeyBtnText}>
-                    {isTestingGemini ? "Testing..." : "Test API Connection"}
+                    {isTestingGemini ? "Testing..." : "Test Connection"}
                   </Text>
                 </Pressable>
 
@@ -671,6 +730,14 @@ export default function CoachScreen() {
                   <Check size={14} color="#050b08" strokeWidth={3} />
                   <Text style={styles.saveKeyBtnText}>Save Key</Text>
                 </Pressable>
+              </View>
+
+              <View style={{ backgroundColor: "rgba(232, 241, 237, 0.05)", borderRadius: 10, padding: 10, gap: 4 }}>
+                <Text style={{ color: THEME.colors.textOnDarkPrimary, fontSize: 10, fontWeight: "700" }}>Quick Setup Guide:</Text>
+                <Text style={{ color: THEME.colors.textOnDarkSecondary, fontSize: 9 }}>1. Tap "Get Free Google Gemini Key" above.</Text>
+                <Text style={{ color: THEME.colors.textOnDarkSecondary, fontSize: 9 }}>2. Sign in with Google and click "Create API key".</Text>
+                <Text style={{ color: THEME.colors.textOnDarkSecondary, fontSize: 9 }}>3. Copy your key (starts with AIzaSy...) and paste it above.</Text>
+                <Text style={{ color: THEME.colors.textOnDarkSecondary, fontSize: 9 }}>4. Tap "Save Key" — Coach chat and food scanner work immediately!</Text>
               </View>
 
               <View style={styles.modelBadgeRow}>

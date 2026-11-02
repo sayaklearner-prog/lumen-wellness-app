@@ -19,9 +19,33 @@ class GeminiProvider(AIProvider):
         self.api_key = settings.GEMINI_API_KEY
         self.base_url = "https://generativelanguage.googleapis.com/v1beta/models"
 
+    def _build_parts(self, raw_content: Any) -> List[Dict[str, Any]]:
+        parts = []
+        if isinstance(raw_content, list):
+            for item in raw_content:
+                if isinstance(item, dict):
+                    if item.get("type") == "text":
+                        parts.append({"text": item.get("text", "")})
+                    elif item.get("type") == "image_url":
+                        img_url = item.get("image_url", {}).get("url", "")
+                        if "base64," in img_url:
+                            mime_part, b64_data = img_url.split("base64,")
+                            mime_type = mime_part.replace("data:", "").replace(";", "").strip() or "image/jpeg"
+                            parts.append({
+                                "inlineData": {
+                                    "mimeType": mime_type,
+                                    "data": b64_data.strip()
+                                }
+                            })
+        elif isinstance(raw_content, str):
+            parts.append({"text": raw_content})
+        else:
+            parts.append({"text": str(raw_content)})
+        return parts
+
     async def stream_chat(self, system_prompt: str, messages: List[Dict[str, Any]], model: str = "gemini-1.5-flash") -> AsyncGenerator[str, None]:
-        if not self.api_key:
-            yield "Gemini API key not configured."
+        if not self.api_key or not self.api_key.startswith("AIzaSy"):
+            yield "Valid Gemini API key (starting with AIzaSy) not configured."
             return
 
         contents = []
@@ -29,7 +53,7 @@ class GeminiProvider(AIProvider):
             role = "model" if msg.get("role") == "assistant" else "user"
             contents.append({
                 "role": role,
-                "parts": [{"text": msg.get("content", "")}]
+                "parts": self._build_parts(msg.get("content", ""))
             })
 
         payload = {
@@ -67,26 +91,30 @@ class GeminiProvider(AIProvider):
                             pass
 
     async def generate_chat(self, system_prompt: str, messages: List[Dict[str, Any]], model: str = "gemini-1.5-flash", json_mode: bool = False) -> str:
-        if not self.api_key:
-            return "Gemini API key not configured."
+        if not self.api_key or not self.api_key.startswith("AIzaSy"):
+            raise ValueError("Valid Gemini API key (starting with AIzaSy) not configured.")
 
         contents = []
         for msg in messages:
             role = "model" if msg.get("role") == "assistant" else "user"
             contents.append({
                 "role": role,
-                "parts": [{"text": msg.get("content", "")}]
+                "parts": self._build_parts(msg.get("content", ""))
             })
+
+        gen_config = {
+            "temperature": 0.3 if json_mode else 0.7,
+            "maxOutputTokens": 2048,
+        }
+        if json_mode:
+            gen_config["responseMimeType"] = "application/json"
 
         payload = {
             "systemInstruction": {
                 "parts": [{"text": system_prompt}]
             },
             "contents": contents,
-            "generationConfig": {
-                "temperature": 0.7,
-                "maxOutputTokens": 2048,
-            }
+            "generationConfig": gen_config
         }
 
         url = f"{self.base_url}/{model}:generateContent?key={self.api_key}"
@@ -275,7 +303,7 @@ class FallbackAIProvider(AIProvider):
         yield "Please configure an OpenAI or Anthropic API key in backend/.env to enable the AI Coach."
 
     async def generate_chat(self, system_prompt: str, messages: List[Dict[str, Any]], model: str = "gpt-4o-mini", json_mode: bool = False) -> str:
-        if settings.GEMINI_API_KEY:
+        if settings.GEMINI_API_KEY and settings.GEMINI_API_KEY.startswith("AIzaSy"):
             try:
                 return await self.gemini.generate_chat(system_prompt, messages, "gemini-1.5-flash", json_mode=json_mode)
             except Exception as e:

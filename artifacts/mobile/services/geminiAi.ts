@@ -9,32 +9,48 @@ import { HealthContextModel } from "./coachMemory";
 
 function getInitialGeminiKey(): string {
   if (process.env.EXPO_PUBLIC_GEMINI_API_KEY) {
-    return process.env.EXPO_PUBLIC_GEMINI_API_KEY;
+    return process.env.EXPO_PUBLIC_GEMINI_API_KEY.trim();
   }
-  // Dynamic runtime key assembly to prevent static push protection false positives
-  const codes = [
-    65, 81, 46, 65, 98, 56, 82, 78, 54, 76, 85, 79, 86, 78, 68, 102, 108, 90, 55, 87, 112, 87,
-    114, 108, 65, 113, 86, 53, 49, 52, 78, 49, 86, 55, 116, 82, 109, 79, 67, 52, 104, 73, 110,
-    68, 114, 88, 86, 122, 97, 104, 68, 74, 81,
-  ];
-  return codes.map((c) => String.fromCharCode(c)).join("");
+  return "";
 }
 
 export const DEFAULT_GEMINI_API_KEY = getInitialGeminiKey();
 const STORAGE_KEY_GEMINI = "lumen_gemini_api_key_v1";
 
 /**
+ * Validates if the string has the official Google Gemini API key format (starts with AIzaSy...).
+ */
+export function isValidGeminiApiKey(key?: string | null): boolean {
+  if (!key) return false;
+  const clean = key.trim();
+  return clean.startsWith("AIzaSy") && clean.length >= 35;
+}
+
+/**
  * Returns the currently active Gemini API key (from user storage or default).
+ * Automatically purges deprecated/invalid tokens (e.g. Firebase tokens starting with AQ.Ab8).
  */
 export async function getGeminiApiKey(): Promise<string> {
   try {
     const customKey = await storage.getItem(STORAGE_KEY_GEMINI);
     if (customKey && customKey.trim()) {
-      return customKey.trim();
+      const clean = customKey.trim();
+      // If a stale Firebase token was previously saved, purge it
+      if (clean.startsWith("AQ.Ab8")) {
+        await storage.removeItem(STORAGE_KEY_GEMINI);
+        await setKV(STORAGE_KEY_GEMINI, "");
+      } else {
+        return clean;
+      }
     }
     const kvKey = await getKV(STORAGE_KEY_GEMINI);
     if (kvKey && kvKey.trim()) {
-      return kvKey.trim();
+      const clean = kvKey.trim();
+      if (clean.startsWith("AQ.Ab8")) {
+        await setKV(STORAGE_KEY_GEMINI, "");
+      } else {
+        return clean;
+      }
     }
   } catch (err) {
     console.warn("Failed retrieving stored Gemini API key:", err);
@@ -121,6 +137,9 @@ export async function askGeminiCoach(
   context: HealthContextModel
 ): Promise<string> {
   const apiKey = await getGeminiApiKey();
+  if (!apiKey || !isValidGeminiApiKey(apiKey)) {
+    throw new Error("No valid Google Gemini API key configured. Please add your key starting with AIzaSy... in Coach settings.");
+  }
   const systemPrompt = buildGeminiSystemPrompt(context);
 
   // Models to attempt in priority order
@@ -229,7 +248,14 @@ export async function askGeminiCoach(
 export async function testGeminiApiKey(keyToTest?: string): Promise<{ success: boolean; message: string }> {
   const key = (keyToTest || (await getGeminiApiKey())).trim();
   if (!key) {
-    return { success: false, message: "API key is empty." };
+    return { success: false, message: "API key is empty. Enter an API key starting with AIzaSy..." };
+  }
+
+  if (key.startsWith("AQ.Ab8")) {
+    return {
+      success: false,
+      message: "This key is a Firebase/OAuth token, not a Google Gemini API key. Please generate a Gemini key (starts with AIzaSy...) at https://aistudio.google.com/app/apikey",
+    };
   }
 
   try {
@@ -256,4 +282,141 @@ export async function testGeminiApiKey(keyToTest?: string): Promise<{ success: b
   } catch (err: any) {
     return { success: false, message: `Network error: ${err.message}` };
   }
+}
+
+export interface FoodRecognitionResult {
+  name: string;
+  mealType: "breakfast" | "lunch" | "dinner" | "snack";
+  calories: number;
+  proteinGrams: number;
+  carbsGrams: number;
+  fatGrams: number;
+  vitamins: string;
+  items: Array<{
+    name: string;
+    quantity: string;
+    calories: number;
+    proteinGrams: number;
+    carbsGrams: number;
+    fatGrams: number;
+    confidence?: number;
+  }>;
+  notes: string;
+  confidence: number;
+}
+
+/**
+ * Analyzes food photos directly with Google Gemini 1.5 Flash Vision.
+ */
+export async function analyzeFoodImageWithGemini(
+  base64OrDataUri: string,
+  hint: string = ""
+): Promise<FoodRecognitionResult> {
+  const apiKey = await getGeminiApiKey();
+  if (!apiKey || !isValidGeminiApiKey(apiKey)) {
+    throw new Error("Valid Gemini API key required (must start with AIzaSy).");
+  }
+
+  // Extract clean base64 data and mime type
+  let mimeType = "image/jpeg";
+  let cleanBase64 = base64OrDataUri;
+
+  if (base64OrDataUri.startsWith("data:")) {
+    const parts = base64OrDataUri.split(",");
+    const meta = parts[0];
+    cleanBase64 = parts[1] || "";
+    if (meta.includes("image/png")) mimeType = "image/png";
+    else if (meta.includes("image/webp")) mimeType = "image/webp";
+    else if (meta.includes("image/jpeg") || meta.includes("image/jpg")) mimeType = "image/jpeg";
+  }
+
+  const promptText = `You are an elite clinical nutritionist and computer vision AI.
+Analyze this food photograph and estimate its precise nutritional breakdown.
+${hint ? `User context/hint: "${hint}"` : ""}
+
+Return ONLY a valid JSON object matching this exact schema:
+{
+  "name": "Short descriptive name of the dish",
+  "mealType": "breakfast" | "lunch" | "dinner" | "snack",
+  "calories": 450,
+  "proteinGrams": 32,
+  "carbsGrams": 40,
+  "fatGrams": 14,
+  "vitamins": "Key micronutrients identified (e.g. Vitamin C, Iron, Calcium, B12)",
+  "items": [
+    {
+      "name": "Food item or ingredient",
+      "quantity": "Portion size (e.g. 150g or 1 cup)",
+      "calories": 250,
+      "proteinGrams": 28,
+      "carbsGrams": 0,
+      "fatGrams": 5
+    }
+  ],
+  "notes": "Actionable clinical dietary advice regarding this meal's macronutrient balance and digestion.",
+  "confidence": 0.95
+}`;
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`;
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-goog-api-key": apiKey,
+    },
+    body: JSON.stringify({
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { text: promptText },
+            {
+              inlineData: {
+                mimeType,
+                data: cleanBase64.trim(),
+              },
+            },
+          ],
+        },
+      ],
+      generationConfig: {
+        temperature: 0.2,
+        responseMimeType: "application/json",
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Gemini Vision rejected HTTP ${response.status}: ${errorText}`);
+  }
+
+  const data = await response.json();
+  const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!rawText) {
+    throw new Error("No response content from Gemini Vision.");
+  }
+
+  // Parse JSON, handling potential markdown fences
+  let cleanJson = rawText.trim();
+  if (cleanJson.startsWith("```json")) {
+    cleanJson = cleanJson.replace(/^```json\s*/i, "").replace(/\s*```$/, "");
+  } else if (cleanJson.startsWith("```")) {
+    cleanJson = cleanJson.replace(/^```\s*/, "").replace(/\s*```$/, "");
+  }
+
+  const parsed = JSON.parse(cleanJson);
+  return {
+    name: parsed.name || "Identified Meal",
+    mealType: ["breakfast", "lunch", "dinner", "snack"].includes(parsed.mealType) ? parsed.mealType : "lunch",
+    calories: Number(parsed.calories) || 0,
+    proteinGrams: Number(parsed.proteinGrams) || 0,
+    carbsGrams: Number(parsed.carbsGrams) || 0,
+    fatGrams: Number(parsed.fatGrams) || 0,
+    vitamins: parsed.vitamins || "Micronutrients identified",
+    items: Array.isArray(parsed.items) ? parsed.items : [],
+    notes: parsed.notes || "Identified via Lumen Gemini Vision.",
+    confidence: Number(parsed.confidence) || 0.92,
+  };
 }

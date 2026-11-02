@@ -54,6 +54,11 @@ import { storage } from "@/services/storage";
 import { useSlideMenu } from "@/context/SlideMenuContext";
 import THEME from "@/constants/theme";
 import { AmbientAtmosphere } from "@/components/AmbientAtmosphere";
+import {
+  analyzeFoodImageWithGemini,
+  getGeminiApiKey,
+  isValidGeminiApiKey,
+} from "@/services/geminiAi";
 
 export default function NutritionScreen() {
   const qc = useQueryClient();
@@ -231,6 +236,19 @@ export default function NutritionScreen() {
     const payloadBase64 = b64 ? (b64.startsWith("data:") ? b64 : `data:image/jpeg;base64,${b64}`) : uri;
 
     try {
+      // 1. First priority: Direct Google Gemini 1.5 Flash Vision if key is configured
+      const geminiKey = await getGeminiApiKey();
+      if (geminiKey && isValidGeminiApiKey(geminiKey)) {
+        try {
+          const directResult = await analyzeFoodImageWithGemini(payloadBase64, "healthy meal analysis");
+          setScanResult(directResult);
+          return;
+        } catch (visionErr) {
+          console.warn("Direct Gemini Vision attempt failed, falling back to backend:", visionErr);
+        }
+      }
+
+      // 2. Secondary: Backend server route
       const res: any = await recognizeFoodMutation.mutateAsync({
         data: {
           imageBase64: payloadBase64,
@@ -257,9 +275,13 @@ export default function NutritionScreen() {
       }
     } catch (err: any) {
       console.warn("Food scan recognition error:", err);
+      const geminiKey = await getGeminiApiKey();
+      const hasKey = geminiKey && isValidGeminiApiKey(geminiKey);
       Alert.alert(
         "Scanning Notice",
-        "Could not detect meal items from this image. Please take a clearer photo in good lighting or enter the meal details manually.",
+        hasKey
+          ? "Could not detect meal items from this image. Please take a clearer photo in good lighting or enter the meal details manually."
+          : "AI Food Scanning requires a Gemini API key. Please configure your free Google Gemini API key in Coach settings to enable instant food scanning.",
         [{ text: "OK" }]
       );
       setScanResult(null);
