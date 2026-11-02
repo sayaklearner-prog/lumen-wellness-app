@@ -18,39 +18,28 @@ export const DEFAULT_GEMINI_API_KEY = getInitialGeminiKey();
 const STORAGE_KEY_GEMINI = "lumen_gemini_api_key_v1";
 
 /**
- * Validates if the string has the official Google Gemini API key format (starts with AIzaSy...).
+ * Validates if the string has a valid Google Gemini API key format:
+ * - New Google AI Studio Authorization Key: starts with "AQ." (e.g. AQ.Ab8...)
+ * - Legacy Google Cloud Standard API Key: starts with "AIza" (e.g. AIzaSy...)
  */
 export function isValidGeminiApiKey(key?: string | null): boolean {
   if (!key) return false;
   const clean = key.trim();
-  return clean.startsWith("AIzaSy") && clean.length >= 35;
+  return (clean.startsWith("AQ.") || clean.startsWith("AIza")) && clean.length >= 25;
 }
 
 /**
  * Returns the currently active Gemini API key (from user storage or default).
- * Automatically purges deprecated/invalid tokens (e.g. Firebase tokens starting with AQ.Ab8).
  */
 export async function getGeminiApiKey(): Promise<string> {
   try {
     const customKey = await storage.getItem(STORAGE_KEY_GEMINI);
     if (customKey && customKey.trim()) {
-      const clean = customKey.trim();
-      // If a stale Firebase token was previously saved, purge it
-      if (clean.startsWith("AQ.Ab8")) {
-        await storage.removeItem(STORAGE_KEY_GEMINI);
-        await setKV(STORAGE_KEY_GEMINI, "");
-      } else {
-        return clean;
-      }
+      return customKey.trim();
     }
     const kvKey = await getKV(STORAGE_KEY_GEMINI);
     if (kvKey && kvKey.trim()) {
-      const clean = kvKey.trim();
-      if (clean.startsWith("AQ.Ab8")) {
-        await setKV(STORAGE_KEY_GEMINI, "");
-      } else {
-        return clean;
-      }
+      return kvKey.trim();
     }
   } catch (err) {
     console.warn("Failed retrieving stored Gemini API key:", err);
@@ -138,7 +127,7 @@ export async function askGeminiCoach(
 ): Promise<string> {
   const apiKey = await getGeminiApiKey();
   if (!apiKey || !isValidGeminiApiKey(apiKey)) {
-    throw new Error("No valid Google Gemini API key configured. Please add your key starting with AIzaSy... in Coach settings.");
+    throw new Error("No valid Google Gemini API key configured. Please add your key in Coach settings.");
   }
   const systemPrompt = buildGeminiSystemPrompt(context);
 
@@ -248,14 +237,7 @@ export async function askGeminiCoach(
 export async function testGeminiApiKey(keyToTest?: string): Promise<{ success: boolean; message: string }> {
   const key = (keyToTest || (await getGeminiApiKey())).trim();
   if (!key) {
-    return { success: false, message: "API key is empty. Enter an API key starting with AIzaSy..." };
-  }
-
-  if (key.startsWith("AQ.Ab8")) {
-    return {
-      success: false,
-      message: "This key is a Firebase/OAuth token, not a Google Gemini API key. Please generate a Gemini key (starts with AIzaSy...) at https://aistudio.google.com/app/apikey",
-    };
+    return { success: false, message: "API key is empty. Enter an API key from Google AI Studio." };
   }
 
   try {
@@ -314,7 +296,7 @@ export async function analyzeFoodImageWithGemini(
 ): Promise<FoodRecognitionResult> {
   const apiKey = await getGeminiApiKey();
   if (!apiKey || !isValidGeminiApiKey(apiKey)) {
-    throw new Error("Valid Gemini API key required (must start with AIzaSy).");
+    throw new Error("Valid Gemini API key required (starts with AQ. or AIza).");
   }
 
   // Extract clean base64 data and mime type

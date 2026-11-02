@@ -43,9 +43,15 @@ class GeminiProvider(AIProvider):
             parts.append({"text": str(raw_content)})
         return parts
 
+    def is_valid_key(self) -> bool:
+        if not self.api_key:
+            return False
+        clean = self.api_key.strip()
+        return (clean.startswith("AQ.") or clean.startswith("AIza")) and len(clean) >= 25
+
     async def stream_chat(self, system_prompt: str, messages: List[Dict[str, Any]], model: str = "gemini-1.5-flash") -> AsyncGenerator[str, None]:
-        if not self.api_key or not self.api_key.startswith("AIzaSy"):
-            yield "Valid Gemini API key (starting with AIzaSy) not configured."
+        if not self.is_valid_key():
+            yield "Valid Gemini API key (starting with AQ. or AIza) not configured."
             return
 
         contents = []
@@ -91,8 +97,8 @@ class GeminiProvider(AIProvider):
                             pass
 
     async def generate_chat(self, system_prompt: str, messages: List[Dict[str, Any]], model: str = "gemini-1.5-flash", json_mode: bool = False) -> str:
-        if not self.api_key or not self.api_key.startswith("AIzaSy"):
-            raise ValueError("Valid Gemini API key (starting with AIzaSy) not configured.")
+        if not self.is_valid_key():
+            raise ValueError("Valid Gemini API key (starting with AQ. or AIza) not configured.")
 
         contents = []
         for msg in messages:
@@ -303,7 +309,7 @@ class FallbackAIProvider(AIProvider):
         yield "Please configure an OpenAI or Anthropic API key in backend/.env to enable the AI Coach."
 
     async def generate_chat(self, system_prompt: str, messages: List[Dict[str, Any]], model: str = "gpt-4o-mini", json_mode: bool = False) -> str:
-        if settings.GEMINI_API_KEY and settings.GEMINI_API_KEY.startswith("AIzaSy"):
+        if settings.GEMINI_API_KEY and self.gemini.is_valid_key():
             try:
                 return await self.gemini.generate_chat(system_prompt, messages, "gemini-1.5-flash", json_mode=json_mode)
             except Exception as e:

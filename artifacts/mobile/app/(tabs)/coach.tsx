@@ -148,10 +148,8 @@ export default function CoachScreen() {
     async function initChatAndContext() {
       try {
         const currentKey = await getGeminiApiKey();
-        if (currentKey && !currentKey.startsWith("AQ.Ab8")) {
+        if (currentKey) {
           setGeminiKeyInput(currentKey);
-        } else {
-          setGeminiKeyInput("");
         }
 
         const ctx = await buildFullHealthContextModel();
@@ -325,13 +323,6 @@ export default function CoachScreen() {
     const cleanKey = geminiKeyInput.trim();
     if (!cleanKey) {
       Alert.alert("Empty Key", "Please paste a valid Google Gemini API key from Google AI Studio.");
-      return;
-    }
-    if (cleanKey.startsWith("AQ.Ab8")) {
-      Alert.alert(
-        "Invalid API Key",
-        "This token is a Firebase/OAuth token, not a Google Gemini API key. Gemini API keys start with AIzaSy... from Google AI Studio."
-      );
       return;
     }
     await setGeminiApiKey(cleanKey);
@@ -684,7 +675,7 @@ export default function CoachScreen() {
                     setGeminiKeyInput(text);
                     setGeminiTestFeedback(null);
                   }}
-                  placeholder="Paste AIzaSy... here"
+                  placeholder="Paste Gemini API Key (AQ. or AIza)..."
                   placeholderTextColor="#64748b"
                   autoCapitalize="none"
                   autoCorrect={false}
@@ -692,18 +683,10 @@ export default function CoachScreen() {
               </View>
 
               {/* Real-time Format Feedback */}
-              {geminiKeyInput.trim().startsWith("AQ.Ab8") && (
-                <View style={[styles.testResultBox, { backgroundColor: "rgba(239, 68, 68, 0.15)", borderColor: "rgba(239, 68, 68, 0.4)" }]}>
-                  <Text style={[styles.testResultText, { color: "#fca5a5" }]}>
-                    ⚠️ This is a Firebase token, not a Gemini API key. Gemini API keys start with AIzaSy... from Google AI Studio.
-                  </Text>
-                </View>
-              )}
-
               {isValidGeminiApiKey(geminiKeyInput) && (
                 <View style={[styles.testResultBox, styles.testResultSuccess]}>
                   <Text style={[styles.testResultText, { color: "#86efac" }]}>
-                    ✓ Valid Google Gemini API Key format (AIzaSy...)
+                    ✓ Valid Google Gemini API Key format (Google AI Studio)
                   </Text>
                 </View>
               )}
