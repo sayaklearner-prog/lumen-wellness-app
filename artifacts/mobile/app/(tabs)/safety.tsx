@@ -80,37 +80,20 @@ const RELATIONSHIP_TYPES = [
   "Other",
 ];
 
-const DEFAULT_CONTACTS: EmergencyContact[] = [
-  {
-    id: "contact-1",
-    name: "Dr. Sarah Miller",
-    relationship: "Doctor / Physician",
-    phoneNumber: "+1 (555) 234-5678",
-    isPrimary: true,
-    notes: "Primary Care Physician • City Health Clinic",
-  },
-  {
-    id: "contact-2",
-    name: "Emily Rivera",
-    relationship: "Spouse / Partner",
-    phoneNumber: "+1 (555) 019-2834",
-    isPrimary: false,
-    notes: "Has home access keys & aware of penicillin allergy",
-  },
-];
+const DEFAULT_CONTACTS: EmergencyContact[] = [];
 
-const DEFAULT_MEDICAL_PROFILE: MedicalProfileData = {
-  bloodType: "O+",
-  allergies: ["Penicillin", "Peanuts"],
-  medications: ["Lisinopril 10mg daily", "Multivitamin"],
-  conditions: ["Mild Asthma"],
-  organDonor: true,
-  emergencyNotes: "Carries emergency rescue inhaler in travel bag.",
-  physicianName: "Dr. Sarah Miller",
-  physicianPhone: "+1 (555) 234-5678",
-  hospitalName: "Memorial Health Center",
-  insuranceProvider: "BlueCross Bio-Shield",
-  insurancePolicyId: "LMN-98234-X",
+const EMPTY_MEDICAL_PROFILE: MedicalProfileData = {
+  bloodType: "",
+  allergies: [],
+  medications: [],
+  conditions: [],
+  organDonor: false,
+  emergencyNotes: "",
+  physicianName: "",
+  physicianPhone: "",
+  hospitalName: "",
+  insuranceProvider: "",
+  insurancePolicyId: "",
 };
 
 export default function SafetyScreen() {
@@ -135,7 +118,7 @@ export default function SafetyScreen() {
   const [formIsPrimary, setFormIsPrimary] = useState(false);
 
   // Medical Profile State
-  const [medicalData, setMedicalData] = useState<MedicalProfileData>(DEFAULT_MEDICAL_PROFILE);
+  const [medicalData, setMedicalData] = useState<MedicalProfileData>(EMPTY_MEDICAL_PROFILE);
   const [newAllergyInput, setNewAllergyInput] = useState("");
   const [newMedicationInput, setNewMedicationInput] = useState("");
   const [newConditionInput, setNewConditionInput] = useState("");
@@ -149,34 +132,89 @@ export default function SafetyScreen() {
   useEffect(() => {
     async function loadData() {
       try {
-        // 1. Emergency Contacts
+        // 1. Emergency Contacts (with legacy mock data purging)
+        const isMockContact = (c: any) =>
+          c && (c.name === "Dr. Sarah Miller" || c.name === "Emily Rivera" || c.id === "contact-1" || c.id === "contact-2");
+
+        let loadedContacts: EmergencyContact[] = [];
         const storedContacts = await storage.getItem("lumen_emergency_contacts");
         if (storedContacts) {
-          const parsed = JSON.parse(storedContacts);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setContacts(parsed);
-          }
+          try {
+            const parsed = JSON.parse(storedContacts);
+            if (Array.isArray(parsed)) {
+              loadedContacts = parsed.filter((c: EmergencyContact) => !isMockContact(c));
+            }
+          } catch {}
         } else {
           const kvContacts = await getKV("lumen_emergency_contacts");
           if (kvContacts) {
-            const parsed = JSON.parse(kvContacts);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              setContacts(parsed);
-            }
+            try {
+              const parsed = JSON.parse(kvContacts);
+              if (Array.isArray(parsed)) {
+                loadedContacts = parsed.filter((c: EmergencyContact) => !isMockContact(c));
+              }
+            } catch {}
           }
         }
 
-        // 2. Medical Profile
+        setContacts(loadedContacts);
+        // Scrub legacy mock contacts from storage if present
+        if (storedContacts) {
+          try {
+            const parsed = JSON.parse(storedContacts);
+            if (Array.isArray(parsed) && parsed.some(isMockContact)) {
+              const cleanedJson = JSON.stringify(loadedContacts);
+              await storage.setItem("lumen_emergency_contacts", cleanedJson);
+              await setKV("lumen_emergency_contacts", cleanedJson);
+            }
+          } catch {}
+        }
+
+        // 2. Medical Profile (with legacy mock data purging)
+        let loadedMed: MedicalProfileData = { ...EMPTY_MEDICAL_PROFILE };
+        const isMockProfile = (m: any) =>
+          m && (m.physicianName === "Dr. Sarah Miller" || m.insurancePolicyId === "LMN-98234-X" || (Array.isArray(m.allergies) && m.allergies.includes("Penicillin") && m.allergies.includes("Peanuts")));
+
         const storedMed = await storage.getItem("lumen_medical_profile");
         if (storedMed) {
-          setMedicalData(JSON.parse(storedMed));
-        } else if (profile) {
+          try {
+            const parsed = JSON.parse(storedMed);
+            if (parsed && typeof parsed === "object" && !isMockProfile(parsed)) {
+              loadedMed = { ...EMPTY_MEDICAL_PROFILE, ...parsed };
+            }
+          } catch {}
+        } else {
+          const kvMed = await getKV("lumen_medical_profile");
+          if (kvMed) {
+            try {
+              const parsed = JSON.parse(kvMed);
+              if (parsed && typeof parsed === "object" && !isMockProfile(parsed)) {
+                loadedMed = { ...EMPTY_MEDICAL_PROFILE, ...parsed };
+              }
+            } catch {}
+          }
+        }
+
+        if (profile) {
           const p = profile as any;
-          setMedicalData((prev) => ({
-            ...prev,
-            allergies: Array.isArray(p.allergies) && p.allergies.length > 0 ? p.allergies : prev.allergies,
-            medications: Array.isArray(p.medications) && p.medications.length > 0 ? p.medications : prev.medications,
-          }));
+          if (Array.isArray(p.allergies) && p.allergies.length > 0) {
+            loadedMed.allergies = p.allergies;
+          }
+          if (Array.isArray(p.medications) && p.medications.length > 0) {
+            loadedMed.medications = p.medications;
+          }
+        }
+
+        setMedicalData(loadedMed);
+        // Scrub legacy mock profile from storage if present
+        if (storedMed) {
+          try {
+            const parsed = JSON.parse(storedMed);
+            if (isMockProfile(parsed)) {
+              await storage.setItem("lumen_medical_profile", JSON.stringify(loadedMed));
+              await setKV("lumen_medical_profile", JSON.stringify(loadedMed));
+            }
+          } catch {}
         }
       } catch (err) {
         console.warn("Error loading safety data:", err);
@@ -443,14 +481,14 @@ export default function SafetyScreen() {
           <Menu size={22} color="#f8fafc" />
         </Pressable>
 
-        <View style={{ flex: 1, marginLeft: 12 }}>
-          <Text style={styles.topBarSub}>EMERGENCY PROTOCOL</Text>
-          <Text style={styles.topBarTitle}>Medical Safety & ID</Text>
+        <View style={{ flex: 1, minWidth: 0, marginHorizontal: 10 }}>
+          <Text style={styles.topBarSub} numberOfLines={1}>EMERGENCY PROTOCOL</Text>
+          <Text style={styles.topBarTitle} numberOfLines={1}>Medical Safety & ID</Text>
         </View>
 
         <Pressable style={styles.sosCardPill} onPress={() => setShowEmergencyCard(true)}>
           <ShieldAlert size={14} color="#ef4444" />
-          <Text style={styles.sosCardPillText}>VIEW ID CARD</Text>
+          <Text style={styles.sosCardPillText} numberOfLines={1}>VIEW ID CARD</Text>
         </Pressable>
       </View>
 
@@ -458,7 +496,7 @@ export default function SafetyScreen() {
       {dialFeedback && (
         <View style={styles.feedbackBanner}>
           <PhoneCall size={14} color="#10b981" />
-          <Text style={styles.feedbackText}>{dialFeedback}</Text>
+          <Text style={styles.feedbackText} numberOfLines={1}>{dialFeedback}</Text>
         </View>
       )}
 
@@ -466,21 +504,21 @@ export default function SafetyScreen() {
       {isSavedBanner && (
         <View style={styles.savedBanner}>
           <Check size={14} color="#050b08" strokeWidth={3} />
-          <Text style={styles.savedBannerText}>Medical ID Saved & Encrypted Locally</Text>
+          <Text style={styles.savedBannerText} numberOfLines={1}>Medical ID Saved Locally</Text>
         </View>
       )}
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* ========================================================================= */}
-        {/* NATIONAL EMERGENCY SPEED DIALER (911 / 112 / 108) */}
+        {/* NATIONAL EMERGENCY SPEED DIALER (911 / 112) */}
         {/* ========================================================================= */}
         <View style={styles.urgentAlertCard}>
           <View style={styles.urgentTopRow}>
             <View style={styles.sosIconBox}>
               <ShieldAlert size={20} color="#ef4444" />
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.urgentTitle}>Instant Emergency Dispatch</Text>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={styles.urgentTitle} numberOfLines={1}>Instant Emergency Dispatch</Text>
               <Text style={styles.urgentSub}>
                 1-tap direct dial to primary emergency services & first responders
               </Text>
@@ -526,8 +564,9 @@ export default function SafetyScreen() {
                 styles.segmentBtnText,
                 activeSection === "contacts" && styles.segmentBtnTextActive,
               ]}
+              numberOfLines={1}
             >
-              Emergency Contacts ({contacts.length})
+              Contacts ({contacts.length})
             </Text>
           </Pressable>
 
@@ -541,8 +580,9 @@ export default function SafetyScreen() {
                 styles.segmentBtnText,
                 activeSection === "medical_id" && styles.segmentBtnTextActive,
               ]}
+              numberOfLines={1}
             >
-              Medical Info & Responders
+              Medical ID
             </Text>
           </Pressable>
         </View>
@@ -553,16 +593,16 @@ export default function SafetyScreen() {
         {activeSection === "contacts" && (
           <View style={{ gap: 14 }}>
             <View style={styles.sectionHeaderRow}>
-              <View>
-                <Text style={styles.sectionTitle}>Important Contacts</Text>
-                <Text style={styles.sectionSub}>
-                  Click Call on any contact to open your phone dialer with number pre-dialed
+              <View style={{ flex: 1, minWidth: 0, marginRight: 10 }}>
+                <Text style={styles.sectionTitle} numberOfLines={1}>Emergency Contacts</Text>
+                <Text style={styles.sectionSub} numberOfLines={2}>
+                  Tap Call on any contact to open phone dialer immediately
                 </Text>
               </View>
 
               <Pressable style={styles.addContactBtn} onPress={() => handleOpenContactModal()}>
-                <Plus size={14} color="#050b08" strokeWidth={3} />
-                <Text style={styles.addContactBtnText}>Add Contact</Text>
+                <Plus size={14} color="#ffffff" strokeWidth={3} />
+                <Text style={styles.addContactBtnText} numberOfLines={1}>Add Contact</Text>
               </Pressable>
             </View>
 
@@ -574,9 +614,9 @@ export default function SafetyScreen() {
                     <User size={18} color="#10b981" />
                   </View>
 
-                  <View style={{ flex: 1 }}>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                      <Text style={styles.contactName}>{contact.name}</Text>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
+                      <Text style={styles.contactName} numberOfLines={1} ellipsizeMode="tail">{contact.name}</Text>
                       {contact.isPrimary && (
                         <View style={styles.primaryBadge}>
                           <Text style={styles.primaryBadgeText}>PRIMARY</Text>
@@ -584,11 +624,11 @@ export default function SafetyScreen() {
                       )}
                     </View>
 
-                    <Text style={styles.contactRelationship}>{contact.relationship}</Text>
-                    <Text style={styles.contactPhone}>{contact.phoneNumber}</Text>
+                    <Text style={styles.contactRelationship} numberOfLines={1}>{contact.relationship}</Text>
+                    <Text style={styles.contactPhone} numberOfLines={1}>{contact.phoneNumber}</Text>
 
                     {contact.notes ? (
-                      <Text style={styles.contactNotes}>“{contact.notes}”</Text>
+                      <Text style={styles.contactNotes} numberOfLines={2} ellipsizeMode="tail">“{contact.notes}”</Text>
                     ) : null}
                   </View>
                 </View>
@@ -601,7 +641,7 @@ export default function SafetyScreen() {
                     style={styles.callActionBtn}
                     onPress={() => handleCallNumber(contact.phoneNumber, contact.name)}
                   >
-                    <PhoneCall size={16} color="#050b08" strokeWidth={2.5} />
+                    <PhoneCall size={16} color="#ffffff" strokeWidth={2.5} />
                     <Text style={styles.callActionBtnText}>Call Now</Text>
                   </Pressable>
 
@@ -628,14 +668,16 @@ export default function SafetyScreen() {
 
             {contacts.length === 0 && (
               <View style={styles.emptyCard}>
-                <AlertTriangle size={32} color="#f59e0b" style={{ marginBottom: 8 }} />
+                <View style={styles.emptyIconCircle}>
+                  <ShieldCheck size={28} color="#10b981" />
+                </View>
                 <Text style={styles.emptyTitle}>No Emergency Contacts Added</Text>
                 <Text style={styles.emptySub}>
-                  Add trusted family members, doctors, or specialists so first responders can reach them instantly.
+                  Add trusted family members, physicians, or caregivers so you or first responders can reach them instantly in an emergency.
                 </Text>
                 <Pressable style={styles.addContactEmptyBtn} onPress={() => handleOpenContactModal()}>
-                  <Plus size={16} color="#050b08" />
-                  <Text style={styles.addContactEmptyBtnText}>Add Your First Emergency Contact</Text>
+                  <Plus size={16} color="#ffffff" strokeWidth={3} />
+                  <Text style={styles.addContactEmptyBtnText}>Add Emergency Contact</Text>
                 </Pressable>
               </View>
             )}
@@ -645,7 +687,7 @@ export default function SafetyScreen() {
               <Sparkles size={16} color="#38bdf8" />
               <Text style={styles.infoBoxText}>
                 <Text style={{ fontWeight: "bold", color: "#f8fafc" }}>Offline Native Redirection: </Text>
-                Tapping Call automatically launches your mobile phone dialer and inputs the extracted number even if the contact is NOT stored in your phone’s address book and with zero internet.
+                Tapping Call automatically launches your mobile phone dialer and inputs the extracted number even if the contact is not in your phone’s address book and with zero internet.
               </Text>
             </View>
           </View>
@@ -661,7 +703,9 @@ export default function SafetyScreen() {
               <View style={styles.cardHeaderRow}>
                 <Text style={styles.cardTitle}>Blood Group</Text>
                 <View style={styles.bloodTypeActivePill}>
-                  <Text style={styles.bloodTypeActivePillText}>{medicalData.bloodType}</Text>
+                  <Text style={styles.bloodTypeActivePillText}>
+                    {medicalData.bloodType || "Not Set"}
+                  </Text>
                 </View>
               </View>
               <Text style={styles.cardSub}>Critical for emergency transfusions</Text>
@@ -674,7 +718,12 @@ export default function SafetyScreen() {
                       styles.bloodChip,
                       medicalData.bloodType === type && styles.bloodChipActive,
                     ]}
-                    onPress={() => persistMedicalProfile({ ...medicalData, bloodType: type })}
+                    onPress={() =>
+                      persistMedicalProfile({
+                        ...medicalData,
+                        bloodType: medicalData.bloodType === type ? "" : type,
+                      })
+                    }
                   >
                     <Text
                       style={[
@@ -695,23 +744,27 @@ export default function SafetyScreen() {
                 <Text style={styles.cardTitle}>Allergies & Reactions</Text>
                 <Text style={styles.badgeCount}>{medicalData.allergies.length}</Text>
               </View>
-              <Text style={styles.cardSub}>Alerts paramedics to avoid fatal drug contraindications</Text>
+              <Text style={styles.cardSub}>Alerts first responders to avoid adverse drug reactions</Text>
 
-              <View style={styles.tagsContainer}>
-                {medicalData.allergies.map((allergy) => (
-                  <View key={allergy} style={styles.allergyTag}>
-                    <Text style={styles.allergyTagText}>{allergy}</Text>
-                    <Pressable onPress={() => handleRemoveAllergy(allergy)}>
-                      <X size={12} color="#fca5a5" />
-                    </Pressable>
-                  </View>
-                ))}
-              </View>
+              {medicalData.allergies.length > 0 ? (
+                <View style={styles.tagsContainer}>
+                  {medicalData.allergies.map((allergy) => (
+                    <View key={allergy} style={styles.allergyTag}>
+                      <Text style={styles.allergyTagText} numberOfLines={1}>{allergy}</Text>
+                      <Pressable onPress={() => handleRemoveAllergy(allergy)} hitSlop={8}>
+                        <X size={12} color="#fca5a5" />
+                      </Pressable>
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <Text style={styles.emptyTagNotice}>No allergies recorded yet. Add below if applicable.</Text>
+              )}
 
               <View style={styles.addTagRow}>
                 <TextInput
                   style={styles.tagInput}
-                  placeholder="Add allergy (e.g. Latex, Sulfa, Aspirin)"
+                  placeholder="Add allergy (e.g. Penicillin, Peanuts)"
                   placeholderTextColor="#64748b"
                   value={newAllergyInput}
                   onChangeText={setNewAllergyInput}
@@ -729,23 +782,27 @@ export default function SafetyScreen() {
                 <Text style={styles.cardTitle}>Current Medications</Text>
                 <Text style={styles.badgeCount}>{medicalData.medications.length}</Text>
               </View>
-              <Text style={styles.cardSub}>Active prescription and daily supplements</Text>
+              <Text style={styles.cardSub}>Active prescriptions and daily supplements</Text>
 
-              <View style={styles.tagsContainer}>
-                {medicalData.medications.map((med) => (
-                  <View key={med} style={styles.medTag}>
-                    <Text style={styles.medTagText}>{med}</Text>
-                    <Pressable onPress={() => handleRemoveMedication(med)}>
-                      <X size={12} color="#93c5fd" />
-                    </Pressable>
-                  </View>
-                ))}
-              </View>
+              {medicalData.medications.length > 0 ? (
+                <View style={styles.tagsContainer}>
+                  {medicalData.medications.map((med) => (
+                    <View key={med} style={styles.medTag}>
+                      <Text style={styles.medTagText} numberOfLines={1}>{med}</Text>
+                      <Pressable onPress={() => handleRemoveMedication(med)} hitSlop={8}>
+                        <X size={12} color="#93c5fd" />
+                      </Pressable>
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <Text style={styles.emptyTagNotice}>No medications logged yet. Add below if applicable.</Text>
+              )}
 
               <View style={styles.addTagRow}>
                 <TextInput
                   style={styles.tagInput}
-                  placeholder="Add medication (e.g. Metformin 500mg daily)"
+                  placeholder="Add medication (e.g. Aspirin 81mg)"
                   placeholderTextColor="#64748b"
                   value={newMedicationInput}
                   onChangeText={setNewMedicationInput}
@@ -760,26 +817,30 @@ export default function SafetyScreen() {
             {/* Chronic Medical Conditions */}
             <View style={styles.card}>
               <View style={styles.cardHeaderRow}>
-                <Text style={styles.cardTitle}>Chronic Conditions & Clinical Notes</Text>
+                <Text style={styles.cardTitle}>Medical Conditions & Clinical Notes</Text>
                 <Text style={styles.badgeCount}>{medicalData.conditions.length}</Text>
               </View>
-              <Text style={styles.cardSub}>Pre-existing health background & surgical history</Text>
+              <Text style={styles.cardSub}>Pre-existing health conditions or clinical history</Text>
 
-              <View style={styles.tagsContainer}>
-                {medicalData.conditions.map((cond) => (
-                  <View key={cond} style={styles.conditionTag}>
-                    <Text style={styles.conditionTagText}>{cond}</Text>
-                    <Pressable onPress={() => handleRemoveCondition(cond)}>
-                      <X size={12} color="#cbd5e1" />
-                    </Pressable>
-                  </View>
-                ))}
-              </View>
+              {medicalData.conditions.length > 0 ? (
+                <View style={styles.tagsContainer}>
+                  {medicalData.conditions.map((cond) => (
+                    <View key={cond} style={styles.conditionTag}>
+                      <Text style={styles.conditionTagText} numberOfLines={1}>{cond}</Text>
+                      <Pressable onPress={() => handleRemoveCondition(cond)} hitSlop={8}>
+                        <X size={12} color="#cbd5e1" />
+                      </Pressable>
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <Text style={styles.emptyTagNotice}>No chronic conditions logged yet.</Text>
+              )}
 
               <View style={styles.addTagRow}>
                 <TextInput
                   style={styles.tagInput}
-                  placeholder="Add condition (e.g. Type 1 Diabetes, Pacemaker)"
+                  placeholder="Add condition (e.g. Asthma, Diabetes)"
                   placeholderTextColor="#64748b"
                   value={newConditionInput}
                   onChangeText={setNewConditionInput}
@@ -794,7 +855,7 @@ export default function SafetyScreen() {
                 <Text style={styles.fieldLabel}>Emergency Clinical Notes</Text>
                 <TextInput
                   style={[styles.tagInput, { minHeight: 60, textAlignVertical: "top" }]}
-                  placeholder="Additional rescue instructions for first responders..."
+                  placeholder="Rescue instructions for first responders..."
                   placeholderTextColor="#64748b"
                   multiline
                   value={medicalData.emergencyNotes}
@@ -805,25 +866,25 @@ export default function SafetyScreen() {
 
             {/* Primary Physician & Clinical Facilities */}
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>Physician & Insurance Facility</Text>
-              <Text style={styles.cardSub}>Doctor contacts for medical authorization</Text>
+              <Text style={styles.cardTitle}>Physician & Emergency Authorization</Text>
+              <Text style={styles.cardSub}>Doctor contact details for emergency guidance</Text>
 
               <View style={styles.twoColInputs}>
-                <View style={{ flex: 1 }}>
+                <View style={{ flex: 1, minWidth: 120 }}>
                   <Text style={styles.fieldLabel}>Primary Physician</Text>
                   <TextInput
                     style={styles.tagInput}
-                    placeholder="Doctor Name"
+                    placeholder="Doctor name"
                     placeholderTextColor="#64748b"
                     value={medicalData.physicianName}
                     onChangeText={(val) => persistMedicalProfile({ ...medicalData, physicianName: val })}
                   />
                 </View>
-                <View style={{ flex: 1 }}>
+                <View style={{ flex: 1, minWidth: 120 }}>
                   <Text style={styles.fieldLabel}>Physician Phone</Text>
                   <TextInput
                     style={styles.tagInput}
-                    placeholder="+1 (555) 000-0000"
+                    placeholder="Phone number"
                     placeholderTextColor="#64748b"
                     keyboardType="phone-pad"
                     value={medicalData.physicianPhone}
@@ -838,7 +899,9 @@ export default function SafetyScreen() {
                   onPress={() => handleCallNumber(medicalData.physicianPhone!, medicalData.physicianName)}
                 >
                   <PhoneCall size={14} color="#10b981" />
-                  <Text style={styles.physicianCallBtnText}>Call Physician ({medicalData.physicianPhone})</Text>
+                  <Text style={styles.physicianCallBtnText} numberOfLines={1}>
+                    Call Physician ({medicalData.physicianPhone})
+                  </Text>
                 </Pressable>
               ) : null}
             </View>
@@ -859,7 +922,7 @@ export default function SafetyScreen() {
                   {editingContact ? "Edit Emergency Contact" : "Add Emergency Contact"}
                 </Text>
               </View>
-              <Pressable onPress={() => setShowContactModal(false)}>
+              <Pressable onPress={() => setShowContactModal(false)} hitSlop={10}>
                 <X size={20} color="#94a3b8" />
               </Pressable>
             </View>
@@ -869,7 +932,7 @@ export default function SafetyScreen() {
                 <Text style={styles.fieldLabel}>Contact Name / Service *</Text>
                 <TextInput
                   style={styles.modalInput}
-                  placeholder="e.g. Dr. Sarah Miller or Emily Rivera"
+                  placeholder="e.g. Jane Doe or Emergency Contact"
                   placeholderTextColor="#64748b"
                   value={formName}
                   onChangeText={setFormName}
@@ -932,9 +995,9 @@ export default function SafetyScreen() {
                 style={styles.primarySwitchRow}
                 onPress={() => setFormIsPrimary(!formIsPrimary)}
               >
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.primarySwitchTitle}>Set as Primary Contact</Text>
-                  <Text style={styles.primarySwitchSub}>Will appear at the top of First Responder ID</Text>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={styles.primarySwitchTitle} numberOfLines={1}>Set as Primary Contact</Text>
+                  <Text style={styles.primarySwitchSub} numberOfLines={1}>Will appear at top of First Responder ID</Text>
                 </View>
                 <View style={[styles.checkboxBox, formIsPrimary && styles.checkboxBoxActive]}>
                   {formIsPrimary && <Check size={14} color="#050b08" strokeWidth={3} />}
@@ -942,7 +1005,7 @@ export default function SafetyScreen() {
               </Pressable>
 
               <Pressable style={styles.saveContactModalBtn} onPress={handleSaveContactForm}>
-                <Check size={16} color="#050b08" strokeWidth={3} />
+                <Check size={16} color="#ffffff" strokeWidth={3} />
                 <Text style={styles.saveContactModalBtnText}>
                   {editingContact ? "Save Changes" : "Save Emergency Contact"}
                 </Text>
@@ -960,26 +1023,28 @@ export default function SafetyScreen() {
           <View style={styles.emergencyCardContent}>
             {/* Red Badge Bar */}
             <View style={styles.emergencyCardBadgeBar}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <ShieldAlert size={22} color="#ffffff" />
-                <Text style={styles.emergencyCardTitle}>FIRST RESPONDER MEDICAL ID</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
+                <ShieldAlert size={20} color="#ffffff" />
+                <Text style={styles.emergencyCardTitle} numberOfLines={1}>FIRST RESPONDER MEDICAL ID</Text>
               </View>
-              <Pressable onPress={() => setShowEmergencyCard(false)}>
-                <X size={22} color="#ffffff" />
+              <Pressable onPress={() => setShowEmergencyCard(false)} hitSlop={10}>
+                <X size={20} color="#ffffff" />
               </Pressable>
             </View>
 
             <ScrollView contentContainerStyle={{ padding: 18, gap: 14 }}>
               {/* Patient Identifier & Blood Type Header */}
               <View style={styles.patientBannerRow}>
-                <View style={{ flex: 1 }}>
+                <View style={{ flex: 1, minWidth: 0, marginRight: 10 }}>
                   <Text style={styles.patientLabel}>PATIENT IDENTIFIER</Text>
-                  <Text style={styles.patientName}>{profile?.name || "Alex Rivera"}</Text>
-                  <Text style={styles.patientSub}>Lumen Verified Health ID • AES-256 Offline</Text>
+                  <Text style={styles.patientName} numberOfLines={1}>
+                    {profile?.name || "Lumen User"}
+                  </Text>
+                  <Text style={styles.patientSub} numberOfLines={1}>Lumen Verified Health ID • AES-256 Offline</Text>
                 </View>
                 <View style={styles.bloodTypeBigBox}>
                   <Text style={styles.bloodTypeBigLabel}>BLOOD</Text>
-                  <Text style={styles.bloodTypeBigVal}>{medicalData.bloodType}</Text>
+                  <Text style={styles.bloodTypeBigVal}>{medicalData.bloodType || "--"}</Text>
                 </View>
               </View>
 
@@ -987,7 +1052,7 @@ export default function SafetyScreen() {
               <View style={styles.modalAlertBox}>
                 <Text style={styles.modalAlertBoxLabel}>⚠️ ALLERGIES & CONTRAINDICATIONS</Text>
                 <Text style={styles.modalAlertBoxVal}>
-                  {medicalData.allergies.length > 0 ? medicalData.allergies.join(", ") : "None declared"}
+                  {medicalData.allergies.length > 0 ? medicalData.allergies.join(", ") : "No known allergies"}
                 </Text>
               </View>
 
@@ -995,15 +1060,15 @@ export default function SafetyScreen() {
               <View style={styles.modalSectionBox}>
                 <Text style={styles.modalSectionBoxLabel}>ACTIVE MEDICATIONS & REGIMEN</Text>
                 <Text style={styles.modalSectionBoxVal}>
-                  {medicalData.medications.length > 0 ? medicalData.medications.join(" • ") : "None declared"}
+                  {medicalData.medications.length > 0 ? medicalData.medications.join(" • ") : "None reported"}
                 </Text>
               </View>
 
               {/* Conditions & Notes */}
               <View style={styles.modalSectionBox}>
-                <Text style={styles.modalSectionBoxLabel}>CHRONIC CONDITIONS & RESCUE NOTES</Text>
+                <Text style={styles.modalSectionBoxLabel}>CONDITIONS & RESCUE NOTES</Text>
                 <Text style={styles.modalSectionBoxVal}>
-                  {medicalData.conditions.length > 0 ? medicalData.conditions.join(" • ") : "None declared"}
+                  {medicalData.conditions.length > 0 ? medicalData.conditions.join(" • ") : "None reported"}
                 </Text>
                 {medicalData.emergencyNotes ? (
                   <Text style={[styles.modalSectionBoxVal, { fontStyle: "italic", marginTop: 4, color: "#cbd5e1" }]}>
@@ -1015,25 +1080,31 @@ export default function SafetyScreen() {
               {/* Emergency Contacts with Direct Call in Card */}
               <View style={styles.modalSectionBox}>
                 <Text style={styles.modalSectionBoxLabel}>EMERGENCY CONTACTS (ONE-TAP CALL)</Text>
-                <View style={{ gap: 8, marginTop: 6 }}>
-                  {contacts.map((c) => (
-                    <View key={c.id} style={styles.modalContactRow}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.modalContactName}>
-                          {c.name} {c.isPrimary ? "(Primary)" : ""}
-                        </Text>
-                        <Text style={styles.modalContactPhone}>{c.phoneNumber}</Text>
+                {contacts.length > 0 ? (
+                  <View style={{ gap: 8, marginTop: 6 }}>
+                    {contacts.map((c) => (
+                      <View key={c.id} style={styles.modalContactRow}>
+                        <View style={{ flex: 1, minWidth: 0, marginRight: 8 }}>
+                          <Text style={styles.modalContactName} numberOfLines={1}>
+                            {c.name} {c.isPrimary ? "(Primary)" : ""}
+                          </Text>
+                          <Text style={styles.modalContactPhone} numberOfLines={1}>{c.phoneNumber}</Text>
+                        </View>
+                        <Pressable
+                          style={styles.modalCallSmallBtn}
+                          onPress={() => handleCallNumber(c.phoneNumber, c.name)}
+                        >
+                          <PhoneCall size={14} color="#050b08" />
+                          <Text style={styles.modalCallSmallBtnText}>CALL</Text>
+                        </Pressable>
                       </View>
-                      <Pressable
-                        style={styles.modalCallSmallBtn}
-                        onPress={() => handleCallNumber(c.phoneNumber, c.name)}
-                      >
-                        <PhoneCall size={14} color="#050b08" />
-                        <Text style={styles.modalCallSmallBtnText}>CALL</Text>
-                      </Pressable>
-                    </View>
-                  ))}
-                </View>
+                    ))}
+                  </View>
+                ) : (
+                  <Text style={[styles.modalSectionBoxVal, { marginTop: 4, fontStyle: "italic", color: "#94a3b8" }]}>
+                    No emergency contacts added yet.
+                  </Text>
+                )}
               </View>
 
               {/* Universal 911 Direct Trigger inside Card */}
@@ -1042,7 +1113,7 @@ export default function SafetyScreen() {
                 onPress={() => handleCallNumber("911", "National Emergency 911")}
               >
                 <PhoneCall size={16} color="#ffffff" strokeWidth={2.5} />
-                <Text style={styles.universalCallBtnText}>CALL 911 EMERGENCY DISPATCH NOW</Text>
+                <Text style={styles.universalCallBtnText} numberOfLines={1}>CALL 911 DISPATCH</Text>
               </Pressable>
             </ScrollView>
           </View>
@@ -1252,7 +1323,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: THEME.colors.textOnDarkSecondary,
     marginTop: 2,
-    maxWidth: 240,
+    lineHeight: 15,
   },
   addContactBtn: {
     flexDirection: "row",
@@ -1297,6 +1368,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "800",
     color: THEME.colors.cardTextPrimary,
+    flexShrink: 1,
   },
   primaryBadge: {
     backgroundColor: "rgba(16, 185, 129, 0.2)",
@@ -1347,6 +1419,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 12,
+    flexShrink: 0,
   },
   callActionBtnText: {
     fontSize: 12,
@@ -1375,6 +1448,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     textAlign: "center",
     ...THEME.shadows.card,
+  },
+  emptyIconCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.25)",
   },
   emptyTitle: {
     fontSize: 14,
@@ -1585,15 +1669,23 @@ const styles = StyleSheet.create({
     color: THEME.colors.cardTextSecondary,
     marginBottom: 4,
   },
+  emptyTagNotice: {
+    fontSize: 11,
+    fontStyle: "italic",
+    color: THEME.colors.cardTextSecondary,
+    paddingVertical: 4,
+  },
   twoColInputs: {
     flexDirection: "row",
     gap: 10,
+    flexWrap: "wrap",
   },
   physicianCallBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
     alignSelf: "flex-start",
+    maxWidth: "100%",
     backgroundColor: "rgba(16, 185, 129, 0.15)",
     borderWidth: 1,
     borderColor: "rgba(16, 185, 129, 0.3)",
@@ -1606,6 +1698,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "800",
     color: THEME.colors.accentGreen,
+    flexShrink: 1,
   },
 
   // Modal 1: Add Contact
@@ -1888,5 +1981,7 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     color: "#ffffff",
     letterSpacing: 0.5,
+    textAlign: "center",
+    flexShrink: 1,
   },
 });
