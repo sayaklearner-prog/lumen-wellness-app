@@ -22,7 +22,6 @@ import { storage } from "@/services/storage";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetMyProfileQueryKey } from "@workspace/api-client-react";
 import { GoogleIcon } from "@/components/GoogleIcon";
-import { Background3DBioField } from "@/components/Background3DBioField";
 import {
   saveGoogleUserSession,
   getStoredGoogleUser,
@@ -337,109 +336,49 @@ export default function WelcomeScreen() {
       {/* FULLSCREEN BACKGROUND PHOTOGRAPHY (ROCK-SOLID STABLE)      */}
       {/* ========================================================= */}
       <Image
-        source={require("../../assets/cover-bg.jpg")}
+        source={require("../../assets/cover-bg.png")}
         style={styles.coverImageBg}
         resizeMode="cover"
       />
 
-      {/* ========================================================= */}
-      {/* STATIONARY BIOLUMINESCENT AMBIENT PULSE (ZERO MOVEMENT)    */}
-      {/* ========================================================= */}
-      <Background3DBioField pointerEvents="none" />
-
-      {/* Cinematic Dual Vignette Overlays for Maximum Legibility */}
+      {/* Subtle Bottom Mountain Rock Contrast Gradient for Legibility */}
       <Svg width="100%" height="100%" style={StyleSheet.absoluteFillObject} pointerEvents="none">
         <Defs>
-          {/* Vertical sunset-to-night gradient vignette */}
-          <LinearGradient id="heroVerticalVignette" x1="0%" y1="0%" x2="0%" y2="100%">
-            <Stop offset="0%" stopColor="#080e0b" stopOpacity="0.40" />
-            <Stop offset="30%" stopColor="#080e0b" stopOpacity="0.08" />
-            <Stop offset="65%" stopColor="#080e0b" stopOpacity="0.32" />
-            <Stop offset="100%" stopColor="#080e0b" stopOpacity="0.92" />
-          </LinearGradient>
-          {/* Left-edge shadow to give typography razor-sharp contrast */}
-          <LinearGradient id="heroLeftEdgeVignette" x1="0%" y1="0%" x2="100%" y2="0%">
-            <Stop offset="0%" stopColor="#080e0b" stopOpacity="0.65" />
-            <Stop offset="55%" stopColor="#080e0b" stopOpacity="0.20" />
-            <Stop offset="100%" stopColor="#080e0b" stopOpacity="0.0" />
+          <LinearGradient id="heroBottomVignette" x1="0%" y1="62%" x2="0%" y2="100%">
+            <Stop offset="0%" stopColor="#060c09" stopOpacity="0.0" />
+            <Stop offset="55%" stopColor="#060c09" stopOpacity="0.65" />
+            <Stop offset="100%" stopColor="#060c09" stopOpacity="0.94" />
           </LinearGradient>
         </Defs>
-        <Rect x="0" y="0" width="100%" height="100%" fill="url(#heroVerticalVignette)" />
-        <Rect x="0" y="0" width="100%" height="100%" fill="url(#heroLeftEdgeVignette)" />
+        <Rect x="0" y="0" width="100%" height="100%" fill="url(#heroBottomVignette)" />
       </Svg>
 
       {/* Main Foreground Content */}
       <View style={styles.content}>
         {/* Top Minimalist Luxury Header */}
         <View style={styles.topHeader}>
-          <View style={styles.brandTitleRow}>
-            <Text style={styles.luxuryBrandTitle}>l u m e n</Text>
-            <View style={styles.brandDot} />
-          </View>
+          <View style={{ flex: 1 }} />
           <Pressable
             style={styles.menuTriggerBtn}
             onPress={handleOpenManualSignIn}
             accessibilityLabel="Open Menu"
+            hitSlop={10}
           >
             <View style={styles.menuTriggerBar1} />
             <View style={styles.menuTriggerBar2} />
           </Pressable>
         </View>
 
-        {/* Center/Left Hero Headline & Action Buttons */}
-        <View style={styles.heroTextContainer}>
-          <Text style={styles.heroHeadline}>
-            A{"\n"}Healthier{"\n"}Happier{"\n"}You.
-          </Text>
-          <Text style={styles.heroSubheadline}>
-            Small steps.{"\n"}Big changes.
-          </Text>
+        {/* Flexible Spacer - Leaves the top & middle artwork fully visible */}
+        <View style={{ flex: 1 }} />
 
-          {/* Action Buttons: Google Connect above Get Started */}
-          <View style={styles.actionsColumn}>
-            {/* 1-Tap Google Connect Button */}
-            <Pressable
-              style={({ pressed }) => [
-                styles.coverGoogleBtn,
-                pressed && { opacity: 0.88, transform: [{ scale: 0.98 }] },
-              ]}
-              onPress={() => {
-                triggerHaptic();
-                handleGoogleAuthPress();
-              }}
-              disabled={isLoading}
-            >
-              <GoogleIcon size={18} />
-              <Text style={styles.coverGoogleBtnText}>Connect with Google</Text>
-            </Pressable>
-
-            {/* Iconic Frosted Champagne "Get Started ->" Action Pill */}
-            <Pressable
-              style={({ pressed }) => [
-                styles.getStartedPill,
-                pressed && { opacity: 0.92, transform: [{ scale: 0.98 }] },
-              ]}
-              onPress={() => {
-                triggerHaptic();
-                setAuthMode("signup");
-                setShowOtpModal(true);
-              }}
-            >
-              <Text style={styles.getStartedText}>Get Started</Text>
-              <View style={styles.arrowCircle}>
-                <ArrowRight size={18} color="#ffffff" strokeWidth={2.6} />
-              </View>
-            </Pressable>
-          </View>
-        </View>
-
-        {/* Bottom Section: Frosted Brand Pill & 4 Wellness Pillars */}
-        <View style={styles.bottomSection}>
-          {/* Left: Frosted Luxury Brand Tag Pill */}
+        {/* Bottom Action Area: Get Started + Sign in with Google */}
+        <View style={styles.bottomActionContainer}>
+          {/* Primary Action: Get Started Button */}
           <Pressable
             style={({ pressed }) => [
-              styles.frostedBrandTagPill,
-              pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
+              styles.getStartedPillNew,
+              pressed && { opacity: 0.92, transform: [{ scale: 0.98 }] },
             ]}
             onPress={() => {
               triggerHaptic();
@@ -447,21 +386,46 @@ export default function WelcomeScreen() {
               setShowOtpModal(true);
             }}
           >
-            <View style={styles.brandTagDot} />
-            <Text style={styles.brandTagText} numberOfLines={1}>
-              Lumen OS • Advanced Bio-Intelligence
-            </Text>
+            <Text style={styles.getStartedTextNew}>Get Started</Text>
+            <View style={styles.arrowCircleNew}>
+              <ArrowRight size={18} color="#050b08" strokeWidth={2.6} />
+            </View>
           </Pressable>
 
-          {/* Right: Vertical Line + 4 Wellness Pillars */}
-          <View style={styles.pillarsCol}>
-            <View style={styles.pillarsDivider} />
-            <View style={styles.pillarsList}>
-              <Text style={styles.pillarItem}>Move</Text>
-              <Text style={styles.pillarItem}>Nourish</Text>
-              <Text style={styles.pillarItem}>Mind</Text>
-              <Text style={styles.pillarItem}>Thrive</Text>
-            </View>
+          {/* Secondary Action: Sign in with Google Button */}
+          <Pressable
+            style={({ pressed }) => [
+              styles.coverGoogleBtnNew,
+              pressed && { opacity: 0.90, transform: [{ scale: 0.98 }] },
+            ]}
+            onPress={() => {
+              triggerHaptic();
+              handleGoogleAuthPress();
+            }}
+            disabled={isLoading || isSigningInGoogle}
+          >
+            {isSigningInGoogle ? (
+              <ActivityIndicator size="small" color="#0b1612" />
+            ) : (
+              <>
+                <GoogleIcon size={20} />
+                <Text style={styles.coverGoogleBtnTextNew}>Sign in with Google</Text>
+              </>
+            )}
+          </Pressable>
+
+          {/* Sign In Prompt Link */}
+          <View style={styles.signInPromptRow}>
+            <Text style={styles.signInPromptText}>Already have an account? </Text>
+            <Pressable
+              onPress={() => {
+                triggerHaptic();
+                handleOpenManualSignIn();
+              }}
+              hitSlop={8}
+            >
+              <Text style={styles.signInLinkText}>Sign In</Text>
+            </Pressable>
           </View>
         </View>
       </View>
@@ -884,6 +848,80 @@ const styles = StyleSheet.create({
     color: "rgba(255, 255, 255, 0.90)",
     lineHeight: 22,
     marginTop: 10,
+  },
+
+  // New High-End Cover Action Container & Buttons
+  bottomActionContainer: {
+    width: "100%",
+    gap: 12,
+    paddingBottom: Platform.OS === "ios" ? 18 : 10,
+  },
+  getStartedPillNew: {
+    height: 54,
+    backgroundColor: "#10b981",
+    borderRadius: 27,
+    paddingLeft: 24,
+    paddingRight: 7,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    shadowColor: "#10b981",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 14,
+    elevation: 8,
+  },
+  getStartedTextNew: {
+    color: "#050b08",
+    fontSize: 16,
+    fontWeight: "800",
+    letterSpacing: -0.2,
+  },
+  arrowCircleNew: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#ffffff",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  coverGoogleBtnNew: {
+    height: 52,
+    backgroundColor: "#ffffff",
+    borderRadius: 26,
+    paddingHorizontal: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  coverGoogleBtnTextNew: {
+    color: "#0b1612",
+    fontSize: 15,
+    fontWeight: "700",
+    letterSpacing: -0.2,
+  },
+  signInPromptRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: 4,
+  },
+  signInPromptText: {
+    color: "rgba(255, 255, 255, 0.75)",
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  signInLinkText: {
+    color: "#34d399",
+    fontSize: 13,
+    fontWeight: "700",
+    textDecorationLine: "underline",
   },
 
   actionsColumn: {
