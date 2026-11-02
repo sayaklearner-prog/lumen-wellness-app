@@ -27,7 +27,6 @@ import {
   getStoredGoogleUser,
   buildGoogleOAuthUrl,
   parseGoogleAuthRedirect,
-  signInWithGoogleNative,
   GoogleUser,
 } from "@/services/googleAuth";
 import { authService } from "@/services/authService";
@@ -173,78 +172,24 @@ export default function WelcomeScreen() {
     };
   }, [router, qc]);
 
-  // Paste Redirect URL State for manual fallback
-  const [showPasteUrlModal, setShowPasteUrlModal] = useState(false);
-  const [pastedUrl, setPastedUrl] = useState("");
-  const [isProcessingPastedUrl, setIsProcessingPastedUrl] = useState(false);
-
-  // When user taps "Sign in with Google" on the Cover Page:
+  // When user taps "Connect with Google" on the Cover Page:
+  // Redirect directly to the official Google OAuth login browser page (accounts.google.com)
   const handleGoogleAuthPress = async () => {
     triggerHaptic(Haptics.ImpactFeedbackStyle.Medium);
     setIsSigningInGoogle(true);
 
     try {
-      // 1. Try Native In-App Google OAuth (secure dialog that intercepts localhost redirect instantly)
-      const cap = typeof window !== "undefined" ? (window as any).Capacitor : null;
-      if (cap && cap.Plugins && cap.Plugins.GoogleOAuthNative) {
-        try {
-          const user = await signInWithGoogleNative();
-          if (user) {
-            await saveGoogleUserSession(user, true);
-            qc.invalidateQueries({ queryKey: getGetMyProfileQueryKey() });
-            router.replace("/(auth)/onboarding");
-            return;
-          }
-        } catch (nativeErr: any) {
-          const msg = nativeErr?.message || "";
-          if (msg.includes("cancelled") || msg.includes("canceled")) {
-            setIsSigningInGoogle(false);
-            return;
-          }
-          console.warn("Native Google OAuth fallback to browser:", nativeErr);
-        }
-      }
-
-      // 2. Direct browser fallback
       const authUrl = buildGoogleOAuthUrl();
-      if (Platform.OS === "web" && typeof window !== "undefined" && !(window as any).Capacitor) {
+      if (Platform.OS === "web" && typeof window !== "undefined") {
+        // Direct browser redirect to accounts.google.com
         window.location.href = authUrl;
       } else {
+        // Open system browser on Android / iOS
         await Linking.openURL(authUrl);
       }
     } catch (err: any) {
       setIsSigningInGoogle(false);
-      Alert.alert("Google Sign-In Error", "Could not open Google login: " + err?.message);
-    }
-  };
-
-  const handleProcessPastedUrl = async () => {
-    triggerHaptic();
-    const clean = pastedUrl.trim();
-    if (!clean) {
-      Alert.alert("Link Required", "Please paste the redirect URL from your browser.");
-      return;
-    }
-
-    setIsProcessingPastedUrl(true);
-    try {
-      const user = await parseGoogleAuthRedirect(clean);
-      if (user) {
-        await saveGoogleUserSession(user, true);
-        qc.invalidateQueries({ queryKey: getGetMyProfileQueryKey() });
-        setShowPasteUrlModal(false);
-        setPastedUrl("");
-        router.replace("/(auth)/onboarding");
-      } else {
-        Alert.alert(
-          "Invalid Login Link",
-          "Could not extract Google credentials. Please make sure to copy the full URL from Chrome's address bar (starting with localhost/#iss=... or accounts.google.com)."
-        );
-      }
-    } catch (err: any) {
-      Alert.alert("Error", err?.message || "Failed to process Google login link.");
-    } finally {
-      setIsProcessingPastedUrl(false);
+      Alert.alert("Google Sign-In Error", "Could not open Google login page: " + err?.message);
     }
   };
 
@@ -482,20 +427,6 @@ export default function WelcomeScreen() {
               <Text style={styles.signInLinkText}>Sign In</Text>
             </Pressable>
           </View>
-
-          {/* Browser Fallback Link */}
-          <Pressable
-            style={{ marginTop: 6, alignItems: "center" }}
-            onPress={() => {
-              triggerHaptic();
-              setShowPasteUrlModal(true);
-            }}
-            hitSlop={8}
-          >
-            <Text style={{ fontSize: 11, color: "rgba(255, 255, 255, 0.45)", textDecorationLine: "underline" }}>
-              Trouble with browser redirect? Paste login link
-            </Text>
-          </Pressable>
         </View>
       </View>
 
@@ -815,104 +746,11 @@ export default function WelcomeScreen() {
             <ActivityIndicator size="large" color="#4285f4" />
             <Text style={styles.googleRedirectTitle}>Connecting to Google...</Text>
             <Text style={styles.googleRedirectSub}>
-              Authenticating with Google...
+              Opening official accounts.google.com in browser
             </Text>
-            <View style={{ flexDirection: "row", gap: 10, marginTop: 16 }}>
-              <Pressable
-                style={{
-                  paddingVertical: 8,
-                  paddingHorizontal: 14,
-                  borderRadius: 10,
-                  backgroundColor: "rgba(255, 255, 255, 0.1)",
-                }}
-                onPress={() => setIsSigningInGoogle(false)}
-              >
-                <Text style={{ color: "#ffffff", fontSize: 12, fontWeight: "700" }}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                style={{
-                  paddingVertical: 8,
-                  paddingHorizontal: 14,
-                  borderRadius: 10,
-                  backgroundColor: "#10b981",
-                }}
-                onPress={() => {
-                  setIsSigningInGoogle(false);
-                  setShowPasteUrlModal(true);
-                }}
-              >
-                <Text style={{ color: "#050b08", fontSize: 12, fontWeight: "800" }}>Paste Link</Text>
-              </Pressable>
-            </View>
           </View>
         </View>
       )}
-
-      {/* ========================================================= */}
-      {/* MANUAL GOOGLE LOGIN LINK RECOVERY MODAL                   */}
-      {/* ========================================================= */}
-      <Modal
-        visible={showPasteUrlModal}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setShowPasteUrlModal(false)}
-      >
-        <View style={styles.modalBackdrop}>
-          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setShowPasteUrlModal(false)} />
-          <View style={[styles.modalPanel, { paddingBottom: 28 }]}>
-            <View style={styles.modalHandle} />
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                <GoogleIcon size={24} />
-                <Text style={styles.modalHeaderTitle}>Paste Google Login Link</Text>
-              </View>
-              <Pressable
-                style={styles.modalCloseBtn}
-                onPress={() => setShowPasteUrlModal(false)}
-                hitSlop={8}
-              >
-                <X size={16} color="#ffffff" />
-              </Pressable>
-            </View>
-
-            <Text style={{ fontSize: 13, color: "#94a3b8", lineHeight: 19, marginBottom: 16 }}>
-              If Chrome redirected to <Text style={{ color: "#f87171", fontWeight: "700" }}>localhost refused to connect</Text>, copy the URL from Chrome's address bar and paste it below to instantly complete sign in:
-            </Text>
-
-            <View style={styles.modalInputBox}>
-              <TextInput
-                style={[styles.modalTextInput, { height: 60, fontSize: 13 }]}
-                placeholder="Paste localhost/#iss=... URL here"
-                placeholderTextColor="#94a3b8"
-                value={pastedUrl}
-                onChangeText={setPastedUrl}
-                autoCapitalize="none"
-                autoCorrect={false}
-                multiline
-              />
-            </View>
-
-            <Pressable
-              style={[
-                styles.modalActionPillBtn,
-                (!pastedUrl.trim() || isProcessingPastedUrl) && { opacity: 0.6 },
-                { marginTop: 14 }
-              ]}
-              onPress={handleProcessPastedUrl}
-              disabled={!pastedUrl.trim() || isProcessingPastedUrl}
-            >
-              {isProcessingPastedUrl ? (
-                <ActivityIndicator size="small" color="#050b08" />
-              ) : (
-                <>
-                  <CheckCircle2 size={18} color="#050b08" strokeWidth={2.4} />
-                  <Text style={styles.modalActionPillText}>Complete Sign In</Text>
-                </>
-              )}
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }

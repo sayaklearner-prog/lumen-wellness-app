@@ -30,30 +30,8 @@ export function getGoogleRedirectUri(): string {
       return origin;
     }
   }
-  // Mobile app (Android / Capacitor): default to local redirect for native interception
-  return "http://localhost";
-}
-
-/**
- * Triggers Native In-App Google OAuth flow via GoogleOAuthNative Capacitor Plugin.
- * Intercepts Google's localhost redirect before any browser connection error can occur.
- */
-export async function signInWithGoogleNative(): Promise<GoogleUser | null> {
-  const cap = typeof window !== "undefined" ? (window as any).Capacitor : null;
-  if (cap && cap.Plugins && cap.Plugins.GoogleOAuthNative) {
-    try {
-      const authUrl = buildGoogleOAuthUrl("http://localhost");
-      const res = await cap.Plugins.GoogleOAuthNative.signIn({ authUrl });
-      if (res && res.url) {
-        const user = await parseGoogleAuthRedirect(res.url);
-        return user;
-      }
-    } catch (err: any) {
-      console.warn("Native Google OAuth Plugin error:", err);
-      throw err;
-    }
-  }
-  return null;
+  // Mobile app (Android / Capacitor localhost): redirect through hosted Firebase auth bridge
+  return OAUTH_HOSTED_REDIRECT_URI;
 }
 
 /**
