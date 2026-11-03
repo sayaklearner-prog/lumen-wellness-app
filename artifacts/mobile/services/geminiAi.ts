@@ -223,37 +223,6 @@ export async function askGeminiCoach(
         if (response.status === 404) {
           continue;
         }
-
-        // If 401 / 403, also attempt Bearer token format in case key is a Google Cloud / Vertex token
-        if (response.status === 401 || response.status === 403) {
-          try {
-            const bearerUrl = `https://generativelanguage.googleapis.com/${ep.version}/models/${ep.model}:generateContent`;
-            const bearerRes = await fetch(bearerUrl, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${apiKey}`,
-              },
-              body: JSON.stringify({
-                contents,
-                generationConfig: {
-                  temperature: 0.7,
-                  maxOutputTokens: 2048,
-                },
-              }),
-            });
-            if (bearerRes.ok) {
-              const bData = await bearerRes.json();
-              const bText = bData?.candidates?.[0]?.content?.parts?.[0]?.text;
-              if (bText && typeof bText === "string") {
-                cachedWorkingEndpoint = ep;
-                return bText.trim();
-              }
-            }
-          } catch (bErr) {
-            console.warn("Bearer auth attempt failed:", bErr);
-          }
-        }
       }
     } catch (err) {
       console.warn(`Gemini fetch error on ${ep.version}/${ep.model}:`, err);
@@ -556,9 +525,6 @@ Return ONLY a valid JSON object matching this exact schema:
         "Content-Type": "application/json",
         "x-goog-api-key": apiKey,
       };
-      if (apiKey.startsWith("AQ.")) {
-        headers["Authorization"] = `Bearer ${apiKey}`;
-      }
 
       const response = await fetch(url, {
         method: "POST",
@@ -590,53 +556,6 @@ Return ONLY a valid JSON object matching this exact schema:
         // If 404, try next candidate model
         if (response.status === 404) {
           continue;
-        }
-
-        // If 401/403 and Bearer wasn't tried, try Bearer
-        if ((response.status === 401 || response.status === 403) && !headers["Authorization"]) {
-          try {
-            const bearerRes = await fetch(url, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${apiKey}`,
-              },
-              body: JSON.stringify({
-                contents: [
-                  {
-                    role: "user",
-                    parts: [
-                      { text: promptText },
-                      { inlineData: { mimeType, data: cleanBase64.trim() } },
-                    ],
-                  },
-                ],
-                generationConfig,
-              }),
-            });
-            if (bearerRes.ok) {
-              const bData = await bearerRes.json();
-              const bRaw = bData?.candidates?.[0]?.content?.parts?.[0]?.text;
-              if (bRaw) {
-                const parsed = extractJsonFromText(bRaw);
-                cachedWorkingEndpoint = ep;
-                return {
-                  name: parsed.name || "Identified Meal",
-                  mealType: ["breakfast", "lunch", "dinner", "snack"].includes(parsed.mealType) ? parsed.mealType : "lunch",
-                  calories: Number(parsed.calories) || 0,
-                  proteinGrams: Number(parsed.proteinGrams) || 0,
-                  carbsGrams: Number(parsed.carbsGrams) || 0,
-                  fatGrams: Number(parsed.fatGrams) || 0,
-                  vitamins: parsed.vitamins || "Micronutrients identified",
-                  items: Array.isArray(parsed.items) ? parsed.items : [],
-                  notes: parsed.notes || "Identified via Lumen Gemini Vision.",
-                  confidence: Number(parsed.confidence) || 0.92,
-                };
-              }
-            }
-          } catch (bearerErr) {
-            console.warn("Bearer retry failed:", bearerErr);
-          }
         }
 
         // If 400 with responseMimeType, try standard generation without responseMimeType
