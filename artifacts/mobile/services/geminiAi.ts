@@ -117,6 +117,35 @@ export interface ChatMessage {
   content: string;
 }
 
+export interface GeminiEndpointConfig {
+  version: "v1" | "v1beta";
+  model: string;
+}
+
+export const GEMINI_CANDIDATE_ENDPOINTS: GeminiEndpointConfig[] = [
+  { version: "v1", model: "gemini-1.5-flash" },
+  { version: "v1beta", model: "gemini-2.0-flash" },
+  { version: "v1beta", model: "gemini-2.5-flash" },
+  { version: "v1", model: "gemini-2.0-flash" },
+  { version: "v1beta", model: "gemini-1.5-flash-latest" },
+  { version: "v1", model: "gemini-1.5-pro" },
+  { version: "v1beta", model: "gemini-1.5-pro" },
+];
+
+let cachedWorkingEndpoint: GeminiEndpointConfig | null = null;
+
+function getEndpointsToAttempt(): GeminiEndpointConfig[] {
+  if (cachedWorkingEndpoint) {
+    return [
+      cachedWorkingEndpoint,
+      ...GEMINI_CANDIDATE_ENDPOINTS.filter(
+        (e) => e.version !== cachedWorkingEndpoint!.version || e.model !== cachedWorkingEndpoint!.model
+      ),
+    ];
+  }
+  return GEMINI_CANDIDATE_ENDPOINTS;
+}
+
 /**
  * Sends a conversation to the Google Gemini API and returns the AI response text.
  */
@@ -130,13 +159,6 @@ export async function askGeminiCoach(
     throw new Error("No valid Google Gemini API key configured. Please add your key in Coach settings.");
   }
   const systemPrompt = buildGeminiSystemPrompt(context);
-
-  // Models to attempt in priority order
-  const modelEndpoints = [
-    "gemini-1.5-flash",
-    "gemini-2.0-flash",
-    "gemini-1.5-pro",
-  ];
 
   // Convert conversation history to Gemini contents format
   const recentHistory = history.slice(-8); // Keep last 8 turns for context window efficiency
@@ -156,11 +178,11 @@ export async function askGeminiCoach(
   ];
 
   let lastError: any = null;
+  const endpoints = getEndpointsToAttempt();
 
-  for (const model of modelEndpoints) {
-    // 1. Try with URL query param + standard x-goog-api-key header
+  for (const ep of endpoints) {
     try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+      const url = `https://generativelanguage.googleapis.com/${ep.version}/models/${ep.model}:generateContent?key=${encodeURIComponent(apiKey)}`;
       
       const response = await fetch(url, {
         method: "POST",
@@ -183,17 +205,23 @@ export async function askGeminiCoach(
         const candidate = data?.candidates?.[0];
         const textPart = candidate?.content?.parts?.[0]?.text;
         if (textPart && typeof textPart === "string" && textPart.trim()) {
+          cachedWorkingEndpoint = ep;
           return textPart.trim();
         }
       } else {
         const errorText = await response.text();
-        console.warn(`Gemini ${model} request returned status ${response.status}:`, errorText);
+        console.warn(`Gemini ${ep.version}/${ep.model} returned status ${response.status}:`, errorText);
         lastError = new Error(`HTTP ${response.status}: ${errorText}`);
+
+        // If 404 (model not found on that version), silently continue to next candidate
+        if (response.status === 404) {
+          continue;
+        }
 
         // If 401 / 403, also attempt Bearer token format in case key is a Google Cloud / Vertex token
         if (response.status === 401 || response.status === 403) {
           try {
-            const bearerUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+            const bearerUrl = `https://generativelanguage.googleapis.com/${ep.version}/models/${ep.model}:generateContent`;
             const bearerRes = await fetch(bearerUrl, {
               method: "POST",
               headers: {
@@ -212,6 +240,7 @@ export async function askGeminiCoach(
               const bData = await bearerRes.json();
               const bText = bData?.candidates?.[0]?.content?.parts?.[0]?.text;
               if (bText && typeof bText === "string") {
+                cachedWorkingEndpoint = ep;
                 return bText.trim();
               }
             }
@@ -221,18 +250,18 @@ export async function askGeminiCoach(
         }
       }
     } catch (err) {
-      console.warn(`Gemini fetch error on model ${model}:`, err);
+      console.warn(`Gemini fetch error on ${ep.version}/${ep.model}:`, err);
       lastError = err;
     }
   }
 
-  // If online Gemini fails (e.g. no internet connectivity or invalid key error),
-  // rethrow with clear error message so caller can display or fallback
+  // If all candidates failed
   throw lastError || new Error("Failed to communicate with Google Gemini API.");
 }
 
 /**
  * Validates the Gemini API key by sending a minimal test probe.
+ * Checks ModelService.ListModels and probes candidate versions (v1 & v1beta).
  */
 export async function testGeminiApiKey(keyToTest?: string): Promise<{ success: boolean; message: string }> {
   const key = (keyToTest || (await getGeminiApiKey())).trim();
@@ -240,30 +269,77 @@ export async function testGeminiApiKey(keyToTest?: string): Promise<{ success: b
     return { success: false, message: "API key is empty. Enter an API key from Google AI Studio." };
   }
 
+  // 1. Try querying ListModels to verify key and discover supported models
   try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(key)}`;
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": key,
-      },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: "Ping. Reply with: OK" }] }],
-      }),
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-      return { success: true, message: `Connected to Google Gemini! Response: "${text?.trim()}"` };
-    } else {
-      const err = await response.text();
-      return { success: false, message: `API rejected with HTTP ${response.status}: ${err}` };
+    for (const v of ["v1beta", "v1"] as const) {
+      const listUrl = `https://generativelanguage.googleapis.com/${v}/models?key=${encodeURIComponent(key)}`;
+      const listRes = await fetch(listUrl, {
+        headers: { "x-goog-api-key": key },
+      });
+      if (listRes.ok) {
+        const listData = await listRes.json();
+        const models: any[] = listData.models || [];
+        // Find a model that supports generateContent
+        const validModel = models.find(
+          (m: any) =>
+            Array.isArray(m.supportedGenerationMethods) &&
+            m.supportedGenerationMethods.includes("generateContent") &&
+            (m.name?.includes("flash") || m.name?.includes("gemini"))
+        );
+        if (validModel) {
+          const rawName = validModel.name?.replace(/^models\//, "") || "gemini-1.5-flash";
+          cachedWorkingEndpoint = { version: v, model: rawName };
+          return {
+            success: true,
+            message: `Connected to Google Gemini! Verified model: ${rawName} (${v})`,
+          };
+        }
+      }
     }
-  } catch (err: any) {
-    return { success: false, message: `Network error: ${err.message}` };
+  } catch (probeErr) {
+    console.warn("ListModels discovery probe skipped:", probeErr);
   }
+
+  // 2. Direct generateContent probes across candidate versions & models
+  let lastErrorSummary = "";
+  for (const ep of GEMINI_CANDIDATE_ENDPOINTS) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/${ep.version}/models/${ep.model}:generateContent?key=${encodeURIComponent(key)}`;
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": key,
+        },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: "Ping. Reply with: OK" }] }],
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        cachedWorkingEndpoint = ep;
+        return {
+          success: true,
+          message: `Connected to Google Gemini (${ep.model} on ${ep.version})! Response: "${text?.trim() || "OK"}"`,
+        };
+      } else {
+        const err = await response.text();
+        lastErrorSummary = `HTTP ${response.status}: ${err}`;
+        // If 404, silently test the next candidate endpoint
+        if (response.status === 404) {
+          continue;
+        }
+        // If 400 or 403, key was actively rejected
+        return { success: false, message: `API rejected with ${lastErrorSummary}` };
+      }
+    } catch (err: any) {
+      lastErrorSummary = `Network error: ${err.message}`;
+    }
+  }
+
+  return { success: false, message: `API connection failed: ${lastErrorSummary}` };
 }
 
 export interface FoodRecognitionResult {
@@ -339,66 +415,85 @@ Return ONLY a valid JSON object matching this exact schema:
   "confidence": 0.95
 }`;
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const endpoints = getEndpointsToAttempt();
+  let lastVisionError: any = null;
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-goog-api-key": apiKey,
-    },
-    body: JSON.stringify({
-      contents: [
-        {
-          role: "user",
-          parts: [
-            { text: promptText },
+  for (const ep of endpoints) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/${ep.version}/models/${ep.model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey,
+        },
+        body: JSON.stringify({
+          contents: [
             {
-              inlineData: {
-                mimeType,
-                data: cleanBase64.trim(),
-              },
+              role: "user",
+              parts: [
+                { text: promptText },
+                {
+                  inlineData: {
+                    mimeType,
+                    data: cleanBase64.trim(),
+                  },
+                },
+              ],
             },
           ],
-        },
-      ],
-      generationConfig: {
-        temperature: 0.2,
-        responseMimeType: "application/json",
-      },
-    }),
-  });
+          generationConfig: {
+            temperature: 0.2,
+            responseMimeType: "application/json",
+          },
+        }),
+      });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Gemini Vision rejected HTTP ${response.status}: ${errorText}`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.warn(`Gemini Vision on ${ep.version}/${ep.model} returned HTTP ${response.status}:`, errorText);
+        lastVisionError = new Error(`HTTP ${response.status}: ${errorText}`);
+        // If 404, try next candidate model
+        if (response.status === 404) {
+          continue;
+        }
+        throw lastVisionError;
+      }
+
+      const data = await response.json();
+      const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!rawText) {
+        continue;
+      }
+
+      cachedWorkingEndpoint = ep;
+
+      // Parse JSON, handling potential markdown fences
+      let cleanJson = rawText.trim();
+      if (cleanJson.startsWith("```json")) {
+        cleanJson = cleanJson.replace(/^```json\s*/i, "").replace(/\s*```$/, "");
+      } else if (cleanJson.startsWith("```")) {
+        cleanJson = cleanJson.replace(/^```\s*/, "").replace(/\s*```$/, "");
+      }
+
+      const parsed = JSON.parse(cleanJson);
+      return {
+        name: parsed.name || "Identified Meal",
+        mealType: ["breakfast", "lunch", "dinner", "snack"].includes(parsed.mealType) ? parsed.mealType : "lunch",
+        calories: Number(parsed.calories) || 0,
+        proteinGrams: Number(parsed.proteinGrams) || 0,
+        carbsGrams: Number(parsed.carbsGrams) || 0,
+        fatGrams: Number(parsed.fatGrams) || 0,
+        vitamins: parsed.vitamins || "Micronutrients identified",
+        items: Array.isArray(parsed.items) ? parsed.items : [],
+        notes: parsed.notes || "Identified via Lumen Gemini Vision.",
+        confidence: Number(parsed.confidence) || 0.92,
+      };
+    } catch (err: any) {
+      lastVisionError = err;
+    }
   }
 
-  const data = await response.json();
-  const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!rawText) {
-    throw new Error("No response content from Gemini Vision.");
-  }
-
-  // Parse JSON, handling potential markdown fences
-  let cleanJson = rawText.trim();
-  if (cleanJson.startsWith("```json")) {
-    cleanJson = cleanJson.replace(/^```json\s*/i, "").replace(/\s*```$/, "");
-  } else if (cleanJson.startsWith("```")) {
-    cleanJson = cleanJson.replace(/^```\s*/, "").replace(/\s*```$/, "");
-  }
-
-  const parsed = JSON.parse(cleanJson);
-  return {
-    name: parsed.name || "Identified Meal",
-    mealType: ["breakfast", "lunch", "dinner", "snack"].includes(parsed.mealType) ? parsed.mealType : "lunch",
-    calories: Number(parsed.calories) || 0,
-    proteinGrams: Number(parsed.proteinGrams) || 0,
-    carbsGrams: Number(parsed.carbsGrams) || 0,
-    fatGrams: Number(parsed.fatGrams) || 0,
-    vitamins: parsed.vitamins || "Micronutrients identified",
-    items: Array.isArray(parsed.items) ? parsed.items : [],
-    notes: parsed.notes || "Identified via Lumen Gemini Vision.",
-    confidence: Number(parsed.confidence) || 0.92,
-  };
+  throw lastVisionError || new Error("Failed to analyze food image with Gemini Vision across all candidate models.");
 }

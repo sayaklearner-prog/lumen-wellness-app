@@ -17,7 +17,14 @@ class AIProvider(ABC):
 class GeminiProvider(AIProvider):
     def __init__(self):
         self.api_key = settings.GEMINI_API_KEY
-        self.base_url = "https://generativelanguage.googleapis.com/v1beta/models"
+        self.base_url = "https://generativelanguage.googleapis.com"
+        self.candidate_endpoints = [
+            ("v1", "gemini-1.5-flash"),
+            ("v1beta", "gemini-2.0-flash"),
+            ("v1beta", "gemini-2.5-flash"),
+            ("v1", "gemini-2.0-flash"),
+            ("v1beta", "gemini-1.5-flash-latest"),
+        ]
 
     def _build_parts(self, raw_content: Any) -> List[Dict[str, Any]]:
         parts = []
@@ -73,28 +80,37 @@ class GeminiProvider(AIProvider):
             }
         }
 
-        url = f"{self.base_url}/{model}:streamGenerateContent?key={self.api_key}"
         headers = {
             "Content-Type": "application/json",
             "x-goog-api-key": self.api_key
         }
 
         async with httpx.AsyncClient(timeout=60.0) as client:
-            async with client.stream("POST", url, headers=headers, json=payload) as response:
-                response.raise_for_status()
-                async for line in response.aiter_lines():
-                    if line.startswith("data: "):
-                        data_str = line[6:]
-                        try:
-                            data = json.loads(data_str)
-                            candidates = data.get("candidates", [])
-                            if candidates:
-                                parts = candidates[0].get("content", {}).get("parts", [])
-                                for p in parts:
-                                    if "text" in p:
-                                        yield p["text"]
-                        except json.JSONDecodeError:
-                            pass
+            for version, mod in self.candidate_endpoints:
+                url = f"{self.base_url}/{version}/models/{mod}:streamGenerateContent?key={self.api_key}"
+                try:
+                    async with client.stream("POST", url, headers=headers, json=payload) as response:
+                        if response.status_code == 404:
+                            continue
+                        response.raise_for_status()
+                        async for line in response.aiter_lines():
+                            if line.startswith("data: "):
+                                data_str = line[6:]
+                                try:
+                                    data = json.loads(data_str)
+                                    candidates = data.get("candidates", [])
+                                    if candidates:
+                                        parts = candidates[0].get("content", {}).get("parts", [])
+                                        for p in parts:
+                                            if "text" in p:
+                                                yield p["text"]
+                                except json.JSONDecodeError:
+                                    pass
+                        return
+                except httpx.HTTPStatusError as e:
+                    if e.response.status_code == 404:
+                        continue
+                    raise
 
     async def generate_chat(self, system_prompt: str, messages: List[Dict[str, Any]], model: str = "gemini-1.5-flash", json_mode: bool = False) -> str:
         if not self.is_valid_key():
@@ -123,21 +139,35 @@ class GeminiProvider(AIProvider):
             "generationConfig": gen_config
         }
 
-        url = f"{self.base_url}/{model}:generateContent?key={self.api_key}"
         headers = {
             "Content-Type": "application/json",
             "x-goog-api-key": self.api_key
         }
 
+        last_err = None
         async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(url, headers=headers, json=payload)
-            response.raise_for_status()
-            data = response.json()
-            candidates = data.get("candidates", [])
-            if candidates:
-                parts = candidates[0].get("content", {}).get("parts", [])
-                return "".join([p.get("text", "") for p in parts])
-            return ""
+            for version, mod in self.candidate_endpoints:
+                url = f"{self.base_url}/{version}/models/{mod}:generateContent?key={self.api_key}"
+                try:
+                    response = await client.post(url, headers=headers, json=payload)
+                    if response.status_code == 404:
+                        continue
+                    response.raise_for_status()
+                    data = response.json()
+                    candidates = data.get("candidates", [])
+                    if candidates:
+                        parts = candidates[0].get("content", {}).get("parts", [])
+                        return "".join([p.get("text", "") for p in parts])
+                    return ""
+                except httpx.HTTPStatusError as e:
+                    last_err = e
+                    if e.response.status_code == 404:
+                        continue
+                    raise
+
+        if last_err:
+            raise last_err
+        return ""
 
 
 class AnthropicProvider(AIProvider):
