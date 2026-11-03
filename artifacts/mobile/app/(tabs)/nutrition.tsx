@@ -48,6 +48,7 @@ import {
   RefreshCw,
   Clock,
   Layers,
+  AlertCircle,
 } from "lucide-react-native";
 import { queueOfflineLog, getMeals, saveMeal, deleteMeal, MealRecord } from "@/services/db";
 import { storage } from "@/services/storage";
@@ -103,6 +104,7 @@ export default function NutritionScreen() {
     notes?: string;
     confidence?: number;
   } | null>(null);
+  const [scanError, setScanError] = useState<string | null>(null);
 
   const cameraInputRef = useRef<any>(null);
   const galleryInputRef = useRef<any>(null);
@@ -214,59 +216,28 @@ export default function NutritionScreen() {
     setSelectedImageUri(uri);
     setIsScanning(true);
     setScanResult(null);
+    setScanError(null);
 
     const payload = base64 || uri;
 
     try {
       // 1. Direct on-device Google Gemini Vision
       const geminiKey = await getGeminiApiKey();
-      if (geminiKey && isValidGeminiApiKey(geminiKey)) {
-        try {
-          const directResult = await analyzeFoodImageWithGemini(payload, "healthy meal analysis");
-          setScanResult(directResult);
-          return;
-        } catch (visionErr: any) {
-          console.warn("Direct Gemini Vision attempt failed, falling back to backend:", visionErr);
-        }
+      if (!geminiKey || !isValidGeminiApiKey(geminiKey)) {
+        throw new Error("No Google Gemini API key configured. Please enter your key in Coach settings.");
       }
 
-      // 2. Secondary: Backend server route
-      const res: any = await recognizeFoodMutation.mutateAsync({
-        data: {
-          image: payload,
-          imageBase64: payload,
-          hint: "healthy meal analysis",
-        } as any,
-      });
-
-      if (res && (res.name || res.mealName)) {
-        const recognized = {
-          name: res.name || res.mealName || "Detected Meal",
-          mealType: res.mealType || res.suggestedMealType || "lunch",
-          calories: Number(res.calories ?? res.totalCalories ?? 0),
-          proteinGrams: Number(res.proteinGrams ?? res.totalProteinGrams ?? 0),
-          carbsGrams: Number(res.carbsGrams ?? res.totalCarbsGrams ?? 0),
-          fatGrams: Number(res.fatGrams ?? res.totalFatGrams ?? 0),
-          vitamins: res.vitamins || "Micronutrients identified",
-          items: Array.isArray(res.items) ? res.items : [],
-          notes: res.notes || res.modelNotes || "Calibrated via Lumen Computer Vision.",
-          confidence: Number(res.confidence ?? 0.94),
-        };
-        setScanResult(recognized);
-      } else {
-        throw new Error("Unable to identify food contents from this image.");
+      const directResult = await analyzeFoodImageWithGemini(payload, "healthy meal analysis");
+      if (directResult && directResult.name) {
+        setScanResult(directResult);
+        setScanError(null);
+        return;
       }
+      throw new Error("Gemini Vision could not identify clear food items in this photo.");
     } catch (err: any) {
       console.warn("Food scan recognition error:", err);
-      const geminiKey = await getGeminiApiKey();
-      const hasKey = geminiKey && isValidGeminiApiKey(geminiKey);
-      Alert.alert(
-        "Scanning Notice",
-        hasKey
-          ? `Could not analyze food photo (${err?.message || "Please take a clearer photo in good lighting"}).`
-          : "AI Food Scanning requires a Gemini API key. Please configure your free Google Gemini API key in Coach settings to enable instant food scanning.",
-        [{ text: "OK" }]
-      );
+      const errMsg = err?.message || "Failed to analyze food photo. Please check your lighting or internet connection.";
+      setScanError(errMsg);
       setScanResult(null);
     } finally {
       setIsScanning(false);
@@ -339,12 +310,17 @@ export default function NutritionScreen() {
   const handleWebFileChange = (e: any) => {
     const file = e.target?.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const dataUrl = reader.result as string;
-        processImageForNutrition(dataUrl, dataUrl);
-      };
-      reader.readAsDataURL(file);
+      if (typeof window !== "undefined" && typeof URL !== "undefined" && URL.createObjectURL) {
+        const objectUrl = URL.createObjectURL(file);
+        processImageForNutrition(objectUrl, objectUrl);
+      } else {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const dataUrl = reader.result as string;
+          processImageForNutrition(dataUrl, dataUrl);
+        };
+        reader.readAsDataURL(file);
+      }
     }
     try {
       e.target.value = "";
@@ -891,6 +867,31 @@ export default function NutritionScreen() {
                     <Text style={styles.scanningSubText}>Computing calories, protein & micronutrients</Text>
                   </View>
                 )}
+              </View>
+            )}
+
+            {/* Action Bar / Error Banner when photo is selected but no result yet */}
+            {selectedImageUri && !isScanning && !scanResult && (
+              <View style={styles.pendingActionCard}>
+                {scanError ? (
+                  <View style={styles.scanErrorContainer}>
+                    <AlertCircle size={16} color="#ef4444" />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.scanErrorTitle}>Analysis Notice</Text>
+                      <Text style={styles.scanErrorDesc}>{scanError}</Text>
+                    </View>
+                  </View>
+                ) : null}
+
+                <Pressable
+                  style={styles.runAnalysisBtn}
+                  onPress={() => processImageForNutrition(selectedImageUri)}
+                >
+                  <Sparkles size={16} color="#050b08" />
+                  <Text style={styles.runAnalysisBtnText}>
+                    {scanError ? "Retry AI Nutrition Scan" : "Analyze Food with AI Vision"}
+                  </Text>
+                </Pressable>
               </View>
             )}
 
@@ -1601,6 +1602,50 @@ const styles = StyleSheet.create({
     color: "#10b981",
     fontSize: 11,
     textAlign: "center",
+  },
+  pendingActionCard: {
+    backgroundColor: "rgba(232, 241, 237, 0.05)",
+    borderWidth: 1,
+    borderColor: "rgba(200, 218, 210, 0.2)",
+    borderRadius: 16,
+    padding: 14,
+    gap: 10,
+    marginTop: 8,
+  },
+  scanErrorContainer: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    backgroundColor: "rgba(239, 68, 68, 0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(239, 68, 68, 0.3)",
+    borderRadius: 12,
+    padding: 10,
+  },
+  scanErrorTitle: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#f87171",
+  },
+  scanErrorDesc: {
+    fontSize: 11,
+    color: THEME.colors.cardTextSecondary,
+    marginTop: 2,
+    lineHeight: 15,
+  },
+  runAnalysisBtn: {
+    backgroundColor: "#10b981",
+    height: 44,
+    borderRadius: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  runAnalysisBtnText: {
+    fontSize: 13,
+    fontWeight: "900",
+    color: "#050b08",
   },
 
   // Scan Result Card

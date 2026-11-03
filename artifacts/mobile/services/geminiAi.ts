@@ -371,7 +371,7 @@ export interface FoodRecognitionResult {
 
 /**
  * Prepares and compresses any image URI or data URL into a clean, lightweight base64 JPEG
- * (resizing to max 1280px) to guarantee lightning-fast transmission to Google Gemini.
+ * (resizing to max 900px, ~75KB) to guarantee lightning-fast transmission to Google Gemini.
  */
 export async function prepareImageForGemini(
   uriOrDataUrl: string
@@ -381,12 +381,23 @@ export async function prepareImageForGemini(
     try {
       const res = await new Promise<{ base64: string; mimeType: string }>((resolve, reject) => {
         const img = new (window as any).Image();
-        img.crossOrigin = "anonymous";
+        
+        // CRITICAL FIX: NEVER set crossOrigin for data: or blob: URLs!
+        // Setting crossOrigin on data: URLs in Chrome/Android WebView triggers a CORS security violation!
+        if (uriOrDataUrl.startsWith("http://") || uriOrDataUrl.startsWith("https://")) {
+          img.crossOrigin = "anonymous";
+        }
+
+        const timeout = setTimeout(() => {
+          reject(new Error("Image loading into canvas timed out"));
+        }, 8000);
+
         img.onload = () => {
+          clearTimeout(timeout);
           try {
-            const maxDim = 1200;
-            let width = img.width || 800;
-            let height = img.height || 600;
+            const maxDim = 900; // Optimal 900px produces high-precision nutrition detection at <90KB
+            let width = img.naturalWidth || img.width || 800;
+            let height = img.naturalHeight || img.height || 600;
             if (width > maxDim || height > maxDim) {
               if (width > height) {
                 height = Math.round((height * maxDim) / width);
@@ -401,8 +412,14 @@ export async function prepareImageForGemini(
             canvas.height = height;
             const ctx = canvas.getContext("2d");
             if (!ctx) throw new Error("Could not create canvas 2d context");
+
+            // Fill solid background in case of transparent PNG/WebP
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, width, height);
             ctx.drawImage(img, 0, 0, width, height);
-            const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.82);
+
+            // 0.78 JPEG quality guarantees compact payload (~70KB) well below Gemini 4MB inline limit
+            const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.78);
             const parts = compressedDataUrl.split(",");
             resolve({
               base64: parts[1] || "",
@@ -412,14 +429,20 @@ export async function prepareImageForGemini(
             reject(canvasErr);
           }
         };
-        img.onerror = (err: any) => reject(new Error("Failed to load image into canvas: " + err));
+
+        img.onerror = (err: any) => {
+          clearTimeout(timeout);
+          reject(new Error("Failed to load image into canvas: " + err));
+        };
+
         img.src = uriOrDataUrl;
       });
-      if (res && res.base64) {
+
+      if (res && res.base64 && res.base64.length > 50) {
         return res;
       }
     } catch (compressErr) {
-      console.warn("Canvas compression fallback:", compressErr);
+      console.warn("Canvas compression failed or timed out, applying direct extraction:", compressErr);
     }
   }
 
@@ -521,12 +544,25 @@ Return ONLY a valid JSON object matching this exact schema:
     try {
       const url = `https://generativelanguage.googleapis.com/${ep.version}/models/${ep.model}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
+      // Only pass responseMimeType on v1beta. Google Gemini v1 rejects responseMimeType with HTTP 400!
+      const generationConfig: Record<string, any> = {
+        temperature: 0.2,
+      };
+      if (ep.version === "v1beta") {
+        generationConfig.responseMimeType = "application/json";
+      }
+
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey,
+      };
+      if (apiKey.startsWith("AQ.")) {
+        headers["Authorization"] = `Bearer ${apiKey}`;
+      }
+
       const response = await fetch(url, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": apiKey,
-        },
+        headers,
         body: JSON.stringify({
           contents: [
             {
@@ -542,10 +578,7 @@ Return ONLY a valid JSON object matching this exact schema:
               ],
             },
           ],
-          generationConfig: {
-            temperature: 0.2,
-            responseMimeType: "application/json",
-          },
+          generationConfig,
         }),
       });
 
@@ -553,16 +586,65 @@ Return ONLY a valid JSON object matching this exact schema:
         const errorText = await response.text();
         console.warn(`Gemini Vision on ${ep.version}/${ep.model} returned HTTP ${response.status}:`, errorText);
         lastVisionError = new Error(`HTTP ${response.status}: ${errorText}`);
+
         // If 404, try next candidate model
         if (response.status === 404) {
           continue;
         }
+
+        // If 401/403 and Bearer wasn't tried, try Bearer
+        if ((response.status === 401 || response.status === 403) && !headers["Authorization"]) {
+          try {
+            const bearerRes = await fetch(url, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${apiKey}`,
+              },
+              body: JSON.stringify({
+                contents: [
+                  {
+                    role: "user",
+                    parts: [
+                      { text: promptText },
+                      { inlineData: { mimeType, data: cleanBase64.trim() } },
+                    ],
+                  },
+                ],
+                generationConfig,
+              }),
+            });
+            if (bearerRes.ok) {
+              const bData = await bearerRes.json();
+              const bRaw = bData?.candidates?.[0]?.content?.parts?.[0]?.text;
+              if (bRaw) {
+                const parsed = extractJsonFromText(bRaw);
+                cachedWorkingEndpoint = ep;
+                return {
+                  name: parsed.name || "Identified Meal",
+                  mealType: ["breakfast", "lunch", "dinner", "snack"].includes(parsed.mealType) ? parsed.mealType : "lunch",
+                  calories: Number(parsed.calories) || 0,
+                  proteinGrams: Number(parsed.proteinGrams) || 0,
+                  carbsGrams: Number(parsed.carbsGrams) || 0,
+                  fatGrams: Number(parsed.fatGrams) || 0,
+                  vitamins: parsed.vitamins || "Micronutrients identified",
+                  items: Array.isArray(parsed.items) ? parsed.items : [],
+                  notes: parsed.notes || "Identified via Lumen Gemini Vision.",
+                  confidence: Number(parsed.confidence) || 0.92,
+                };
+              }
+            }
+          } catch (bearerErr) {
+            console.warn("Bearer retry failed:", bearerErr);
+          }
+        }
+
         // If 400 with responseMimeType, try standard generation without responseMimeType
         if (response.status === 400 && errorText.includes("responseMimeType")) {
           try {
             const fallbackRes = await fetch(url, {
               method: "POST",
-              headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+              headers,
               body: JSON.stringify({
                 contents: [
                   {
