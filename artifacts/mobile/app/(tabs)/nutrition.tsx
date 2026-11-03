@@ -104,7 +104,8 @@ export default function NutritionScreen() {
     confidence?: number;
   } | null>(null);
 
-  const fileInputRef = useRef<any>(null);
+  const cameraInputRef = useRef<any>(null);
+  const galleryInputRef = useRef<any>(null);
   const recognizeFoodMutation = useRecognizeFood();
   const { data: meals } = useListMeals();
   const createMealMutation = useCreateMeal();
@@ -214,36 +215,17 @@ export default function NutritionScreen() {
     setIsScanning(true);
     setScanResult(null);
 
-    let b64 = base64;
-    if (!b64 && uri) {
-      try {
-        if (uri.startsWith("data:image/")) {
-          b64 = uri;
-        } else if (Platform.OS === "web") {
-          const resp = await fetch(uri);
-          const blob = await resp.blob();
-          b64 = await new Promise<string>((resolve) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.readAsDataURL(blob);
-          });
-        }
-      } catch (e) {
-        console.warn("Base64 conversion fallback:", e);
-      }
-    }
-
-    const payloadBase64 = b64 ? (b64.startsWith("data:") ? b64 : `data:image/jpeg;base64,${b64}`) : uri;
+    const payload = base64 || uri;
 
     try {
-      // 1. First priority: Direct Google Gemini 1.5 Flash Vision if key is configured
+      // 1. Direct on-device Google Gemini Vision
       const geminiKey = await getGeminiApiKey();
       if (geminiKey && isValidGeminiApiKey(geminiKey)) {
         try {
-          const directResult = await analyzeFoodImageWithGemini(payloadBase64, "healthy meal analysis");
+          const directResult = await analyzeFoodImageWithGemini(payload, "healthy meal analysis");
           setScanResult(directResult);
           return;
-        } catch (visionErr) {
+        } catch (visionErr: any) {
           console.warn("Direct Gemini Vision attempt failed, falling back to backend:", visionErr);
         }
       }
@@ -251,7 +233,8 @@ export default function NutritionScreen() {
       // 2. Secondary: Backend server route
       const res: any = await recognizeFoodMutation.mutateAsync({
         data: {
-          imageBase64: payloadBase64,
+          image: payload,
+          imageBase64: payload,
           hint: "healthy meal analysis",
         } as any,
       });
@@ -280,7 +263,7 @@ export default function NutritionScreen() {
       Alert.alert(
         "Scanning Notice",
         hasKey
-          ? "Could not detect meal items from this image. Please take a clearer photo in good lighting or enter the meal details manually."
+          ? `Could not analyze food photo (${err?.message || "Please take a clearer photo in good lighting"}).`
           : "AI Food Scanning requires a Gemini API key. Please configure your free Google Gemini API key in Coach settings to enable instant food scanning.",
         [{ text: "OK" }]
       );
@@ -292,13 +275,17 @@ export default function NutritionScreen() {
 
   // 1. Take photo with camera
   const handleTakePhoto = async () => {
+    if (Platform.OS === "web") {
+      if (cameraInputRef.current) {
+        cameraInputRef.current.click();
+      }
+      return;
+    }
     try {
-      if (Platform.OS !== "web") {
-        const { status } = await ImagePicker.requestCameraPermissionsAsync();
-        if (status !== "granted") {
-          Alert.alert("Permission Required", "Camera permission is required to photograph your meal.");
-          return;
-        }
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission Required", "Camera permission is required to photograph your meal.");
+        return;
       }
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -313,23 +300,23 @@ export default function NutritionScreen() {
       }
     } catch (err: any) {
       console.warn("Camera error:", err);
-      if (Platform.OS === "web" && fileInputRef.current) {
-        fileInputRef.current.click();
-      } else {
-        Alert.alert("Camera Error", err?.message || "Could not open camera");
-      }
+      Alert.alert("Camera Error", err?.message || "Could not open camera");
     }
   };
 
   // 2. Pick photo from phone gallery
   const handlePickFromGallery = async () => {
+    if (Platform.OS === "web") {
+      if (galleryInputRef.current) {
+        galleryInputRef.current.click();
+      }
+      return;
+    }
     try {
-      if (Platform.OS !== "web") {
-        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (status !== "granted") {
-          Alert.alert("Permission Required", "Gallery permission is required to select food photos.");
-          return;
-        }
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission Required", "Gallery permission is required to select food photos.");
+        return;
       }
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -344,15 +331,11 @@ export default function NutritionScreen() {
       }
     } catch (err: any) {
       console.warn("Gallery error:", err);
-      if (Platform.OS === "web" && fileInputRef.current) {
-        fileInputRef.current.click();
-      } else {
-        Alert.alert("Gallery Error", err?.message || "Could not open photo gallery");
-      }
+      Alert.alert("Gallery Error", err?.message || "Could not open photo gallery");
     }
   };
 
-  // Web file input change handler
+  // Web / Capacitor file input change handler
   const handleWebFileChange = (e: any) => {
     const file = e.target?.files?.[0];
     if (file) {
@@ -363,6 +346,9 @@ export default function NutritionScreen() {
       };
       reader.readAsDataURL(file);
     }
+    try {
+      e.target.value = "";
+    } catch {}
   };
 
   // 1-Tap Log Scanned Meal
@@ -826,15 +812,25 @@ export default function NutritionScreen() {
           </Pressable>
         </View>
 
-        {/* Hidden Web File Input for browser uploads */}
+        {/* Hidden File Inputs for Web / Capacitor WebView */}
         {Platform.OS === "web" && (
-          <input
-            type="file"
-            ref={fileInputRef}
-            accept="image/*"
-            style={{ display: "none" }}
-            onChange={handleWebFileChange}
-          />
+          <>
+            <input
+              type="file"
+              ref={cameraInputRef}
+              accept="image/*"
+              capture="environment"
+              style={{ display: "none" }}
+              onChange={handleWebFileChange}
+            />
+            <input
+              type="file"
+              ref={galleryInputRef}
+              accept="image/*"
+              style={{ display: "none" }}
+              onChange={handleWebFileChange}
+            />
+          </>
         )}
 
         {/* ========================================================================= */}

@@ -43,7 +43,7 @@ async def recognize_food(body: dict):
     Returns portion estimation, macro estimation, confidence scoring, and vitamin content.
     """
     hint = body.get("hint", "")
-    image = body.get("image", "")  # Base64 encoded image string
+    image = body.get("image") or body.get("imageBase64") or body.get("image_base64") or ""
     
     system_prompt = "You are an expert AI Nutritionist. Analyze the user's food description or image and estimate the nutritional value including vitamins."
     
@@ -78,10 +78,13 @@ async def recognize_food(body: dict):
     
     # Construct message content
     if image:
+        clean_img = image
+        if "base64," in clean_img:
+            clean_img = clean_img.split("base64,")[1]
         # Multimodal message for Vision API
         content = [
             {"type": "text", "text": user_prompt_text},
-            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image}"}}
+            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{clean_img}"}}
         ]
     else:
         content = user_prompt_text
