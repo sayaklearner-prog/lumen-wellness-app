@@ -310,21 +310,18 @@ export default function NutritionScreen() {
   const handleWebFileChange = (e: any) => {
     const file = e.target?.files?.[0];
     if (file) {
-      if (typeof window !== "undefined" && typeof URL !== "undefined" && URL.createObjectURL) {
-        const objectUrl = URL.createObjectURL(file);
-        processImageForNutrition(objectUrl, objectUrl);
-      } else {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const dataUrl = reader.result as string;
-          processImageForNutrition(dataUrl, dataUrl);
-        };
-        reader.readAsDataURL(file);
-      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const dataUrl = reader.result as string;
+        processImageForNutrition(dataUrl, dataUrl);
+      };
+      reader.readAsDataURL(file);
     }
-    try {
-      e.target.value = "";
-    } catch {}
+    setTimeout(() => {
+      try {
+        if (e.target) e.target.value = "";
+      } catch {}
+    }, 500);
   };
 
   // 1-Tap Log Scanned Meal

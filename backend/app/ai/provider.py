@@ -19,11 +19,14 @@ class GeminiProvider(AIProvider):
         self.api_key = settings.GEMINI_API_KEY
         self.base_url = "https://generativelanguage.googleapis.com"
         self.candidate_endpoints = [
+            ("v1beta", "gemini-flash-lite-latest"),
+            ("v1beta", "gemini-3.5-flash-lite"),
+            ("v1beta", "gemini-3.8-flash"),
+            ("v1beta", "gemini-flash-latest"),
+            ("v1beta", "gemini-3.6-flash"),
+            ("v1beta", "gemini-3.7-flash"),
+            ("v1beta", "gemini-pro-latest"),
             ("v1", "gemini-1.5-flash"),
-            ("v1beta", "gemini-2.0-flash"),
-            ("v1beta", "gemini-2.5-flash"),
-            ("v1", "gemini-2.0-flash"),
-            ("v1beta", "gemini-1.5-flash-latest"),
         ]
 
     def _build_parts(self, raw_content: Any) -> List[Dict[str, Any]]:

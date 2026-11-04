@@ -725,7 +725,7 @@ export default function CoachScreen() {
 
               <View style={styles.modelBadgeRow}>
                 <View style={styles.modelChip}>
-                  <Text style={styles.modelChipText}>Model: gemini-1.5-flash</Text>
+                  <Text style={styles.modelChipText}>Model: gemini-flash-lite-latest</Text>
                 </View>
                 <View style={styles.modelChip}>
                   <Text style={styles.modelChipText}>Multi-Turn Memory: Active</Text>

@@ -129,13 +129,14 @@ export interface GeminiEndpointConfig {
 }
 
 export const GEMINI_CANDIDATE_ENDPOINTS: GeminiEndpointConfig[] = [
+  { version: "v1beta", model: "gemini-flash-lite-latest" },
+  { version: "v1beta", model: "gemini-3.5-flash-lite" },
+  { version: "v1beta", model: "gemini-3.8-flash" },
+  { version: "v1beta", model: "gemini-flash-latest" },
+  { version: "v1beta", model: "gemini-3.6-flash" },
+  { version: "v1beta", model: "gemini-3.7-flash" },
+  { version: "v1beta", model: "gemini-pro-latest" },
   { version: "v1", model: "gemini-1.5-flash" },
-  { version: "v1beta", model: "gemini-2.0-flash" },
-  { version: "v1beta", model: "gemini-2.5-flash" },
-  { version: "v1", model: "gemini-2.0-flash" },
-  { version: "v1beta", model: "gemini-1.5-flash-latest" },
-  { version: "v1", model: "gemini-1.5-pro" },
-  { version: "v1beta", model: "gemini-1.5-pro" },
 ];
 
 let cachedWorkingEndpoint: GeminiEndpointConfig | null = null;
@@ -219,8 +220,8 @@ export async function askGeminiCoach(
         console.warn(`Gemini ${ep.version}/${ep.model} returned status ${response.status}:`, errorText);
         lastError = new Error(`HTTP ${response.status}: ${errorText}`);
 
-        // If 404 (model not found on that version), silently continue to next candidate
-        if (response.status === 404) {
+        // If 404, 503 (high demand spike), 429 (rate limit), or 500, silently continue to next candidate
+        if (response.status === 404 || response.status === 503 || response.status === 429 || response.status >= 500) {
           continue;
         }
       }
@@ -254,15 +255,34 @@ export async function testGeminiApiKey(keyToTest?: string): Promise<{ success: b
       if (listRes.ok) {
         const listData = await listRes.json();
         const models: any[] = listData.models || [];
-        // Find a model that supports generateContent
-        const validModel = models.find(
-          (m: any) =>
-            Array.isArray(m.supportedGenerationMethods) &&
-            m.supportedGenerationMethods.includes("generateContent") &&
-            (m.name?.includes("flash") || m.name?.includes("gemini"))
-        );
+        // Find an active model that supports generateContent (prioritizing high-availability flash models)
+        const preferredModels = [
+          "gemini-flash-lite-latest",
+          "gemini-3.5-flash-lite",
+          "gemini-3.8-flash",
+          "gemini-flash-latest",
+          "gemini-3.6-flash",
+          "gemini-3.7-flash",
+          "gemini-pro-latest",
+        ];
+        const validModel =
+          models.find((m: any) => {
+            const name = m.name?.replace(/^models\//, "");
+            return (
+              Array.isArray(m.supportedGenerationMethods) &&
+              m.supportedGenerationMethods.includes("generateContent") &&
+              preferredModels.includes(name)
+            );
+          }) ||
+          models.find(
+            (m: any) =>
+              Array.isArray(m.supportedGenerationMethods) &&
+              m.supportedGenerationMethods.includes("generateContent") &&
+              !m.name?.includes("2.5") &&
+              (m.name?.includes("flash") || m.name?.includes("gemini"))
+          );
         if (validModel) {
-          const rawName = validModel.name?.replace(/^models\//, "") || "gemini-1.5-flash";
+          const rawName = validModel.name?.replace(/^models\//, "") || "gemini-flash-lite-latest";
           cachedWorkingEndpoint = { version: v, model: rawName };
           return {
             success: true,
@@ -302,8 +322,8 @@ export async function testGeminiApiKey(keyToTest?: string): Promise<{ success: b
       } else {
         const err = await response.text();
         lastErrorSummary = `HTTP ${response.status}: ${err}`;
-        // If 404, silently test the next candidate endpoint
-        if (response.status === 404) {
+        // If 404, 503 (high demand spike), 429 (rate limit), or 500, silently test the next candidate endpoint
+        if (response.status === 404 || response.status === 503 || response.status === 429 || response.status >= 500) {
           continue;
         }
         // If 400 or 403, key was actively rejected
@@ -405,6 +425,9 @@ export async function prepareImageForGemini(
         };
 
         img.src = uriOrDataUrl;
+        if (img.complete && (img.naturalWidth > 0 || img.width > 0)) {
+          img.onload();
+        }
       });
 
       if (res && res.base64 && res.base64.length > 50) {
@@ -553,8 +576,8 @@ Return ONLY a valid JSON object matching this exact schema:
         console.warn(`Gemini Vision on ${ep.version}/${ep.model} returned HTTP ${response.status}:`, errorText);
         lastVisionError = new Error(`HTTP ${response.status}: ${errorText}`);
 
-        // If 404, try next candidate model
-        if (response.status === 404) {
+        // If 404, 503 (high demand spike), 429 (rate limit), or 500, try next candidate model
+        if (response.status === 404 || response.status === 503 || response.status === 429 || response.status >= 500) {
           continue;
         }
 
