@@ -42,6 +42,18 @@ export function useHydration(steps = 0, workoutMinutes = 0) {
     return await hydrationService.refreshState(steps, workoutMinutes);
   }, [steps, workoutMinutes]);
 
+  const toggleReminders = useCallback(async (enabled: boolean) => {
+    return await hydrationService.toggleReminders(enabled);
+  }, []);
+
+  const setIntervalHours = useCallback(async (hours: number) => {
+    return await hydrationService.setIntervalHours(hours);
+  }, []);
+
+  const sendTestPrompt = useCallback(async () => {
+    return await hydrationService.sendTestPrompt();
+  }, []);
+
   return {
     hydration,
     logDrink,
@@ -49,6 +61,9 @@ export function useHydration(steps = 0, workoutMinutes = 0) {
     decrementCup,
     removeEntry,
     refreshHydration,
+    toggleReminders,
+    setIntervalHours,
+    sendTestPrompt,
     presets: HYDRATION_PRESETS,
     beverageTypes: BEVERAGE_TYPES,
     schedule: HOURLY_HYDRATION_SCHEDULE,

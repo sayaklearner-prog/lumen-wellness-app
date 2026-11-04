@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { storage } from "@/services/storage";
-import { playAlarmSound, stopAlarm } from "@/services/alarm";
+import { playAlarmSound, stopAlarm, subscribeToAlarms } from "@/services/alarm";
 import {
   Bell,
   Plus,
@@ -24,6 +24,7 @@ import {
   Clock,
   Check,
   X,
+  Droplets,
   Activity,
   AlertCircle,
   Flame,
@@ -31,7 +32,16 @@ import {
 import { useSlideMenu } from "@/context/SlideMenuContext";
 
 import { getAlarms, saveAlarm, deleteAlarm as deleteAlarmDb } from "@/services/db";
-import { sendLocalNotification } from "@/services/notifications";
+import {
+  sendLocalNotification,
+  syncAllAlarmsWithNative,
+  scheduleNativeAlarm,
+  cancelNativeAlarm,
+  snoozeNativeAlarm,
+  stopNativeAlarmSound,
+  stringToAlarmId,
+} from "@/services/notifications";
+import { useHydration } from "@/hooks/useHydration";
 import THEME from "@/constants/theme";
 
 export interface AlarmReminder {
@@ -94,19 +104,28 @@ export default function RemindersScreen() {
   const [newIsAi, setNewIsAi] = useState(false);
   const [newSound, setNewSound] = useState(true);
 
+  // Hydration hook for synced controls
+  const {
+    hydration,
+    toggleReminders: toggleHydrationReminders,
+    setIntervalHours: setHydrationInterval,
+    sendTestPrompt: sendHydrationTest,
+  } = useHydration();
+
   // Active ringing alarm state
   const [ringingAlarm, setRingingAlarm] = useState<AlarmReminder | null>(null);
   const [isTestRinging, setIsTestRinging] = useState(false);
   const activeAlarmController = useRef<{ stop: () => void } | null>(null);
   const lastTriggeredMinute = useRef<string>("");
 
-  // Load saved reminders from SQLite master DB & storage
+  // Load saved reminders from SQLite DB & storage, and arm native Android AlarmManager
   useEffect(() => {
     async function loadAlarms() {
       try {
         const dbAlarms = await getAlarms();
         if (dbAlarms && dbAlarms.length > 0) {
           setReminders(dbAlarms);
+          syncAllAlarmsWithNative(dbAlarms);
           return;
         }
         const stored = await storage.getItem("lumen_reminders_alarms");
@@ -114,8 +133,12 @@ export default function RemindersScreen() {
           const parsed = JSON.parse(stored);
           if (Array.isArray(parsed) && parsed.length > 0) {
             setReminders(parsed);
+            syncAllAlarmsWithNative(parsed);
+            return;
           }
         }
+        // Fallback to initial reminders
+        syncAllAlarmsWithNative(INITIAL_REMINDERS);
       } catch (err) {
         console.warn("Could not load alarms:", err);
       }
@@ -123,7 +146,15 @@ export default function RemindersScreen() {
     loadAlarms();
   }, []);
 
-  // Save helper
+  // Subscribe to native Android and in-app alarm trigger events
+  useEffect(() => {
+    const unsub = subscribeToAlarms((alarm) => {
+      triggerAlarmRing(alarm);
+    });
+    return () => unsub();
+  }, []);
+
+  // Save helper: updates UI, SQLite DB, storage, and native Android AlarmManager
   const saveRemindersToStorage = async (list: AlarmReminder[]) => {
     setReminders(list);
     try {
@@ -140,10 +171,14 @@ export default function RemindersScreen() {
           createdAt: new Date().toISOString(),
         });
       }
-    } catch {}
+      // Re-sync with native Android AlarmManager
+      await syncAllAlarmsWithNative(list);
+    } catch (e) {
+      console.warn("Error saving reminders:", e);
+    }
   };
 
-  // Real-time minute alarm watcher
+  // Real-time foreground clock watcher
   useEffect(() => {
     const checkClockInterval = setInterval(() => {
       const now = new Date();
@@ -151,7 +186,6 @@ export default function RemindersScreen() {
       const currentMinutes = String(now.getMinutes()).padStart(2, "0");
       const currentClockStr = `${currentHours}:${currentMinutes}`;
 
-      // Avoid double-firing in the same minute
       if (lastTriggeredMinute.current === currentClockStr) {
         return;
       }
@@ -166,17 +200,19 @@ export default function RemindersScreen() {
     return () => clearInterval(checkClockInterval);
   }, [reminders]);
 
-  // Start ringing an alarm
+  // Start ringing an alarm (loud looping tone & full-screen ringing HUD)
   const triggerAlarmRing = (reminder: AlarmReminder) => {
     setRingingAlarm(reminder);
     if (reminder.soundEnabled) {
-      activeAlarmController.current = playAlarmSound(15);
+      activeAlarmController.current = playAlarmSound(60);
     }
-    // Proactive native heads-up notification
+    // High-priority native Android alarm notification
     sendLocalNotification({
+      id: stringToAlarmId(reminder.id),
       title: `⏰ ${reminder.title}`,
-      body: `Scheduled alarm for ${reminder.time} is active.`,
-      channelId: "lumen_alerts",
+      body: `Scheduled alarm for ${reminder.time} is ringing.`,
+      channelId: "lumen_alarms",
+      isAlarm: true,
     });
   };
 
@@ -187,26 +223,25 @@ export default function RemindersScreen() {
       activeAlarmController.current = null;
     }
     stopAlarm();
+    stopNativeAlarmSound();
     setRingingAlarm(null);
     setIsTestRinging(false);
   };
 
   // Snooze for 5 minutes
   const handleSnoozeAlarm = () => {
+    if (ringingAlarm) {
+      snoozeNativeAlarm(stringToAlarmId(ringingAlarm.id), 5);
+    }
     handleDismissAlarm();
-    Alert.alert("Snoozed", "Alarm snoozed for 5 minutes.");
-    setTimeout(() => {
-      if (ringingAlarm) {
-        triggerAlarmRing(ringingAlarm);
-      }
-    }, 5 * 60 * 1000);
+    Alert.alert("Alarm Snoozed ⏰", "We will ring again in 5 minutes.");
   };
 
   // Test ring sound preview
   const handleTestPreviewRing = (rem?: AlarmReminder) => {
     const target = rem || {
       id: "test",
-      time: "08:00",
+      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }),
       title: "Sample Alarm Tone Preview",
       repeat: "DAILY",
       enabled: true,
@@ -229,8 +264,12 @@ export default function RemindersScreen() {
   };
 
   // Delete reminder
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     const updated = reminders.filter((r) => r.id !== id);
+    await cancelNativeAlarm(id);
+    try {
+      await deleteAlarmDb(id);
+    } catch {}
     saveRemindersToStorage(updated);
   };
 
@@ -255,7 +294,7 @@ export default function RemindersScreen() {
     saveRemindersToStorage(updated);
     setNewTitle("");
     setShowAddModal(false);
-    Alert.alert("Alarm Created! ⏰", `Scheduled for ${newItem.time}.`);
+    Alert.alert("Alarm Created! ⏰", `Armed for ${newItem.time} daily.`);
   };
 
   return (
@@ -266,7 +305,7 @@ export default function RemindersScreen() {
           <Pressable onPress={openLeftMenu} style={styles.menuIconBox}>
             <View style={styles.brandDot} />
           </Pressable>
-          <Text style={styles.brandTitle}>Lumen Alarms</Text>
+          <Text style={styles.brandTitle}>Lumen Alarms & Prompts</Text>
         </View>
 
         <Pressable style={styles.addBtn} onPress={() => setShowAddModal(true)}>
@@ -279,10 +318,10 @@ export default function RemindersScreen() {
         {/* Header Hero */}
         <View style={styles.heroBox}>
           <View style={styles.heroLeft}>
-            <Text style={styles.heroSub}>Smart Scheduling</Text>
-            <Text style={styles.heroTitle}>Audible Reminders</Text>
+            <Text style={styles.heroSub}>Production Bio-Alarms</Text>
+            <Text style={styles.heroTitle}>Smart Phone Alarms</Text>
             <Text style={styles.heroDesc}>
-              Active nudges synthesize loud acoustic bell chimes and device vibration when triggered.
+              Rings loudly via Android AlarmManager even when the app is closed, screen is locked, or phone is on silent mode.
             </Text>
           </View>
           <Bell size={36} color="#10b981" />
@@ -292,13 +331,109 @@ export default function RemindersScreen() {
         <Pressable style={styles.testRingBanner} onPress={() => handleTestPreviewRing()}>
           <View style={styles.testRingLeft}>
             <Volume2 size={20} color="#10b981" />
-            <View>
+            <View style={{ flex: 1 }}>
               <Text style={styles.testRingTitle}>Preview Alarm Sound & Vibration</Text>
-              <Text style={styles.testRingSub}>Tap to verify acoustic bell chimes ring loudly</Text>
+              <Text style={styles.testRingSub}>Tap to verify loud acoustic alarm ring and vibration</Text>
             </View>
           </View>
           <Text style={styles.testRingBadge}>Test ➔</Text>
         </Pressable>
+
+        {/* SMART HYDRATION SECTION CARD */}
+        <View style={styles.hydrationReminderCard}>
+          <View style={styles.hydrationCardHeader}>
+            <View style={styles.hydrationCardIconBox}>
+              <Droplets size={22} color="#06b6d4" />
+            </View>
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Text style={styles.hydrationCardTitle}>Cellular Hydration Prompts</Text>
+                <View
+                  style={[
+                    styles.hydrationLiveBadge,
+                    {
+                      backgroundColor: hydration.remindersEnabled
+                        ? "rgba(6, 182, 212, 0.15)"
+                        : "rgba(100, 116, 139, 0.15)",
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.hydrationLiveBadgeText,
+                      { color: hydration.remindersEnabled ? "#06b6d4" : "#94a3b8" },
+                    ]}
+                  >
+                    {hydration.remindersEnabled ? "ACTIVE" : "OFF"}
+                  </Text>
+                </View>
+              </View>
+              <Text style={styles.hydrationCardSub}>
+                {hydration.remindersEnabled
+                  ? `Next prompt: ${hydration.nextPromptTimeStr || "Scheduled"}`
+                  : "Daytime fluid reminders disabled"}
+              </Text>
+            </View>
+            <Switch
+              value={hydration.remindersEnabled}
+              onValueChange={(val) => {
+                toggleHydrationReminders(val);
+              }}
+              trackColor={{ false: "#1e293b", true: "#06b6d4" }}
+              thumbColor={hydration.remindersEnabled ? "#ffffff" : "#94a3b8"}
+            />
+          </View>
+
+          {hydration.remindersEnabled && (
+            <View style={styles.hydrationConfigBox}>
+              <Text style={styles.hydrationConfigLabel}>PROMPT FREQUENCY (8:00 AM – 10:00 PM)</Text>
+              <View style={styles.intervalChipsRow}>
+                {[
+                  { label: "Every 1h", val: 1 },
+                  { label: "Every 1.5h", val: 1.5 },
+                  { label: "Every 2h", val: 2 },
+                  { label: "Every 3h", val: 3 },
+                ].map((chip) => {
+                  const isSelected = hydration.reminderIntervalHours === chip.val;
+                  return (
+                    <Pressable
+                      key={chip.val}
+                      style={[styles.intervalChip, isSelected && styles.intervalChipActive]}
+                      onPress={() => setHydrationInterval(chip.val)}
+                    >
+                      <Text
+                        style={[
+                          styles.intervalChipText,
+                          isSelected && styles.intervalChipTextActive,
+                        ]}
+                      >
+                        {chip.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              <View style={styles.hydrationTestRow}>
+                <View style={styles.hydrationIntakeProgress}>
+                  <Text style={styles.hydrationProgressText}>
+                    Today: {hydration.todayMl.toLocaleString()} / {hydration.targetMl.toLocaleString()} ml
+                  </Text>
+                </View>
+                <Pressable
+                  style={styles.hydrationTestBtn}
+                  onPress={() => {
+                    sendHydrationTest();
+                    Alert.alert("💧 Hydration Nudge Sent", "Check your notification tray!");
+                  }}
+                >
+                  <Bell size={12} color="#06b6d4" />
+                  <Text style={styles.hydrationTestBtnText}>Test Nudge</Text>
+                </Pressable>
+              </View>
+            </View>
+          )}
+        </View>
 
         {/* Reminders List */}
         <View style={styles.sectionTitleRow}>
@@ -344,7 +479,7 @@ export default function RemindersScreen() {
                   {rem.soundEnabled ? (
                     <>
                       <Volume2 size={14} color="#10b981" />
-                      <Text style={styles.soundToggleText}>Sound On</Text>
+                      <Text style={styles.soundToggleText}>Loud Alarm</Text>
                     </>
                   ) : (
                     <>
@@ -373,22 +508,22 @@ export default function RemindersScreen() {
         </Pressable>
       </ScrollView>
 
-      {/* Ringing Alarm Modal */}
+      {/* Ringing Alarm Modal (Full-Screen Glowing HUD) */}
       <Modal visible={!!ringingAlarm} transparent animationType="fade">
         <View style={styles.alarmModalOverlay}>
           <View style={styles.ringingAlarmCard}>
             <View style={styles.ringingIconCircle}>
-              <Bell size={40} color="#10b981" />
+              <Bell size={44} color="#10b981" />
             </View>
 
-            <Text style={styles.ringingTitle}>⏰ ALARM RINGING</Text>
+            <Text style={styles.ringingTitle}>⏰ PHONE ALARM RINGING</Text>
             <Text style={styles.ringingClock}>{ringingAlarm?.time}</Text>
             <Text style={styles.ringingReminderTitle}>{ringingAlarm?.title}</Text>
-            <Text style={styles.ringingSub}>Synthesized acoustic chime is active</Text>
+            <Text style={styles.ringingSub}>Continuous loud alarm tone & vibration active</Text>
 
             <View style={styles.ringingButtonsRow}>
               <Pressable style={styles.snoozeBtn} onPress={handleSnoozeAlarm}>
-                <Text style={styles.snoozeBtnText}>Snooze 5m</Text>
+                <Text style={styles.snoozeBtnText}>Snooze (+5m)</Text>
               </Pressable>
 
               <Pressable style={styles.dismissBtn} onPress={handleDismissAlarm}>
@@ -404,19 +539,19 @@ export default function RemindersScreen() {
         <View style={styles.addModalOverlay}>
           <View style={styles.addModalCard}>
             <View style={styles.addModalHeader}>
-              <Text style={styles.addModalTitle}>Set New Alarm</Text>
+              <Text style={styles.addModalTitle}>Set New Phone Alarm</Text>
               <Pressable onPress={() => setShowAddModal(false)}>
                 <X size={20} color="#94a3b8" />
               </Pressable>
             </View>
 
             <View style={styles.addInputGroup}>
-              <Text style={styles.addInputLabel}>Alarm Time (HH:mm)</Text>
+              <Text style={styles.addInputLabel}>Alarm Time (HH:mm format, e.g. 07:30)</Text>
               <TextInput
                 style={styles.addTextInput}
                 value={newTime}
                 onChangeText={setNewTime}
-                placeholder="08:00"
+                placeholder="07:30"
                 placeholderTextColor="#475569"
               />
             </View>
@@ -427,15 +562,15 @@ export default function RemindersScreen() {
                 style={styles.addTextInput}
                 value={newTitle}
                 onChangeText={setNewTitle}
-                placeholder="e.g. Afternoon stretch & water"
+                placeholder="e.g. Morning hydration & stretch"
                 placeholderTextColor="#475569"
               />
             </View>
 
             <View style={styles.addSwitchRow}>
               <View>
-                <Text style={styles.addSwitchTitle}>Audible Sound & Vibration</Text>
-                <Text style={styles.addSwitchDesc}>Plays acoustic bell chords when triggered</Text>
+                <Text style={styles.addSwitchTitle}>Loud Alarm & Vibration</Text>
+                <Text style={styles.addSwitchDesc}>Rings continuous phone alarm even if sleeping</Text>
               </View>
               <Switch
                 value={newSound}
@@ -447,8 +582,8 @@ export default function RemindersScreen() {
 
             <View style={styles.addSwitchRow}>
               <View>
-                <Text style={styles.addSwitchTitle}>AI Adaptive Nudge</Text>
-                <Text style={styles.addSwitchDesc}>Optimizes timing according to biometrics</Text>
+                <Text style={styles.addSwitchTitle}>AI Adaptive Timing</Text>
+                <Text style={styles.addSwitchDesc}>Nudges according to circadian biometric peak</Text>
               </View>
               <Switch
                 value={newIsAi}
@@ -459,7 +594,7 @@ export default function RemindersScreen() {
             </View>
 
             <Pressable style={styles.createAlarmBtn} onPress={handleAddReminder}>
-              <Text style={styles.createAlarmBtnText}>Save Alarm</Text>
+              <Text style={styles.createAlarmBtnText}>Arm Alarm (Exact Native)</Text>
             </Pressable>
           </View>
         </View>
@@ -595,6 +730,118 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     paddingLeft: 8,
   },
+  // Hydration card styles
+  hydrationReminderCard: {
+    backgroundColor: THEME.colors.cardBg,
+    borderWidth: 1,
+    borderColor: "rgba(6, 182, 212, 0.3)",
+    borderRadius: 24,
+    padding: 18,
+    ...THEME.shadows.card,
+  },
+  hydrationCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  hydrationCardIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(6, 182, 212, 0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  hydrationCardTitle: {
+    color: THEME.colors.cardTextPrimary,
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  hydrationCardSub: {
+    color: THEME.colors.cardTextSecondary,
+    fontSize: 12,
+    marginTop: 2,
+  },
+  hydrationLiveBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  hydrationLiveBadgeText: {
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 0.5,
+  },
+  hydrationConfigBox: {
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(200, 218, 210, 0.25)",
+  },
+  hydrationConfigLabel: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: THEME.colors.cardTextSecondary,
+    letterSpacing: 0.6,
+    marginBottom: 8,
+  },
+  intervalChipsRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  intervalChip: {
+    flex: 1,
+    paddingVertical: 7,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(200, 218, 210, 0.25)",
+    backgroundColor: "rgba(232, 241, 237, 0.4)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  intervalChipActive: {
+    backgroundColor: "#06b6d4",
+    borderColor: "#06b6d4",
+  },
+  intervalChipText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: THEME.colors.cardTextSecondary,
+  },
+  intervalChipTextActive: {
+    color: "#ffffff",
+    fontWeight: "900",
+  },
+  hydrationTestRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 12,
+  },
+  hydrationIntakeProgress: {
+    flex: 1,
+  },
+  hydrationProgressText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: THEME.colors.cardTextSecondary,
+  },
+  hydrationTestBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(6, 182, 212, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(6, 182, 212, 0.3)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  hydrationTestBtnText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#06b6d4",
+  },
+  // Section title & list
   sectionTitleRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -722,7 +969,7 @@ const styles = StyleSheet.create({
   },
   alarmModalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(11, 22, 19, 0.8)",
+    backgroundColor: "rgba(11, 22, 19, 0.85)",
     justifyContent: "center",
     alignItems: "center",
     padding: 24,
@@ -732,15 +979,15 @@ const styles = StyleSheet.create({
     backgroundColor: THEME.colors.cardBg,
     borderWidth: 2,
     borderColor: THEME.colors.accentGreen,
-    borderRadius: 24,
-    padding: 24,
+    borderRadius: 28,
+    padding: 26,
     alignItems: "center",
     ...THEME.shadows.card,
   },
   ringingIconCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 84,
+    height: 84,
+    borderRadius: 42,
     backgroundColor: "rgba(16, 185, 129, 0.15)",
     alignItems: "center",
     justifyContent: "center",
@@ -748,81 +995,81 @@ const styles = StyleSheet.create({
   },
   ringingTitle: {
     color: THEME.colors.accentGreen,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "900",
     letterSpacing: 1,
+    textTransform: "uppercase",
   },
   ringingClock: {
     color: THEME.colors.cardTextPrimary,
-    fontSize: 44,
+    fontSize: 48,
     fontWeight: "900",
-    marginTop: 6,
+    marginVertical: 4,
   },
   ringingReminderTitle: {
     color: THEME.colors.cardTextPrimary,
     fontSize: 18,
-    fontWeight: "bold",
+    fontWeight: "700",
     textAlign: "center",
-    marginTop: 8,
   },
   ringingSub: {
     color: THEME.colors.cardTextSecondary,
     fontSize: 12,
-    marginTop: 6,
+    marginTop: 4,
+    marginBottom: 20,
+    textAlign: "center",
   },
   ringingButtonsRow: {
     flexDirection: "row",
     gap: 12,
-    marginTop: 24,
     width: "100%",
   },
   snoozeBtn: {
     flex: 1,
-    backgroundColor: "rgba(232, 241, 237, 0.5)",
-    height: 48,
-    borderRadius: 14,
+    backgroundColor: "rgba(232, 241, 237, 0.6)",
+    borderWidth: 1,
+    borderColor: "rgba(200, 218, 210, 0.3)",
+    paddingVertical: 14,
+    borderRadius: 16,
     alignItems: "center",
-    justifyContent: "center",
   },
   snoozeBtnText: {
     color: THEME.colors.cardTextPrimary,
-    fontSize: 14,
     fontWeight: "bold",
+    fontSize: 14,
   },
   dismissBtn: {
     flex: 1,
     backgroundColor: THEME.colors.accentGreen,
-    height: 48,
-    borderRadius: 14,
+    paddingVertical: 14,
+    borderRadius: 16,
     alignItems: "center",
-    justifyContent: "center",
   },
   dismissBtnText: {
     color: "#ffffff",
-    fontSize: 14,
     fontWeight: "bold",
+    fontSize: 14,
   },
   addModalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(11, 22, 19, 0.75)",
+    backgroundColor: "rgba(11, 22, 19, 0.7)",
     justifyContent: "flex-end",
   },
   addModalCard: {
-    backgroundColor: THEME.colors.drawerBg,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
+    backgroundColor: THEME.colors.cardBg,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
     padding: 24,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(200, 218, 210, 0.25)",
-    gap: 14,
+    gap: 16,
   },
   addModalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    marginBottom: 6,
   },
   addModalTitle: {
-    color: THEME.colors.textOnDarkPrimary,
+    color: THEME.colors.cardTextPrimary,
     fontSize: 18,
     fontWeight: "bold",
   },
@@ -830,19 +1077,20 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   addInputLabel: {
-    color: THEME.colors.textOnDarkSecondary,
+    color: THEME.colors.cardTextSecondary,
     fontSize: 12,
     fontWeight: "600",
   },
   addTextInput: {
-    backgroundColor: "rgba(232, 241, 237, 0.1)",
+    backgroundColor: "rgba(232, 241, 237, 0.5)",
     borderWidth: 1,
-    borderColor: "rgba(200, 218, 210, 0.25)",
+    borderColor: "rgba(200, 218, 210, 0.3)",
     borderRadius: 14,
-    height: 48,
     paddingHorizontal: 16,
-    color: THEME.colors.textOnDarkPrimary,
-    fontSize: 15,
+    paddingVertical: 12,
+    color: THEME.colors.cardTextPrimary,
+    fontSize: 16,
+    fontWeight: "600",
   },
   addSwitchRow: {
     flexDirection: "row",
@@ -851,26 +1099,25 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   addSwitchTitle: {
-    color: THEME.colors.textOnDarkPrimary,
-    fontSize: 13,
-    fontWeight: "bold",
+    color: THEME.colors.cardTextPrimary,
+    fontSize: 14,
+    fontWeight: "600",
   },
   addSwitchDesc: {
-    color: THEME.colors.textOnDarkSecondary,
+    color: THEME.colors.cardTextSecondary,
     fontSize: 11,
     marginTop: 2,
   },
   createAlarmBtn: {
     backgroundColor: THEME.colors.accentGreen,
-    height: 48,
-    borderRadius: 14,
+    paddingVertical: 16,
+    borderRadius: 18,
     alignItems: "center",
-    justifyContent: "center",
-    marginTop: 8,
+    marginTop: 10,
   },
   createAlarmBtnText: {
     color: "#ffffff",
-    fontWeight: "bold",
     fontSize: 15,
+    fontWeight: "bold",
   },
 });

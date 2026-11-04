@@ -56,6 +56,7 @@ import {
   RotateCw,
   AlertCircle,
   Timer,
+  Bell,
   BellOff,
   Wind,
   Star,
@@ -602,6 +603,9 @@ export default function DashboardScreen() {
     decrementCup,
     removeEntry,
     refreshHydration,
+    toggleReminders: toggleHydrationReminders,
+    setIntervalHours: setHydrationInterval,
+    sendTestPrompt: sendHydrationTest,
     presets: hydrationPresets,
     beverageTypes: hydrationBeverageTypes,
     schedule: hydrationSchedule,
@@ -1360,6 +1364,19 @@ export default function DashboardScreen() {
                 { width: `${Math.min(100, (hydration.todayMl / (hydration.targetMl || 2000)) * 100)}%` },
               ]}
             />
+          </View>
+
+          {/* Hydration Reminder Quick Indicator */}
+          <View style={styles.hydrationCardReminderRow}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Bell size={12} color={hydration.remindersEnabled ? "#0891b2" : "#94a3b8"} />
+              <Text style={styles.hydrationCardReminderText}>
+                {hydration.remindersEnabled
+                  ? `Prompts: ${hydration.nextPromptTimeStr || `Every ${hydration.reminderIntervalHours}h`}`
+                  : "Prompts: Off"}
+              </Text>
+            </View>
+            <Text style={styles.hydrationCardReminderAction}>Set Nudges ➔</Text>
           </View>
 
           {/* Quick Container Buttons Horizontal Carousel */}
@@ -2636,6 +2653,25 @@ export default function DashboardScreen() {
                     </View>
                   </View>
 
+                  {/* Quick Reminder Strip */}
+                  <Pressable
+                    style={styles.hydrationQuickStrip}
+                    onPress={() => {
+                      triggerHaptic();
+                      setHydrationModalTab("roadmap");
+                    }}
+                  >
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <Bell size={14} color={hydration.remindersEnabled ? "#0891b2" : "#94a3b8"} />
+                      <Text style={styles.hydrationQuickStripText}>
+                        {hydration.remindersEnabled
+                          ? `Hydration Nudges: ${hydration.nextPromptTimeStr || `Every ${hydration.reminderIntervalHours}h`}`
+                          : "Hydration Nudges: Disabled"}
+                      </Text>
+                    </View>
+                    <Text style={styles.hydrationQuickStripAction}>Adjust ➔</Text>
+                  </Pressable>
+
                   {/* ACTIVE BEVERAGE TYPE SELECTOR */}
                   <View style={styles.hydrationSectionBox}>
                     <View style={styles.hydrationSectionHeader}>
@@ -2848,6 +2884,103 @@ export default function DashboardScreen() {
                     <Text style={styles.roadmapIntroText}>
                       Circadian fluid intake sustains cognitive peak without midnight sleep interruptions.
                     </Text>
+                  </View>
+
+                  {/* HYDRATION SMART PROMPTS CONTROL CENTER */}
+                  <View style={styles.hydrationStationCard}>
+                    <View style={styles.hydrationStationHeader}>
+                      <View style={styles.hydrationStationIconBox}>
+                        <Droplet size={18} color="#0891b2" />
+                      </View>
+                      <View style={{ flex: 1, marginLeft: 10 }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                          <Text style={styles.hydrationStationTitle}>Smart Daytime Reminders</Text>
+                          <View
+                            style={[
+                              styles.hydrationStationBadge,
+                              {
+                                backgroundColor: hydration.remindersEnabled
+                                  ? "rgba(8, 145, 178, 0.15)"
+                                  : "rgba(100, 116, 139, 0.15)",
+                              },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.hydrationStationBadgeText,
+                                { color: hydration.remindersEnabled ? "#0891b2" : "#94a3b8" },
+                              ]}
+                            >
+                              {hydration.remindersEnabled ? "ACTIVE" : "OFF"}
+                            </Text>
+                          </View>
+                        </View>
+                        <Text style={styles.hydrationStationSub}>
+                          {hydration.remindersEnabled
+                            ? `Status: ${hydration.nextPromptTimeStr || "Armed"}`
+                            : "Fluid alerts disabled"}
+                        </Text>
+                      </View>
+                      <Switch
+                        value={hydration.remindersEnabled}
+                        onValueChange={(val) => {
+                          toggleHydrationReminders(val);
+                        }}
+                        trackColor={{ false: "#cbd5e1", true: "#0891b2" }}
+                        thumbColor={hydration.remindersEnabled ? "#ffffff" : "#94a3b8"}
+                      />
+                    </View>
+
+                    {hydration.remindersEnabled && (
+                      <View style={styles.hydrationStationBody}>
+                        <Text style={styles.hydrationStationLabel}>NUDGE INTERVAL (8:00 AM – 10:00 PM)</Text>
+                        <View style={styles.hydrationStationIntervalRow}>
+                          {[
+                            { label: "Every 1h", val: 1 },
+                            { label: "Every 1.5h", val: 1.5 },
+                            { label: "Every 2h", val: 2 },
+                            { label: "Every 3h", val: 3 },
+                          ].map((chip) => {
+                            const isSelected = hydration.reminderIntervalHours === chip.val;
+                            return (
+                              <Pressable
+                                key={chip.val}
+                                style={[
+                                  styles.hydrationStationChip,
+                                  isSelected && styles.hydrationStationChipActive,
+                                ]}
+                                onPress={() => setHydrationInterval(chip.val)}
+                              >
+                                <Text
+                                  style={[
+                                    styles.hydrationStationChipText,
+                                    isSelected && styles.hydrationStationChipTextActive,
+                                  ]}
+                                >
+                                  {chip.label}
+                                </Text>
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+
+                        <View style={styles.hydrationStationFooter}>
+                          <Text style={styles.hydrationStationSyncNotice}>
+                            ⚡ Synced with Android AlarmManager & Reminders
+                          </Text>
+                          <Pressable
+                            style={styles.hydrationStationTestBtn}
+                            onPress={async () => {
+                              await sendHydrationTest();
+                              Alert.alert("💧 Test Prompt Sent", "Check your phone notifications bar!");
+                            }}
+                          >
+                            <Bell size={12} color="#0891b2" />
+                            <Text style={styles.hydrationStationTestBtnText}>Test Nudge</Text>
+                          </Pressable>
+                        </View>
+                      </View>
+                    )}
                   </View>
 
                   {hydrationSchedule.map((slot, sIdx) => (
@@ -4269,6 +4402,160 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(239, 68, 68, 0.1)",
     alignItems: "center",
     justifyContent: "center",
+  },
+  hydrationCardReminderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(8, 145, 178, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(8, 145, 178, 0.2)",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    marginTop: 6,
+    marginBottom: 8,
+  },
+  hydrationCardReminderText: {
+    color: "#0891b2",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  hydrationCardReminderAction: {
+    color: "#0891b2",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  hydrationQuickStrip: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(8, 145, 178, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(8, 145, 178, 0.2)",
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginTop: 2,
+    marginBottom: 4,
+  },
+  hydrationQuickStripText: {
+    color: "#0891b2",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  hydrationQuickStripAction: {
+    color: "#0891b2",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  hydrationStationCard: {
+    backgroundColor: THEME.colors.cardBg,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(8, 145, 178, 0.3)",
+    padding: 16,
+    marginBottom: 6,
+    ...THEME.shadows.card,
+  },
+  hydrationStationHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  hydrationStationIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "rgba(8, 145, 178, 0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  hydrationStationTitle: {
+    color: THEME.colors.cardTextPrimary,
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  hydrationStationBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  hydrationStationBadgeText: {
+    fontSize: 9,
+    fontWeight: "900",
+    letterSpacing: 0.5,
+  },
+  hydrationStationSub: {
+    color: THEME.colors.cardTextSecondary,
+    fontSize: 11,
+    marginTop: 2,
+  },
+  hydrationStationBody: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(200, 218, 210, 0.4)",
+  },
+  hydrationStationLabel: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: THEME.colors.cardTextSecondary,
+    letterSpacing: 0.6,
+    marginBottom: 8,
+  },
+  hydrationStationIntervalRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  hydrationStationChip: {
+    flex: 1,
+    paddingVertical: 7,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(200, 218, 210, 0.5)",
+    backgroundColor: "#ffffff",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  hydrationStationChipActive: {
+    backgroundColor: "#0891b2",
+    borderColor: "#0891b2",
+  },
+  hydrationStationChipText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: THEME.colors.cardTextSecondary,
+  },
+  hydrationStationChipTextActive: {
+    color: "#ffffff",
+    fontWeight: "900",
+  },
+  hydrationStationFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 12,
+  },
+  hydrationStationSyncNotice: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: THEME.colors.cardTextSecondary,
+  },
+  hydrationStationTestBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "rgba(8, 145, 178, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(8, 145, 178, 0.3)",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+  },
+  hydrationStationTestBtnText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#0891b2",
   },
   roadmapIntroBox: {
     flexDirection: "row",

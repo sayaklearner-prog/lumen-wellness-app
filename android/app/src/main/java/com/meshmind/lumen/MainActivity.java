@@ -14,6 +14,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(LumenNotificationPlugin.class);
         super.onCreate(savedInstanceState);
         handleOAuthIntent(getIntent());
+        handleAlarmIntent(getIntent());
     }
 
     @Override
@@ -21,6 +22,30 @@ public class MainActivity extends BridgeActivity {
         super.onNewIntent(intent);
         setIntent(intent);
         handleOAuthIntent(intent);
+        handleAlarmIntent(intent);
+    }
+
+    private void handleAlarmIntent(Intent intent) {
+        if (intent == null) return;
+        final int alarmId = intent.getIntExtra("alarm_id", 0);
+        final boolean isRinging = intent.getBooleanExtra("is_ringing", false);
+        final String channel = intent.getStringExtra("notification_channel");
+        if (alarmId > 0 || isRinging || "lumen_alarms".equals(channel)) {
+            String title = intent.getStringExtra("alarm_title");
+            if (title == null || title.isEmpty()) {
+                title = "Lumen Health Alarm";
+            }
+            final String safeTitle = title.replace("\\", "\\\\").replace("'", "\\'");
+            if (getBridge() != null && getBridge().getWebView() != null) {
+                getBridge().getWebView().post(new Runnable() {
+                    @Override
+                    public void run() {
+                        String js = "window.dispatchEvent(new CustomEvent('lumenAlarmRinging', { detail: { id: " + alarmId + ", title: '" + safeTitle + "' } }));";
+                        getBridge().getWebView().evaluateJavascript(js, null);
+                    }
+                });
+            }
+        }
     }
 
     private void handleOAuthIntent(Intent intent) {
@@ -43,4 +68,3 @@ public class MainActivity extends BridgeActivity {
         }
     }
 }
-

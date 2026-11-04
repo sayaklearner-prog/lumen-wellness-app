@@ -7,6 +7,7 @@ import { getKV, setKV } from "./db";
 // ============================================================================
 
 export type NotificationChannelId =
+  | "lumen_alarms"
   | "lumen_alerts"
   | "lumen_hydration"
   | "lumen_movement"
@@ -19,6 +20,7 @@ export interface NotificationOptions {
   title: string;
   body: string;
   channelId?: NotificationChannelId;
+  isAlarm?: boolean;
 }
 
 export interface NotificationScheduleOptions {
@@ -28,6 +30,7 @@ export interface NotificationScheduleOptions {
   channelId?: NotificationChannelId;
   triggerAtMillis: number;
   intervalMillis?: number;
+  isAlarm?: boolean;
 }
 
 export interface NotificationPreferences {
@@ -165,7 +168,7 @@ export async function openSystemNotificationSettings(): Promise<void> {
 }
 
 /**
- * Immediately dispatches an active heads-up notification.
+ * Immediately dispatches an active heads-up notification or instant alarm.
  */
 export async function sendLocalNotification(
   options: NotificationOptions
@@ -179,7 +182,8 @@ export async function sendLocalNotification(
         id,
         title: options.title,
         body: options.body,
-        channelId: options.channelId || "lumen_alerts",
+        channelId: options.channelId || (options.isAlarm ? "lumen_alarms" : "lumen_alerts"),
+        isAlarm: Boolean(options.isAlarm),
       });
       return id;
     } catch (e) {
@@ -219,9 +223,10 @@ export async function scheduleLocalNotification(
         id: options.id,
         title: options.title,
         body: options.body,
-        channelId: options.channelId || "lumen_alerts",
+        channelId: options.channelId || (options.isAlarm ? "lumen_alarms" : "lumen_alerts"),
         triggerAtMillis: options.triggerAtMillis,
         intervalMillis: options.intervalMillis || 0,
+        isAlarm: Boolean(options.isAlarm),
       });
       return true;
     } catch (e) {
@@ -238,12 +243,128 @@ export async function scheduleLocalNotification(
         title: options.title,
         body: options.body,
         channelId: options.channelId,
+        isAlarm: options.isAlarm,
       });
     }, delay);
     return true;
   }
 
   return false;
+}
+
+/**
+ * Silences native Android alarm MediaPlayer / Ringtone and WakeLock.
+ */
+export async function stopNativeAlarmSound(): Promise<void> {
+  const plugin = getNativeNotificationPlugin();
+  if (plugin && typeof plugin.stopAlarmSound === "function") {
+    try {
+      await plugin.stopAlarmSound();
+    } catch (e) {
+      console.warn("Failed stopping native alarm sound:", e);
+    }
+  }
+}
+
+/**
+ * Snoozes a native Android alarm by given minutes (default 5m).
+ */
+export async function snoozeNativeAlarm(id: number, minutes = 5): Promise<void> {
+  const plugin = getNativeNotificationPlugin();
+  if (plugin && typeof plugin.snoozeAlarm === "function") {
+    try {
+      await plugin.snoozeAlarm({ id, minutes });
+    } catch (e) {
+      console.warn("Failed snoozing native alarm:", e);
+    }
+  }
+}
+
+/**
+ * Converts a string alarm id (like 'rem-1' or 'rem-1718293') into a stable 32-bit positive integer
+ */
+export function stringToAlarmId(strId: string): number {
+  let hash = 0;
+  for (let i = 0; i < strId.length; i++) {
+    hash = (hash << 5) - hash + strId.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash % 80000) + 10000;
+}
+
+/**
+ * Computes next timestamp in epoch millis for an alarm "HH:mm".
+ */
+export function getNextAlarmOccurrenceMillis(timeStr: string): number {
+  const parts = timeStr.split(":");
+  const hours = parseInt(parts[0], 10) || 8;
+  const minutes = parseInt(parts[1], 10) || 0;
+
+  const now = new Date();
+  const target = new Date();
+  target.setHours(hours, minutes, 0, 0);
+
+  // If time already elapsed today, set for tomorrow
+  if (target.getTime() <= now.getTime()) {
+    target.setDate(target.getDate() + 1);
+  }
+  return target.getTime();
+}
+
+/**
+ * Schedules or re-schedules an alarm with Android AlarmManager.
+ */
+export async function scheduleNativeAlarm(alarm: {
+  id: string;
+  time: string;
+  title: string;
+  enabled: boolean;
+  soundEnabled?: boolean;
+}): Promise<void> {
+  const numId = stringToAlarmId(alarm.id);
+  if (!alarm.enabled) {
+    await cancelLocalNotification(numId);
+    return;
+  }
+
+  const triggerMillis = getNextAlarmOccurrenceMillis(alarm.time);
+  await scheduleLocalNotification({
+    id: numId,
+    title: `⏰ ${alarm.title}`,
+    body: `Scheduled alarm for ${alarm.time}`,
+    channelId: "lumen_alarms",
+    triggerAtMillis: triggerMillis,
+    intervalMillis: 24 * 60 * 60 * 1000, // Daily repeat
+    isAlarm: true,
+  });
+}
+
+/**
+ * Cancels a native alarm and stops any ringing sound.
+ */
+export async function cancelNativeAlarm(id: string): Promise<void> {
+  const numId = stringToAlarmId(id);
+  await cancelLocalNotification(numId);
+  await stopNativeAlarmSound();
+}
+
+/**
+ * Synchronizes an array of user alarms with native Android AlarmManager.
+ */
+export async function syncAllAlarmsWithNative(
+  alarms: Array<{ id: string; time: string; title: string; enabled: boolean; soundEnabled?: boolean }>
+): Promise<void> {
+  try {
+    for (const alarm of alarms) {
+      if (alarm.enabled) {
+        await scheduleNativeAlarm(alarm);
+      } else {
+        await cancelNativeAlarm(alarm.id);
+      }
+    }
+  } catch (e) {
+    console.warn("syncAllAlarmsWithNative error:", e);
+  }
 }
 
 /**
@@ -287,6 +408,10 @@ export async function sendTestNotification(
 
   const id = Math.floor(Date.now() % 100000);
   const titles: Record<NotificationChannelId, { title: string; body: string }> = {
+    lumen_alarms: {
+      title: "⏰ Lumen Alarm Active",
+      body: "High-priority wake-up alarm is ringing loudly with continuous audio chime.",
+    },
     lumen_alerts: {
       title: "⚡ Lumen Bio-Intelligence Alert",
       body: "Proactive alert engine operational. Real-time biomarker anomaly monitoring is active.",

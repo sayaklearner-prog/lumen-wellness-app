@@ -7,6 +7,7 @@
  * - Beverage Absorption Index (Pure Water, Electrolytes, Herbal Infusion, Coffee)
  * - Real-time SQLite Local Storage & FastAPI Backend Sync
  * - Hourly Hydration Schedule & Urine Color Indicator Scale
+ * - Automated Daytime Smart Interval Reminders (8:00 AM - 10:00 PM) synced to native Android AlarmManager
  */
 
 import { Platform } from "react-native";
@@ -20,6 +21,12 @@ import {
   HydrationEntryRecord,
 } from "./db";
 import { storage } from "./storage";
+import {
+  getNotificationPreferences,
+  saveNotificationPreferences,
+  syncNotificationSchedules,
+  sendLocalNotification,
+} from "./notifications";
 
 export interface HydrationPreset {
   id: string;
@@ -182,6 +189,10 @@ export interface HydrationState {
   statusLabel: string;
   statusBadgeColor: string;
   entries: HydrationEntryRecord[];
+  remindersEnabled: boolean;
+  reminderIntervalHours: number; // 1, 1.5, 2, 3
+  nextPromptTimeStr: string | null;
+  isGoalMet: boolean;
 }
 
 class HydrationService {
@@ -196,6 +207,10 @@ class HydrationService {
     statusLabel: "Not logged • Tap to log",
     statusBadgeColor: "#64748b",
     entries: [],
+    remindersEnabled: true,
+    reminderIntervalHours: 2,
+    nextPromptTimeStr: null,
+    isGoalMet: false,
   };
 
   constructor() {
@@ -233,12 +248,6 @@ class HydrationService {
     }
   }
 
-  /**
-   * Calculates smart dynamic hydration target:
-   * Base: 2,000 ml
-   * + 35 ml per 1,000 steps over 5,000
-   * + 300 ml per 30 minutes of active exercise
-   */
   public calculateSmartTarget(steps = 0, workoutMinutes = 0): number {
     let target = 2000;
     if (steps > 5000) {
@@ -261,7 +270,6 @@ class HydrationService {
       if (entries && entries.length > 0) {
         totalMl = entries.reduce((sum, e) => sum + (e.amountMl || 0), 0);
       } else {
-        // Fallback to cups count stored in legacy hydration_logs
         const cups = await getHydrationToday();
         totalMl = cups * 250;
       }
@@ -269,6 +277,7 @@ class HydrationService {
       const todayCups = Number((totalMl / 250).toFixed(1));
       const ratio = targetMl > 0 ? totalMl / targetMl : 0;
       const percentUsed = Math.min(150, Math.round(ratio * 100));
+      const isGoalMet = totalMl >= targetMl && targetMl > 0;
 
       let score = 0.0;
       let statusLabel = "Not logged • Tap to log";
@@ -294,6 +303,32 @@ class HydrationService {
         }
       }
 
+      // Read reminder preferences
+      const prefs = await getNotificationPreferences();
+      const remindersEnabled = Boolean(prefs.hydrationEnabled);
+      const reminderIntervalHours = Number(prefs.hydrationIntervalHours) || 2;
+
+      // Calculate next prompt display string
+      let nextPromptTimeStr = "Disabled";
+      if (remindersEnabled) {
+        if (isGoalMet) {
+          nextPromptTimeStr = "Goal Met • Resting";
+        } else {
+          const now = new Date();
+          const currentHour = now.getHours();
+          if (currentHour >= 22 || currentHour < 7) {
+            nextPromptTimeStr = "Tomorrow 8:00 AM";
+          } else {
+            const nextTime = new Date(now.getTime() + reminderIntervalHours * 3600 * 1000);
+            if (nextTime.getHours() >= 22) {
+              nextPromptTimeStr = "Tomorrow 8:00 AM";
+            } else {
+              nextPromptTimeStr = nextTime.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+            }
+          }
+        }
+      }
+
       this.currentState = {
         todayMl: totalMl,
         targetMl,
@@ -304,6 +339,10 @@ class HydrationService {
         statusLabel,
         statusBadgeColor,
         entries: entries || [],
+        remindersEnabled,
+        reminderIntervalHours,
+        nextPromptTimeStr,
+        isGoalMet,
       };
 
       this.notify();
@@ -314,9 +353,34 @@ class HydrationService {
     }
   }
 
-  /**
-   * Log a new drink entry with amount and beverage type
-   */
+  public async toggleReminders(enabled: boolean): Promise<HydrationState> {
+    this.triggerHaptic(Haptics.ImpactFeedbackStyle.Medium);
+    const prefs = await getNotificationPreferences();
+    prefs.hydrationEnabled = enabled;
+    await saveNotificationPreferences(prefs);
+    await syncNotificationSchedules(prefs);
+    return await this.refreshState();
+  }
+
+  public async setIntervalHours(hours: number): Promise<HydrationState> {
+    this.triggerHaptic(Haptics.ImpactFeedbackStyle.Light);
+    const prefs = await getNotificationPreferences();
+    prefs.hydrationIntervalHours = hours;
+    await saveNotificationPreferences(prefs);
+    await syncNotificationSchedules(prefs);
+    return await this.refreshState();
+  }
+
+  public async sendTestPrompt(): Promise<boolean> {
+    this.triggerHaptic(Haptics.ImpactFeedbackStyle.Heavy);
+    const id = await sendLocalNotification({
+      title: "💧 Cellular Hydration Prompt",
+      body: "Hydration check: Sip 250ml of water now to maintain optimal blood volume and cellular metabolism.",
+      channelId: "lumen_hydration",
+    });
+    return id !== null;
+  }
+
   public async logDrink(amountMl: number, beverageType = "water"): Promise<HydrationState> {
     this.triggerHaptic(Haptics.ImpactFeedbackStyle.Medium);
 
@@ -329,12 +393,10 @@ class HydrationService {
 
     await addHydrationEntry(newEntry);
 
-    // Sync to legacy table
     const nextTotalMl = this.currentState.todayMl + amountMl;
     const nextCups = Math.round(nextTotalMl / 250);
     await setHydrationToday(nextCups);
 
-    // Refresh state
     const updated = await this.refreshState();
 
     // Background sync to backend
@@ -343,67 +405,51 @@ class HydrationService {
     return updated;
   }
 
-  /**
-   * Delete specific drink log entry
-   */
   public async removeEntry(id: string): Promise<HydrationState> {
     this.triggerHaptic();
     await deleteHydrationEntry(id);
-    const updated = await this.refreshState();
-    const nextCups = Math.round(updated.todayMl / 250);
+
+    const entries = await getHydrationEntriesToday();
+    const nextTotalMl = entries.reduce((sum, e) => sum + (e.amountMl || 0), 0);
+    const nextCups = Math.round(nextTotalMl / 250);
     await setHydrationToday(nextCups);
-    return updated;
+
+    return await this.refreshState();
   }
 
-  /**
-   * Quick increment by 1 cup (250 ml)
-   */
   public async incrementCup(): Promise<HydrationState> {
-    return this.logDrink(250, "water");
+    return await this.logDrink(250, "water");
   }
 
-  /**
-   * Quick decrement by 1 cup (or removes the most recent entry)
-   */
   public async decrementCup(): Promise<HydrationState> {
     this.triggerHaptic();
-    if (this.currentState.entries.length > 0) {
-      const lastEntry = this.currentState.entries[this.currentState.entries.length - 1];
-      return this.removeEntry(lastEntry.id);
-    } else if (this.currentState.todayCups > 0) {
-      const nextCups = Math.max(0, Math.floor(this.currentState.todayCups - 1));
+    const currentCups = await getHydrationToday();
+    if (currentCups > 0) {
+      const nextCups = currentCups - 1;
       await setHydrationToday(nextCups);
-      return this.refreshState();
+      return await this.refreshState();
     }
     return this.currentState;
   }
 
-  private async syncToBackend(entry: HydrationEntryRecord): Promise<void> {
-    const payload = {
-      amount_ml: entry.amountMl,
-      beverage_type: entry.beverageType || "water",
-      logged_at: entry.loggedAt,
-    };
+  private async syncToBackend(entry: HydrationEntryRecord) {
+    try {
+      const token = await storage.getItem("access_token");
+      if (!token) return;
 
-    const endpoints = [
-      "http://10.0.2.2:8000/api/v1/hydration",
-      "http://localhost:8000/api/v1/hydration",
-    ];
+      const API_URL =
+        (typeof window !== "undefined" && (window as any).__LUMEN_API_URL__) ||
+        "https://lumen-ai-backend-4e785.web.app";
 
-    for (const url of endpoints) {
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3000);
-        await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-          signal: controller.signal,
-        });
-        clearTimeout(timeoutId);
-        break;
-      } catch {}
-    }
+      await fetch(`${API_URL}/api/hydration/entry`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(entry),
+      });
+    } catch {}
   }
 }
 

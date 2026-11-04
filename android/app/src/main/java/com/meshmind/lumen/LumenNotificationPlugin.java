@@ -129,9 +129,10 @@ public class LumenNotificationPlugin extends Plugin {
         String body = call.getString("body", "");
         String channelId = call.getString("channelId", NotificationAlarmReceiver.CHANNEL_ALERTS);
         int id = call.getInt("id", (int) (System.currentTimeMillis() % 100000));
+        boolean isAlarm = Boolean.TRUE.equals(call.getBoolean("isAlarm", false)) || NotificationAlarmReceiver.CHANNEL_ALARMS.equals(channelId);
 
         try {
-            NotificationAlarmReceiver.showNotification(getContext(), id, title, body, channelId);
+            NotificationAlarmReceiver.showNotification(getContext(), id, title, body, channelId, isAlarm);
             JSObject ret = new JSObject();
             ret.put("success", true);
             ret.put("id", id);
@@ -149,6 +150,7 @@ public class LumenNotificationPlugin extends Plugin {
         String channelId = call.getString("channelId", NotificationAlarmReceiver.CHANNEL_ALERTS);
         Double triggerDouble = call.getDouble("triggerAtMillis");
         Double intervalDouble = call.getDouble("intervalMillis", 0.0);
+        boolean isAlarm = Boolean.TRUE.equals(call.getBoolean("isAlarm", false)) || NotificationAlarmReceiver.CHANNEL_ALARMS.equals(channelId);
 
         if (triggerDouble == null) {
             call.reject("triggerAtMillis is required");
@@ -160,18 +162,54 @@ public class LumenNotificationPlugin extends Plugin {
 
         try {
             Context context = getContext();
-            NotificationAlarmReceiver.scheduleNextAlarm(context, id, title, body, channelId, triggerAtMillis, intervalMillis);
+            NotificationAlarmReceiver.scheduleNextAlarm(context, id, title, body, channelId, triggerAtMillis, intervalMillis, isAlarm);
 
             // Persist to SharedPreferences
-            saveScheduleToPrefs(context, id, title, body, channelId, triggerAtMillis, intervalMillis);
+            saveScheduleToPrefs(context, id, title, body, channelId, triggerAtMillis, intervalMillis, isAlarm);
 
             JSObject ret = new JSObject();
             ret.put("success", true);
             ret.put("id", id);
             ret.put("triggerAtMillis", (double) triggerAtMillis);
+            ret.put("isAlarm", isAlarm);
             call.resolve(ret);
         } catch (Exception e) {
             call.reject("Failed scheduling notification: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void stopAlarmSound(PluginCall call) {
+        try {
+            NotificationAlarmReceiver.stopActiveRingtone();
+            JSObject ret = new JSObject();
+            ret.put("success", true);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Failed stopping alarm sound: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void snoozeAlarm(PluginCall call) {
+        try {
+            int id = call.getInt("id", (int) (System.currentTimeMillis() % 100000));
+            String title = call.getString("title", "Lumen Alarm");
+            int minutes = call.getInt("minutes", 5);
+
+            NotificationAlarmReceiver.stopActiveRingtone();
+            NotificationManagerCompat.from(getContext()).cancel(id);
+
+            long snoozeTrigger = System.currentTimeMillis() + (minutes * 60 * 1000L);
+            NotificationAlarmReceiver.scheduleNextAlarm(getContext(), id, title, "⏰ Snoozed alarm (" + minutes + " min)", NotificationAlarmReceiver.CHANNEL_ALARMS, snoozeTrigger, 0L, true);
+
+            JSObject ret = new JSObject();
+            ret.put("success", true);
+            ret.put("id", id);
+            ret.put("triggerAtMillis", (double) snoozeTrigger);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Failed snoozing alarm: " + e.getMessage());
         }
     }
 
@@ -250,7 +288,7 @@ public class LumenNotificationPlugin extends Plugin {
         }
     }
 
-    private synchronized void saveScheduleToPrefs(Context context, int id, String title, String body, String channelId, long triggerAtMillis, long intervalMillis) {
+    private synchronized void saveScheduleToPrefs(Context context, int id, String title, String body, String channelId, long triggerAtMillis, long intervalMillis, boolean isAlarm) {
         try {
             SharedPreferences prefs = context.getSharedPreferences(NotificationAlarmReceiver.PREFS_NAME, Context.MODE_PRIVATE);
             String json = prefs.getString(NotificationAlarmReceiver.KEY_SCHEDULES_JSON, "[]");
@@ -271,6 +309,7 @@ public class LumenNotificationPlugin extends Plugin {
             newObj.put("channelId", channelId);
             newObj.put("triggerAtMillis", triggerAtMillis);
             newObj.put("intervalMillis", intervalMillis);
+            newObj.put("isAlarm", isAlarm);
             updated.put(newObj);
 
             prefs.edit().putString(NotificationAlarmReceiver.KEY_SCHEDULES_JSON, updated.toString()).apply();
