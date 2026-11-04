@@ -1,6 +1,11 @@
 import { storage } from "./storage";
-import { getKV, setKV } from "./db";
+import { getKV, setKV, DailyHealthRecord } from "./db";
 import { HealthContextModel } from "./coachMemory";
+import {
+  MonthlyHealthSummary,
+  ThreePillarAiInsights,
+  generateThreePillarAiInsights,
+} from "./dailyHealthMetrics";
 
 // ============================================================================
 // LUMEN GOOGLE GEMINI AI BIO-INTELLIGENCE ADVISOR
@@ -129,14 +134,16 @@ export interface GeminiEndpointConfig {
 }
 
 export const GEMINI_CANDIDATE_ENDPOINTS: GeminiEndpointConfig[] = [
-  { version: "v1beta", model: "gemini-flash-lite-latest" },
-  { version: "v1beta", model: "gemini-3.5-flash-lite" },
-  { version: "v1beta", model: "gemini-3.8-flash" },
-  { version: "v1beta", model: "gemini-flash-latest" },
-  { version: "v1beta", model: "gemini-3.6-flash" },
-  { version: "v1beta", model: "gemini-3.7-flash" },
-  { version: "v1beta", model: "gemini-pro-latest" },
+  { version: "v1beta", model: "gemini-2.0-flash" },
+  { version: "v1beta", model: "gemini-2.0-flash-lite" },
+  { version: "v1beta", model: "gemini-1.5-flash" },
+  { version: "v1beta", model: "gemini-1.5-flash-8b" },
   { version: "v1", model: "gemini-1.5-flash" },
+  { version: "v1", model: "gemini-2.0-flash" },
+  { version: "v1beta", model: "gemini-flash-lite-latest" },
+  { version: "v1beta", model: "gemini-flash-latest" },
+  { version: "v1beta", model: "gemini-1.5-pro" },
+  { version: "v1beta", model: "gemini-pro-latest" },
 ];
 
 let cachedWorkingEndpoint: GeminiEndpointConfig | null = null;
@@ -257,12 +264,13 @@ export async function testGeminiApiKey(keyToTest?: string): Promise<{ success: b
         const models: any[] = listData.models || [];
         // Find an active model that supports generateContent (prioritizing high-availability flash models)
         const preferredModels = [
+          "gemini-2.0-flash",
+          "gemini-2.0-flash-lite",
+          "gemini-1.5-flash",
+          "gemini-1.5-flash-8b",
           "gemini-flash-lite-latest",
-          "gemini-3.5-flash-lite",
-          "gemini-3.8-flash",
           "gemini-flash-latest",
-          "gemini-3.6-flash",
-          "gemini-3.7-flash",
+          "gemini-1.5-pro",
           "gemini-pro-latest",
         ];
         const validModel =
@@ -653,4 +661,185 @@ Return ONLY a valid JSON object matching this exact schema:
   }
 
   throw lastVisionError || new Error("Failed to analyze food image with Gemini Vision across all candidate models.");
+}
+
+/**
+ * Synthesizes 3-Pillar Clinical Bio-Intelligence (Movement, Recovery, Nutrition)
+ * using Google Gemini AI, grounded in authentic daily telemetry & monthly context.
+ */
+export async function synthesizeThreePillarBiometricsWithGemini(
+  record: DailyHealthRecord,
+  monthlySummary?: MonthlyHealthSummary,
+  customApiKey?: string
+): Promise<ThreePillarAiInsights> {
+  const apiKey = customApiKey || (await getGeminiApiKey());
+  if (!apiKey || !isValidGeminiApiKey(apiKey)) {
+    console.warn("No active Google Gemini API key configured, providing clinical baseline.");
+    const fallback = generateThreePillarAiInsights(record, monthlySummary);
+    fallback.isAiGenerated = false;
+    return fallback;
+  }
+
+  const steps = record.steps || 0;
+  const activeCalories = record.activeCalories || 0;
+  const distanceKm = record.distanceKm || (steps * 0.00075).toFixed(2);
+  const sleepHours = record.sleepHours || 0;
+  const sleepQuality = record.sleepQuality || "Normal";
+  const hydrationMl = record.hydrationMl || 0;
+  const hydrationCups = record.hydrationCups || Math.round(hydrationMl / 250);
+  const caloriesConsumed = record.caloriesConsumed || 0;
+  const proteinGrams = record.proteinGrams || 0;
+  const carbsGrams = record.carbsGrams || 0;
+  const fatGrams = record.fatGrams || 0;
+  const screenMinutes = record.screenMinutes || 0;
+  const overallScore = record.overallScore || 0;
+
+  const avgScore = monthlySummary?.averageScore || 0;
+  const avgSteps =
+    monthlySummary?.totalSteps && monthlySummary.daysLoggedCount
+      ? Math.round(monthlySummary.totalSteps / monthlySummary.daysLoggedCount)
+      : 0;
+  const avgSleep = monthlySummary?.averageSleepHours || 0;
+
+  const prompt = `You are Lumen's Chief Clinical Bio-Intelligence AI.
+Analyze the user's authentic biometric telemetry for date ${record.date}:
+- Movement & Biomotor: ${steps.toLocaleString()} steps, ${activeCalories} kcal active burn, ${distanceKm} km.
+- Cellular Recovery & Sleep: ${sleepHours} hours sleep (Quality: ${sleepQuality}), ${hydrationMl} ml water logged (${hydrationCups} cups).
+- Metabolic Synthesis & Nutrition: ${caloriesConsumed} kcal consumed, ${proteinGrams}g protein, ${carbsGrams}g carbs, ${fatGrams}g fat.
+- Digital Wellbeing: ${screenMinutes} minutes screen time.
+- Daily Composite Health Score: ${overallScore}/10.
+- Monthly Context: ${avgScore}/10 monthly average score, ${avgSteps} avg steps/day, ${avgSleep}h avg sleep.
+
+Provide an elite clinical bio-intelligence synthesis strictly in JSON format matching this schema:
+{
+  "movement": {
+    "title": "Movement & Biomotor Capacity",
+    "tag": "Biomotor Engine",
+    "scoreLabel": "${steps > 0 ? `${steps.toLocaleString()} Steps` : "0 Steps • Unlogged"}",
+    "status": "optimal" | "balanced" | "needs_attention",
+    "observation": "2-3 sentences of deep physiological analysis grounded in their exact ${steps} steps and active burn.",
+    "clinicalLore": "Deep biochemical/physiological mechanism (e.g. AMPK phosphorylation, mechanical osteogenic loading, GLUT-4 glucose clearance).",
+    "actionableTip": "One high-impact, specific action step."
+  },
+  "recovery": {
+    "title": "Cellular Recovery & Circadian Sleep",
+    "tag": "Circadian Rhythm",
+    "scoreLabel": "${sleepHours > 0 || hydrationMl > 0 ? `${sleepHours}h Sleep • ${hydrationMl}ml Water` : "0.0h Sleep • 0ml Water"}",
+    "status": "optimal" | "balanced" | "needs_attention",
+    "observation": "2-3 sentences addressing their exact ${sleepHours} hours of sleep (including short sleep like 4h/5h and adenosine recovery) and ${hydrationMl}ml hydration.",
+    "clinicalLore": "Deep physiological mechanism (e.g. Stage 3 NREM glymphatic astrocyte filtration, vasopressin/electrolyte balance).",
+    "actionableTip": "One high-impact circadian recovery action step."
+  },
+  "nutrition": {
+    "title": "Metabolic Synthesis & Nutrition",
+    "tag": "Metabolic State",
+    "scoreLabel": "${proteinGrams > 0 ? `${proteinGrams}g Protein` : "0g Protein • Unlogged"}",
+    "status": "optimal" | "balanced" | "needs_attention",
+    "observation": "2-3 sentences analyzing their exact ${proteinGrams}g protein and metabolic intake (MPS saturation, glycemic variance).",
+    "clinicalLore": "Deep biochemical pathway (e.g. plasma leucine threshold triggering mTORC1 phosphorylation).",
+    "actionableTip": "One high-impact nutritional action step."
+  }
+}`;
+
+  const endpoints = getEndpointsToAttempt();
+  let lastError: any = null;
+
+  for (const ep of endpoints) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/${ep.version}/models/${ep.model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+      const generationConfig: Record<string, any> = {
+        temperature: 0.3,
+        maxOutputTokens: 2048,
+      };
+      if (ep.version === "v1beta") {
+        generationConfig.responseMimeType = "application/json";
+      }
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey,
+        },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          generationConfig,
+        }),
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        console.warn(`Gemini synthesis ${ep.version}/${ep.model} returned ${response.status}:`, errText);
+        lastError = new Error(`HTTP ${response.status}: ${errText}`);
+        continue;
+      }
+
+      const data = await response.json();
+      const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!rawText) continue;
+
+      cachedWorkingEndpoint = ep;
+      const parsed = extractJsonFromText(rawText);
+
+      if (parsed?.movement && parsed?.recovery && parsed?.nutrition) {
+        const cleanStatus = (s: string): "optimal" | "balanced" | "needs_attention" => {
+          if (s === "optimal" || s === "needs_attention") return s;
+          return "balanced";
+        };
+
+        const result: ThreePillarAiInsights = {
+          movement: {
+            title: parsed.movement.title || "Movement & Biomotor Capacity",
+            tag: parsed.movement.tag || "Biomotor Engine",
+            scoreLabel:
+              parsed.movement.scoreLabel || (steps > 0 ? `${steps.toLocaleString()} Steps` : "0 Steps • Unlogged"),
+            status: cleanStatus(parsed.movement.status),
+            observation: parsed.movement.observation || "Movement volume evaluated.",
+            clinicalLore: parsed.movement.clinicalLore || "AMPK activation drives non-insulin-mediated glucose uptake.",
+            actionableTip: parsed.movement.actionableTip || "Take a 15-minute post-meal walk.",
+          },
+          recovery: {
+            title: parsed.recovery.title || "Cellular Recovery & Circadian Sleep",
+            tag: parsed.recovery.tag || "Circadian Rhythm",
+            scoreLabel:
+              parsed.recovery.scoreLabel ||
+              (sleepHours > 0 || hydrationMl > 0 ? `${sleepHours}h Sleep • ${hydrationMl}ml Water` : "0.0h Sleep • 0ml Water"),
+            status: cleanStatus(parsed.recovery.status),
+            observation: parsed.recovery.observation || "Recovery rhythm evaluated.",
+            clinicalLore: parsed.recovery.clinicalLore || "Stage 3 NREM sleep activates glymphatic waste clearance.",
+            actionableTip: parsed.recovery.actionableTip || "Dim screens 45 minutes before sleep.",
+          },
+          nutrition: {
+            title: parsed.nutrition.title || "Metabolic Synthesis & Nutrition",
+            tag: parsed.nutrition.tag || "Metabolic State",
+            scoreLabel:
+              parsed.nutrition.scoreLabel || (proteinGrams > 0 ? `${proteinGrams}g Protein` : "0g Protein • Unlogged"),
+            status: cleanStatus(parsed.nutrition.status),
+            observation: parsed.nutrition.observation || "Nutritional flux evaluated.",
+            clinicalLore:
+              parsed.nutrition.clinicalLore || "Circulating plasma leucine triggers mTORC1 for myofibrillar repair.",
+            actionableTip: parsed.nutrition.actionableTip || "Ensure balanced protein distribution across meals.",
+          },
+          isAiGenerated: true,
+          generatedAt: new Date().toISOString(),
+          modelUsed: ep.model,
+        };
+
+        // Cache in storage for instant future visits
+        try {
+          await storage.setItem(`lumen_3pillar_ai_${record.date}`, JSON.stringify(result));
+        } catch {}
+
+        return result;
+      }
+    } catch (err: any) {
+      console.warn(`Gemini synthesis failed on ${ep.version}/${ep.model}:`, err);
+      lastError = err;
+    }
+  }
+
+  console.warn("Gemini synthesis returned error or no valid payload, providing clinical baseline:", lastError);
+  const fallback = generateThreePillarAiInsights(record, monthlySummary);
+  fallback.isAiGenerated = false;
+  return fallback;
 }

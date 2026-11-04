@@ -69,6 +69,9 @@ export interface ThreePillarAiInsights {
     clinicalLore: string;
     actionableTip: string;
   };
+  isAiGenerated?: boolean;
+  generatedAt?: string;
+  modelUsed?: string;
 }
 
 /** Format Date object as YYYY-MM-DD in local time */
