@@ -7,10 +7,6 @@ import {
   Pressable,
   Platform,
   ActivityIndicator,
-  Modal,
-  TextInput,
-  Alert,
-  Linking,
 } from "react-native";
 import {
   Sparkles,
@@ -30,8 +26,6 @@ import {
   Info,
   CheckCircle2,
   Zap,
-  Check,
-  X,
 } from "lucide-react-native";
 import THEME from "@/constants/theme";
 import {
@@ -47,13 +41,7 @@ import {
 } from "@/services/dailyHealthMetrics";
 import { DailyHealthRecord, getDailyHealthRecord } from "@/services/db";
 import { storage } from "@/services/storage";
-import {
-  synthesizeThreePillarBiometricsWithGemini,
-  getGeminiApiKey,
-  setGeminiApiKey,
-  testGeminiApiKey,
-  isValidGeminiApiKey,
-} from "@/services/geminiAi";
+import { synthesizeThreePillarBiometricsWithGemini } from "@/services/geminiAi";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -76,17 +64,6 @@ export default function AnalyticsScreen() {
 
   // Google Gemini AI Synthesis states
   const [isGeneratingAi, setIsGeneratingAi] = useState<boolean>(false);
-  const [showGeminiModal, setShowGeminiModal] = useState<boolean>(false);
-  const [geminiKeyInput, setGeminiKeyInput] = useState<string>("");
-  const [isTestingGemini, setIsTestingGemini] = useState<boolean>(false);
-  const [geminiTestFeedback, setGeminiTestFeedback] = useState<string | null>(null);
-
-  // Load active Gemini API key
-  useEffect(() => {
-    getGeminiApiKey().then((k) => {
-      if (k) setGeminiKeyInput(k);
-    });
-  }, []);
 
   const triggerAiSynthesis = useCallback(
     async (dayRec: DailyHealthRecord, summary: MonthlyHealthSummary, forceRefresh = false) => {
@@ -118,36 +95,6 @@ export default function AnalyticsScreen() {
     },
     []
   );
-
-  const handleTestGeminiKey = async () => {
-    setIsTestingGemini(true);
-    setGeminiTestFeedback(null);
-    try {
-      const res = await testGeminiApiKey(geminiKeyInput);
-      setGeminiTestFeedback(res.message);
-      if (res.success) {
-        await setGeminiApiKey(geminiKeyInput);
-      }
-    } catch (e: any) {
-      setGeminiTestFeedback("Error: " + e.message);
-    } finally {
-      setIsTestingGemini(false);
-    }
-  };
-
-  const handleSaveGeminiKey = async () => {
-    const cleanKey = geminiKeyInput.trim();
-    if (!cleanKey) {
-      Alert.alert("Empty Key", "Please paste a valid Google Gemini API key from Google AI Studio.");
-      return;
-    }
-    await setGeminiApiKey(cleanKey);
-    Alert.alert("Gemini Key Activated", "Your Google Gemini API key has been securely saved and activated.");
-    setShowGeminiModal(false);
-    if (selectedRecord && monthlySummary) {
-      triggerAiSynthesis(selectedRecord, monthlySummary, true);
-    }
-  };
 
   // Load telemetry data for selected month and selected day (Strictly Clean & Authentic)
   const loadData = useCallback(
@@ -306,18 +253,12 @@ export default function AnalyticsScreen() {
               Biometric Analytics
             </Text>
           </View>
-          <Pressable
-            style={[styles.geminiBadgePill, { flexShrink: 0 }]}
-            onPress={() => setShowGeminiModal(true)}
-            accessibilityRole="button"
-            accessibilityLabel="Configure Google Gemini AI"
-          >
+          <View style={[styles.aiBadge, { flexShrink: 0 }]}>
             <Sparkles size={11} color="#10b981" />
-            <Text style={styles.geminiBadgeText} numberOfLines={1}>
-              {isValidGeminiApiKey(geminiKeyInput) ? "⚡ Gemini Active" : "Connect AI"}
+            <Text style={styles.aiBadgeText} numberOfLines={1}>
+              AI Insights
             </Text>
-            <View style={isValidGeminiApiKey(geminiKeyInput) ? styles.geminiActiveDot : styles.geminiInactiveDot} />
-          </Pressable>
+          </View>
         </View>
       </View>
 
@@ -778,12 +719,6 @@ export default function AnalyticsScreen() {
                   : "Clinical Bio-Intelligence • Baseline Telemetry"}
               </Text>
             </View>
-
-            <Pressable onPress={() => setShowGeminiModal(true)} style={styles.aiKeyConfigLink}>
-              <Text style={styles.aiKeyConfigLinkText}>
-                {isValidGeminiApiKey(geminiKeyInput) ? "Manage AI Key" : "Add Gemini Key"}
-              </Text>
-            </Pressable>
           </View>
 
           {/* Real-time generating banner */}
@@ -1011,129 +946,6 @@ export default function AnalyticsScreen() {
           </Pressable>
         </View>
       </ScrollView>
-
-      {/* ========================================================= */}
-      {/* 6. GOOGLE GEMINI AI CONFIGURATION MODAL                   */}
-      {/* ========================================================= */}
-      <Modal
-        visible={showGeminiModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowGeminiModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.geminiModalContent}>
-            <View style={styles.geminiModalHeader}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
-                <Sparkles size={20} color="#10b981" />
-                <Text style={styles.geminiModalTitle}>Google Gemini AI Advisor</Text>
-              </View>
-              <Pressable
-                onPress={() => setShowGeminiModal(false)}
-                style={styles.geminiModalCloseBtn}
-                hitSlop={8}
-              >
-                <X size={18} color="#94a3b8" />
-              </Pressable>
-            </View>
-
-            <Text style={styles.geminiModalDesc}>
-              Lumen connects directly to Google Gemini to power your personalized bio-intelligence advisor, 3-Pillar clinical synthesis, and instant food photo nutrition scanner.
-            </Text>
-
-            {/* Link to Google AI Studio */}
-            <Pressable
-              style={styles.geminiStudioLink}
-              onPress={() => Linking.openURL("https://aistudio.google.com/app/apikey")}
-            >
-              <View style={{ flex: 1 }}>
-                <Text style={styles.geminiStudioLinkTitle}>Get Free Google Gemini Key ↗</Text>
-                <Text style={styles.geminiStudioLinkSub}>
-                  Open Google AI Studio • 100% free • Takes 30s
-                </Text>
-              </View>
-              <Sparkles size={16} color="#38bdf8" />
-            </Pressable>
-
-            {/* Input field */}
-            <Text style={styles.geminiInputLabel}>Active Gemini API Key</Text>
-            <TextInput
-              style={styles.geminiInput}
-              value={geminiKeyInput}
-              onChangeText={setGeminiKeyInput}
-              placeholder="Paste your Gemini API key (AIzaSy...)"
-              placeholderTextColor="#64748b"
-              autoCapitalize="none"
-              autoCorrect={false}
-              secureTextEntry={false}
-            />
-
-            {/* Key format hint / validation */}
-            {isValidGeminiApiKey(geminiKeyInput) ? (
-              <View style={styles.keyValidBanner}>
-                <Check size={14} color="#10b981" />
-                <Text style={styles.keyValidText}>Valid Google Gemini API Key format</Text>
-              </View>
-            ) : geminiKeyInput.trim().length > 0 ? (
-              <View style={styles.keyInvalidBanner}>
-                <Info size={14} color="#f59e0b" />
-                <Text style={styles.keyInvalidText}>
-                  Tip: Standard Gemini keys start with "AIzaSy..." from Google AI Studio.
-                </Text>
-              </View>
-            ) : null}
-
-            {/* Test connection feedback */}
-            {geminiTestFeedback ? (
-              <View
-                style={[
-                  styles.testFeedbackBanner,
-                  geminiTestFeedback.includes("Connected")
-                    ? styles.testFeedbackSuccess
-                    : styles.testFeedbackError,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.testFeedbackText,
-                    geminiTestFeedback.includes("Connected")
-                      ? styles.testFeedbackTextSuccess
-                      : styles.testFeedbackTextError,
-                  ]}
-                >
-                  {geminiTestFeedback}
-                </Text>
-              </View>
-            ) : null}
-
-            {/* Action buttons */}
-            <View style={styles.geminiModalActions}>
-              <Pressable
-                style={[styles.geminiTestBtn, isTestingGemini && styles.btnDisabled]}
-                onPress={handleTestGeminiKey}
-                disabled={isTestingGemini}
-              >
-                {isTestingGemini ? (
-                  <ActivityIndicator size="small" color="#38bdf8" />
-                ) : (
-                  <Zap size={14} color="#38bdf8" />
-                )}
-                <Text style={styles.geminiTestBtnText}>
-                  {isTestingGemini ? "Testing..." : "Test Connection"}
-                </Text>
-              </Pressable>
-
-              <Pressable
-                style={styles.geminiSaveBtn}
-                onPress={handleSaveGeminiKey}
-              >
-                <Check size={14} color="#052e16" />
-                <Text style={styles.geminiSaveBtnText}>Save Key</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -1823,35 +1635,6 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
 
-  /* 6. Google Gemini Header & AI Synthesis Extensions */
-  geminiBadgePill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: "rgba(16, 185, 129, 0.12)",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.3)",
-  },
-  geminiBadgeText: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#10b981",
-  },
-  geminiActiveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: "#10b981",
-  },
-  geminiInactiveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: "#64748b",
-  },
   aiHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -1916,16 +1699,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#94a3b8",
   },
-  aiKeyConfigLink: {
-    paddingVertical: 2,
-    paddingHorizontal: 4,
-  },
-  aiKeyConfigLinkText: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: "#38bdf8",
-    textDecorationLine: "underline",
-  },
   aiGeneratingBanner: {
     flexDirection: "row",
     alignItems: "center",
@@ -1956,173 +1729,5 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "600",
     color: "#059669",
-  },
-
-  /* 7. Google Gemini Key Modal */
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.75)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-  },
-  geminiModalContent: {
-    width: "100%",
-    maxWidth: 420,
-    backgroundColor: "#0d1f18",
-    borderRadius: 24,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.3)",
-    gap: 14,
-  },
-  geminiModalHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  geminiModalTitle: {
-    fontSize: 17,
-    fontWeight: "800",
-    color: "#ffffff",
-  },
-  geminiModalCloseBtn: {
-    padding: 4,
-  },
-  geminiModalDesc: {
-    fontSize: 12,
-    lineHeight: 17,
-    color: "#94a3b8",
-  },
-  geminiStudioLink: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(56, 189, 248, 0.1)",
-    borderRadius: 14,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: "rgba(56, 189, 248, 0.3)",
-  },
-  geminiStudioLinkTitle: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#38bdf8",
-  },
-  geminiStudioLinkSub: {
-    fontSize: 10,
-    color: "#7dd3fc",
-    marginTop: 2,
-  },
-  geminiInputLabel: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#cbd5e1",
-    marginBottom: -6,
-  },
-  geminiInput: {
-    backgroundColor: "rgba(0, 0, 0, 0.4)",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.15)",
-    color: "#ffffff",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 13,
-    fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
-  },
-  keyValidBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: "rgba(16, 185, 129, 0.12)",
-    padding: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.3)",
-  },
-  keyValidText: {
-    fontSize: 11,
-    color: "#10b981",
-    fontWeight: "600",
-  },
-  keyInvalidBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: "rgba(245, 158, 11, 0.12)",
-    padding: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "rgba(245, 158, 11, 0.3)",
-  },
-  keyInvalidText: {
-    fontSize: 11,
-    color: "#f59e0b",
-    fontWeight: "600",
-    flex: 1,
-  },
-  testFeedbackBanner: {
-    padding: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-  },
-  testFeedbackSuccess: {
-    backgroundColor: "rgba(16, 185, 129, 0.15)",
-    borderColor: "rgba(16, 185, 129, 0.3)",
-  },
-  testFeedbackError: {
-    backgroundColor: "rgba(239, 68, 68, 0.15)",
-    borderColor: "rgba(239, 68, 68, 0.3)",
-  },
-  testFeedbackText: {
-    fontSize: 11,
-    lineHeight: 15,
-  },
-  testFeedbackTextSuccess: {
-    color: "#10b981",
-    fontWeight: "700",
-  },
-  testFeedbackTextError: {
-    color: "#fca5a5",
-  },
-  geminiModalActions: {
-    flexDirection: "row",
-    gap: 10,
-    marginTop: 4,
-  },
-  geminiTestBtn: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    backgroundColor: "rgba(56, 189, 248, 0.12)",
-    borderRadius: 12,
-    paddingVertical: 11,
-    borderWidth: 1,
-    borderColor: "rgba(56, 189, 248, 0.3)",
-  },
-  geminiTestBtnText: {
-    color: "#38bdf8",
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  geminiSaveBtn: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    backgroundColor: "#10b981",
-    borderRadius: 12,
-    paddingVertical: 11,
-  },
-  geminiSaveBtnText: {
-    color: "#052e16",
-    fontSize: 12,
-    fontWeight: "800",
-  },
-  btnDisabled: {
-    opacity: 0.5,
   },
 });

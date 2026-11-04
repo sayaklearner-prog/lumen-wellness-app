@@ -86,6 +86,12 @@ import {
   syncNotificationSchedules,
   NotificationChannelId
 } from "@/services/notifications";
+import {
+  getGeminiApiKey,
+  setGeminiApiKey,
+  testGeminiApiKey,
+  isValidGeminiApiKey,
+} from "@/services/geminiAi";
 
 // Clinical & Lifestyle Bio-Protocol Presets
 const HEALTH_MODES = [
@@ -198,6 +204,12 @@ export default function SettingsScreen() {
   const [biometricsAvailable, setBiometricsAvailable] = useState(false);
   const [biometricsEnabled, setBiometricsActive] = useState(false);
 
+  // Google Gemini AI Key State
+  const [geminiKey, setGeminiKey] = useState<string>("");
+  const [isTestingGemini, setIsTestingGemini] = useState<boolean>(false);
+  const [geminiTestFeedback, setGeminiTestFeedback] = useState<string | null>(null);
+  const [isSavingGemini, setIsSavingGemini] = useState<boolean>(false);
+
   // Storage Stats & Sync
   const [dbRecordCount, setDbRecordCount] = useState({ meals: 0, workouts: 0, sleep: 0, screen: 0 });
   const [isSyncing, setIsSyncing] = useState(false);
@@ -304,10 +316,54 @@ export default function SettingsScreen() {
       } catch (e) {
         console.warn("Notification prefs init error:", e);
       }
+      // 8. Google Gemini AI Key
+      try {
+        const activeKey = await getGeminiApiKey();
+        if (activeKey) setGeminiKey(activeKey);
+      } catch (e) {
+        console.warn("Gemini key init error:", e);
+      }
     }
 
     initSettings();
   }, []);
+
+  // Google Gemini AI Key Handlers
+  const handleTestGeminiKey = async () => {
+    setIsTestingGemini(true);
+    setGeminiTestFeedback(null);
+    try {
+      const res = await testGeminiApiKey(geminiKey);
+      setGeminiTestFeedback(res.message);
+      if (res.success) {
+        await setGeminiApiKey(geminiKey);
+      }
+    } catch (e: any) {
+      setGeminiTestFeedback("Error: " + (e?.message || "Connection failed"));
+    } finally {
+      setIsTestingGemini(false);
+    }
+  };
+
+  const handleSaveGeminiKey = async () => {
+    const cleanKey = geminiKey.trim();
+    if (!cleanKey) {
+      Alert.alert("Empty Key", "Please paste a valid Google Gemini API key from Google AI Studio.");
+      return;
+    }
+    setIsSavingGemini(true);
+    try {
+      await setGeminiApiKey(cleanKey);
+      Alert.alert(
+        "Gemini API Key Saved",
+        "Your Google Gemini API key has been securely saved and activated across 3-Pillar Clinical Synthesis, Food Scanner, and Coach Advisor."
+      );
+    } catch (e: any) {
+      Alert.alert("Error Saving Key", e?.message || "Failed saving key.");
+    } finally {
+      setIsSavingGemini(false);
+    }
+  };
 
   // Proactive Notification Handlers
   const handleToggleNotifPref = async <K extends keyof NotificationPreferences>(
@@ -1658,6 +1714,132 @@ export default function SettingsScreen() {
         {/* ========================================================================= */}
         {activeSection === "coach" && (
           <View style={{ gap: 16 }}>
+            {/* Google Gemini AI Engine & API Key Configuration Card */}
+            <View style={styles.card}>
+              <View style={styles.sectionHeaderRow}>
+                <View style={styles.sectionIconBox}>
+                  <Sparkles size={18} color="#10b981" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                    <Text style={styles.sectionTitle}>Google Gemini AI Engine</Text>
+                    {isValidGeminiApiKey(geminiKey) ? (
+                      <View style={styles.geminiStatusActiveBadge}>
+                        <View style={styles.geminiActiveDot} />
+                        <Text style={styles.geminiStatusActiveText}>ACTIVE</Text>
+                      </View>
+                    ) : (
+                      <View style={styles.geminiStatusInactiveBadge}>
+                        <Text style={styles.geminiStatusInactiveText}>UNCONFIGURED</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={styles.sectionSub}>
+                    Powers 3-Pillar Clinical Synthesis, Vision Food Scanner, and Conversational Coach
+                  </Text>
+                </View>
+              </View>
+
+              {/* Get Free API Key Studio Banner */}
+              <Pressable
+                style={styles.geminiStudioBanner}
+                onPress={() => Linking.openURL("https://aistudio.google.com/app/apikey")}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.geminiStudioBannerTitle}>Get Free Google Gemini Key ↗</Text>
+                  <Text style={styles.geminiStudioBannerSub}>
+                    Generate your API key in Google AI Studio • Free tier available
+                  </Text>
+                </View>
+                <ExternalLink size={16} color="#38bdf8" />
+              </Pressable>
+
+              {/* Key Input */}
+              <View style={{ gap: 6 }}>
+                <Text style={styles.inputLabel}>Active Gemini API Key</Text>
+                <TextInput
+                  style={styles.geminiKeyInput}
+                  value={geminiKey}
+                  onChangeText={setGeminiKey}
+                  placeholder="Paste AIzaSy... API key"
+                  placeholderTextColor="#64748b"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              </View>
+
+              {/* Format Hint */}
+              {isValidGeminiApiKey(geminiKey) ? (
+                <View style={styles.geminiKeyFormatRow}>
+                  <CheckCircle2 size={13} color="#10b981" />
+                  <Text style={styles.geminiKeyFormatTextValid}>Valid Google Gemini API Key format</Text>
+                </View>
+              ) : geminiKey.trim().length > 0 ? (
+                <View style={styles.geminiKeyFormatRow}>
+                  <Info size={13} color="#f59e0b" />
+                  <Text style={styles.geminiKeyFormatTextWarn}>
+                    Standard Gemini keys begin with "AIzaSy..." from Google AI Studio.
+                  </Text>
+                </View>
+              ) : null}
+
+              {/* Live Test Feedback */}
+              {geminiTestFeedback ? (
+                <View
+                  style={[
+                    styles.geminiFeedbackBox,
+                    geminiTestFeedback.includes("Connected")
+                      ? styles.geminiFeedbackBoxSuccess
+                      : styles.geminiFeedbackBoxError,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.geminiFeedbackText,
+                      geminiTestFeedback.includes("Connected")
+                        ? styles.geminiFeedbackTextSuccess
+                        : styles.geminiFeedbackTextError,
+                    ]}
+                  >
+                    {geminiTestFeedback}
+                  </Text>
+                </View>
+              ) : null}
+
+              {/* Action Buttons */}
+              <View style={styles.geminiActionsRow}>
+                <Pressable
+                  style={[styles.geminiTestBtn, isTestingGemini && styles.btnDisabled]}
+                  onPress={handleTestGeminiKey}
+                  disabled={isTestingGemini}
+                >
+                  {isTestingGemini ? (
+                    <ActivityIndicator size="small" color="#38bdf8" />
+                  ) : (
+                    <Zap size={14} color="#38bdf8" />
+                  )}
+                  <Text style={styles.geminiTestBtnText}>
+                    {isTestingGemini ? "Testing..." : "Test Connection"}
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  style={[styles.geminiSaveBtn, isSavingGemini && styles.btnDisabled]}
+                  onPress={handleSaveGeminiKey}
+                  disabled={isSavingGemini}
+                >
+                  {isSavingGemini ? (
+                    <ActivityIndicator size="small" color="#052e16" />
+                  ) : (
+                    <Check size={14} color="#052e16" />
+                  )}
+                  <Text style={styles.geminiSaveBtnText}>
+                    {isSavingGemini ? "Saving..." : "Save Key"}
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+
             {/* AI Coach Persona Selection Card */}
             <View style={styles.card}>
               <View style={styles.sectionHeaderRow}>
@@ -2924,5 +3106,156 @@ const styles = StyleSheet.create({
     color: THEME.colors.cardTextSecondary,
     lineHeight: 15,
     marginTop: 1,
+  },
+
+  /* Gemini AI Settings Card */
+  geminiStatusActiveBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.35)",
+  },
+  geminiActiveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#10b981",
+  },
+  geminiStatusActiveText: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: "#10b981",
+    letterSpacing: 0.5,
+  },
+  geminiStatusInactiveBadge: {
+    backgroundColor: "rgba(148, 163, 184, 0.15)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.3)",
+  },
+  geminiStatusInactiveText: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: "#94a3b8",
+    letterSpacing: 0.5,
+  },
+  geminiStudioBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(56, 189, 248, 0.1)",
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "rgba(56, 189, 248, 0.3)",
+  },
+  geminiStudioBannerTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#38bdf8",
+  },
+  geminiStudioBannerSub: {
+    fontSize: 11,
+    color: "#7dd3fc",
+    marginTop: 2,
+  },
+  geminiKeyInput: {
+    backgroundColor: "#ffffff",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(200, 218, 210, 0.7)",
+    color: THEME.colors.cardTextPrimary,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 13,
+    fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
+  },
+  geminiKeyFormatRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: -2,
+  },
+  geminiKeyFormatTextValid: {
+    fontSize: 11,
+    color: "#10b981",
+    fontWeight: "600",
+  },
+  geminiKeyFormatTextWarn: {
+    fontSize: 11,
+    color: "#f59e0b",
+    fontWeight: "600",
+    flex: 1,
+  },
+  geminiFeedbackBox: {
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  geminiFeedbackBoxSuccess: {
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    borderColor: "rgba(16, 185, 129, 0.3)",
+  },
+  geminiFeedbackBoxError: {
+    backgroundColor: "rgba(239, 68, 68, 0.12)",
+    borderColor: "rgba(239, 68, 68, 0.3)",
+  },
+  geminiFeedbackText: {
+    fontSize: 11,
+    lineHeight: 15,
+  },
+  geminiFeedbackTextSuccess: {
+    color: "#10b981",
+    fontWeight: "700",
+  },
+  geminiFeedbackTextError: {
+    color: "#dc2626",
+    fontWeight: "600",
+  },
+  geminiActionsRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 4,
+  },
+  geminiTestBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: "rgba(56, 189, 248, 0.12)",
+    borderRadius: 12,
+    paddingVertical: 11,
+    borderWidth: 1,
+    borderColor: "rgba(56, 189, 248, 0.3)",
+  },
+  geminiTestBtnText: {
+    color: "#38bdf8",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  geminiSaveBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: "#10b981",
+    borderRadius: 12,
+    paddingVertical: 11,
+  },
+  geminiSaveBtnText: {
+    color: "#052e16",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  btnDisabled: {
+    opacity: 0.5,
   },
 });
