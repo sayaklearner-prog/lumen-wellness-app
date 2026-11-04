@@ -1019,23 +1019,7 @@ export default function DashboardScreen() {
         </View>
 
         <View style={styles.topRightActions}>
-          {/* Wearables sync status chip */}
-          <Pressable
-            style={styles.syncChip}
-            onPress={handleSyncHealth}
-            disabled={syncStatus.status === "syncing"}
-          >
-            <ShieldCheck size={12} color="#10b981" />
-            <Text style={styles.syncChipText}>
-              {syncStatus.status === "syncing"
-                ? "Syncing..."
-                : syncStatus.lastSyncedAt
-                  ? "Wearables Live"
-                  : "Sync Wearable"}
-            </Text>
-          </Pressable>
-
-          {/* Top-Right Profile / Avatar Button (kept for later use as requested) */}
+          {/* Top-Right Profile / Avatar Button */}
           <Pressable 
             onPress={openRightMenu}
             accessibilityLabel="Open Profile Drawer"
