@@ -660,11 +660,14 @@ export default function DashboardScreen() {
     if (effectiveSleepHours >= 7.5 && effectiveSleepHours <= 8.5) return 9.5;
     if (effectiveSleepHours >= 7.0) return 8.5;
     if (effectiveSleepHours >= 6.0) return 7.2;
+    if (effectiveSleepHours >= 5.0) return 5.8;
+    if (effectiveSleepHours >= 4.0) return 4.5;
     return Math.max(1.0, Number((effectiveSleepHours * 1.1).toFixed(1)));
   }, [effectiveSleepHours]);
 
   const dynamicSleepLabel = useMemo(() => {
     if (effectiveSleepHours === 0) return "Tap to log";
+    if (effectiveSleepHours < 6) return `${effectiveSleepHours}h • Short rest`;
     return `${effectiveSleepHours}h • ${sleepQuality}`;
   }, [effectiveSleepHours, sleepQuality]);
 
@@ -1706,9 +1709,36 @@ export default function DashboardScreen() {
             </View>
 
             {/* Quick Hours Selector */}
-            <Text style={styles.modalSectionLabel}>DURATION SLEPT</Text>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+              <Text style={styles.modalSectionLabel}>DURATION SLEPT</Text>
+              {sleepHoursLogged > 0 && (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <Pressable
+                    style={styles.sleepStepperBtn}
+                    onPress={() => {
+                      triggerHaptic();
+                      setSleepHoursLogged((prev) => Math.max(1, Number((prev - 0.5).toFixed(1))));
+                    }}
+                  >
+                    <Minus size={12} color="#f59e0b" />
+                  </Pressable>
+                  <Text style={{ fontSize: 13, fontWeight: "800", color: "#f59e0b" }}>
+                    {sleepHoursLogged} hrs selected
+                  </Text>
+                  <Pressable
+                    style={styles.sleepStepperBtn}
+                    onPress={() => {
+                      triggerHaptic();
+                      setSleepHoursLogged((prev) => Math.min(16, Number((prev + 0.5).toFixed(1))));
+                    }}
+                  >
+                    <Plus size={12} color="#f59e0b" />
+                  </Pressable>
+                </View>
+              )}
+            </View>
             <View style={styles.hoursChipsRow}>
-              {[6.0, 7.0, 7.5, 8.0, 8.5, 9.0].map((h) => {
+              {[4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5, 9.0, 10.0].map((h) => {
                 const isSelected = sleepHoursLogged === h;
                 return (
                   <Pressable
@@ -3851,6 +3881,16 @@ const styles = StyleSheet.create({
   },
   hoursChipTextActive: {
     color: "#ffffff",
+  },
+  sleepStepperBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 8,
+    backgroundColor: "rgba(245, 158, 11, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(245, 158, 11, 0.35)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   qualityGrid: {
     flexDirection: "row",
