@@ -13,6 +13,7 @@ import {
   Modal,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import * as Haptics from "expo-haptics";
 import Svg, { Circle, Defs, LinearGradient, Stop } from "react-native-svg";
 import {
   useListMeals,
@@ -57,9 +58,25 @@ import THEME from "@/constants/theme";
 import { AmbientAtmosphere } from "@/components/AmbientAtmosphere";
 import {
   analyzeFoodImageWithGemini,
+  estimateNutritionFromFoodDescription,
   getGeminiApiKey,
   isValidGeminiApiKey,
 } from "@/services/geminiAi";
+
+const triggerHaptic = (style: "light" | "medium" | "heavy" | "success" = "light") => {
+  if (Platform.OS === "web") return;
+  try {
+    if (style === "success") {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } else if (style === "heavy") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    } else if (style === "medium") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    } else {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+  } catch {}
+};
 
 export default function NutritionScreen() {
   const qc = useQueryClient();
@@ -105,6 +122,25 @@ export default function NutritionScreen() {
     confidence?: number;
   } | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
+
+  // AI Food Text Estimator States
+  const [showAiTextModal, setShowAiTextModal] = useState<boolean>(false);
+  const [aiFoodQuery, setAiFoodQuery] = useState<string>("");
+  const [isEstimatingAi, setIsEstimatingAi] = useState<boolean>(false);
+  const [aiEstimateResult, setAiEstimateResult] = useState<{
+    name: string;
+    mealType: string;
+    calories: number;
+    proteinGrams: number;
+    carbsGrams: number;
+    fatGrams: number;
+    vitamins: string;
+    items?: Array<{ name: string; quantity?: string; portion?: string; calories: number; proteinGrams: number; carbsGrams: number; fatGrams: number }>;
+    notes?: string;
+    confidence?: number;
+  } | null>(null);
+  const [aiEstimateError, setAiEstimateError] = useState<string | null>(null);
+  const [isAutoFillingManual, setIsAutoFillingManual] = useState<boolean>(false);
 
   const cameraInputRef = useRef<any>(null);
   const galleryInputRef = useRef<any>(null);
@@ -388,6 +424,139 @@ export default function NutritionScreen() {
     setVitamins(scanResult.vitamins);
     setShowScanModal(false);
     setShowLogForm(true);
+  };
+
+  // --------------------------------------------------------------------------
+  // AI FOOD TEXT ESTIMATOR HANDLERS
+  // --------------------------------------------------------------------------
+  const handleEstimateFoodNutrition = async (queryParam?: string) => {
+    const textToAnalyze = (queryParam || aiFoodQuery).trim();
+    if (!textToAnalyze) {
+      Alert.alert("Food Name Required", "Please enter a food or meal name to estimate (e.g. '2 boiled eggs & toast').");
+      return;
+    }
+    triggerHaptic("medium");
+    setIsEstimatingAi(true);
+    setAiEstimateError(null);
+    setAiEstimateResult(null);
+
+    try {
+      const result = await estimateNutritionFromFoodDescription(textToAnalyze);
+      setAiEstimateResult(result);
+      setAiEstimateError(null);
+      triggerHaptic("success");
+    } catch (err: any) {
+      console.warn("AI Food estimation error:", err);
+      setAiEstimateError(err?.message || "Failed to estimate nutrition for this food.");
+    } finally {
+      setIsEstimatingAi(false);
+    }
+  };
+
+  const handleCommitAiEstimatedMeal = async () => {
+    if (!aiEstimateResult) return;
+    triggerHaptic("success");
+
+    const mealToSave: MealRecord = {
+      id: `meal-ai-${Date.now()}`,
+      name: aiEstimateResult.name,
+      mealType: (aiEstimateResult.mealType as any) || "lunch",
+      calories: aiEstimateResult.calories,
+      proteinGrams: aiEstimateResult.proteinGrams,
+      carbsGrams: aiEstimateResult.carbsGrams,
+      fatGrams: aiEstimateResult.fatGrams,
+      vitamins: aiEstimateResult.vitamins,
+      items: aiEstimateResult.items || [],
+      source: "ai_text" as any,
+      loggedAt: new Date().toISOString(),
+    };
+
+    await saveMeal(mealToSave);
+    const updated = [mealToSave, ...localMeals];
+    setLocalMeals(updated);
+    await storage.setItem("lumen_local_meals", JSON.stringify(updated));
+
+    qc.setQueryData(getListMealsQueryKey(), (old: any) => [mealToSave, ...(Array.isArray(old) ? old : [])]);
+    qc.setQueryData(getGetTodayDashboardQueryKey(), (old: any) => {
+      if (!old) return old;
+      return {
+        ...old,
+        todayTotals: {
+          ...old.todayTotals,
+          caloriesIn: (old.todayTotals?.caloriesIn || 0) + mealToSave.calories,
+          proteinGrams: (old.todayTotals?.proteinGrams || 0) + mealToSave.proteinGrams,
+          carbsGrams: (old.todayTotals?.carbsGrams || 0) + mealToSave.carbsGrams,
+          fatGrams: (old.todayTotals?.fatGrams || 0) + mealToSave.fatGrams,
+        },
+      };
+    });
+
+    try {
+      await createMealMutation.mutateAsync({
+        data: {
+          name: mealToSave.name,
+          mealType: mealToSave.mealType,
+          calories: mealToSave.calories,
+          proteinGrams: mealToSave.proteinGrams,
+          carbsGrams: mealToSave.carbsGrams,
+          fatGrams: mealToSave.fatGrams,
+          vitamins: mealToSave.vitamins,
+          items: mealToSave.items,
+          source: "ai_text",
+        } as any,
+      });
+      qc.invalidateQueries({ queryKey: getListMealsQueryKey() });
+      qc.invalidateQueries({ queryKey: getGetTodayDashboardQueryKey() });
+      setShowAiTextModal(false);
+      setAiEstimateResult(null);
+      setAiFoodQuery("");
+      Alert.alert("Meal Logged! 🎉", `"${mealToSave.name}" (${mealToSave.calories} kcal) added to your nutrition.`);
+    } catch {
+      await queueOfflineLog("meal", "/api/meals", mealToSave);
+      setShowAiTextModal(false);
+      setAiEstimateResult(null);
+      setAiFoodQuery("");
+      Alert.alert("Saved Locally", `"${mealToSave.name}" saved to offline health database.`);
+    }
+  };
+
+  const handleCustomizeAiEstimatedMeal = () => {
+    if (!aiEstimateResult) return;
+    triggerHaptic("light");
+    setFoodName(aiEstimateResult.name);
+    setMealType((aiEstimateResult.mealType as any) || "lunch");
+    setCalories(String(aiEstimateResult.calories));
+    setProtein(String(aiEstimateResult.proteinGrams));
+    setCarbs(String(aiEstimateResult.carbsGrams));
+    setFat(String(aiEstimateResult.fatGrams));
+    setVitamins(aiEstimateResult.vitamins || "");
+    setShowAiTextModal(false);
+    setShowScanModal(false);
+    setShowLogForm(true);
+  };
+
+  const handleAutoFillManualFromAi = async () => {
+    const textToAnalyze = foodName.trim();
+    if (!textToAnalyze) {
+      Alert.alert("Name Required", "Please type a food name first (e.g. '2 boiled eggs and toast' or 'Grilled salmon bowl').");
+      return;
+    }
+    triggerHaptic("medium");
+    setIsAutoFillingManual(true);
+    try {
+      const res = await estimateNutritionFromFoodDescription(textToAnalyze);
+      setCalories(String(res.calories));
+      setProtein(String(res.proteinGrams));
+      setCarbs(String(res.carbsGrams));
+      setFat(String(res.fatGrams));
+      if (res.vitamins) setVitamins(res.vitamins);
+      if (res.mealType) setMealType(res.mealType as any);
+      triggerHaptic("success");
+    } catch (e: any) {
+      Alert.alert("Auto-Fill Note", e?.message || "Could not estimate macros for this item.");
+    } finally {
+      setIsAutoFillingManual(false);
+    }
   };
 
   // Manual meal save
@@ -758,29 +927,54 @@ export default function NutritionScreen() {
         </View>
 
         {/* ========================================================================= */}
-        {/* 1-TAP ACTION COMMAND ROW */}
+        {/* 1-TAP ACTION COMMAND ROW (Scan Food Photo • AI Food Estimator • Log Manually) */}
         {/* ========================================================================= */}
         <View style={styles.actionRow}>
+          {/* 1. Camera / Photo AI Scanner */}
           <Pressable
             style={styles.scanActionBtn}
-            onPress={() => setShowScanModal(!showScanModal)}
+            onPress={() => {
+              triggerHaptic("medium");
+              setShowScanModal(!showScanModal);
+              setShowAiTextModal(false);
+              setShowLogForm(false);
+            }}
           >
-            <Camera size={18} color="#050b08" strokeWidth={2.5} />
+            <Camera size={16} color="#050b08" strokeWidth={2.5} />
             <Text style={styles.scanActionBtnText} numberOfLines={1}>
-              Scan Food Photo
+              Scan Photo
             </Text>
           </Pressable>
 
+          {/* 2. AI Food Text & Macro Estimator */}
+          <Pressable
+            style={styles.aiTextActionBtn}
+            onPress={() => {
+              triggerHaptic("medium");
+              setShowAiTextModal(!showAiTextModal);
+              setShowScanModal(false);
+              setShowLogForm(false);
+            }}
+          >
+            <Sparkles size={16} color="#0b1410" strokeWidth={2.5} />
+            <Text style={styles.aiTextActionBtnText} numberOfLines={1}>
+              AI Estimator
+            </Text>
+          </Pressable>
+
+          {/* 3. Manual Log Entry */}
           <Pressable
             style={styles.manualActionBtn}
             onPress={() => {
-              setShowLogForm(true);
+              triggerHaptic("medium");
+              setShowLogForm(!showLogForm);
               setShowScanModal(false);
+              setShowAiTextModal(false);
             }}
           >
-            <Plus size={18} color="#ffffff" strokeWidth={2.5} />
+            <Plus size={16} color="#ffffff" strokeWidth={2.5} />
             <Text style={styles.manualActionBtnText} numberOfLines={1}>
-              Log Manually
+              Log Manual
             </Text>
           </Pressable>
         </View>
@@ -978,6 +1172,159 @@ export default function NutritionScreen() {
         )}
 
         {/* ========================================================================= */}
+        {/* AI FOOD TEXT & MACRONUTRIENT ESTIMATOR HUD */}
+        {/* ========================================================================= */}
+        {showAiTextModal && (
+          <View style={styles.aiTextHudCard}>
+            {/* Header */}
+            <View style={styles.scannerHudHeader}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
+                <Sparkles size={18} color="#d4f933" />
+                <Text style={[styles.scannerHudTitle, { color: "#d4f933" }]}>AI FOOD & MACRO ESTIMATOR</Text>
+              </View>
+              <Pressable
+                onPress={() => {
+                  triggerHaptic("light");
+                  setShowAiTextModal(false);
+                  setAiEstimateResult(null);
+                  setAiEstimateError(null);
+                }}
+                hitSlop={10}
+              >
+                <X size={20} color="#94a3b8" />
+              </Pressable>
+            </View>
+
+            <Text style={styles.scannerHudDesc}>
+              Type any dish, ingredient, or meal. Lumen's AI calculates accurate calories, protein, carbs, fat, and micronutrients instantly.
+            </Text>
+
+            {/* Input & Estimate Button Row */}
+            <View style={styles.aiTextInputRow}>
+              <TextInput
+                style={styles.aiTextSearchInput}
+                placeholder="e.g. 2 boiled eggs and avocado toast..."
+                placeholderTextColor="#5a7065"
+                value={aiFoodQuery}
+                onChangeText={setAiFoodQuery}
+                onSubmitEditing={() => handleEstimateFoodNutrition()}
+                returnKeyType="search"
+              />
+              <Pressable
+                style={[styles.aiTextEstimateBtn, isEstimatingAi && { opacity: 0.7 }]}
+                onPress={() => handleEstimateFoodNutrition()}
+                disabled={isEstimatingAi}
+              >
+                {isEstimatingAi ? (
+                  <ActivityIndicator size="small" color="#0b1410" />
+                ) : (
+                  <>
+                    <Sparkles size={14} color="#0b1410" strokeWidth={2.5} />
+                    <Text style={styles.aiTextEstimateBtnText}>Estimate</Text>
+                  </>
+                )}
+              </Pressable>
+            </View>
+
+            {/* Quick Suggestion Chips */}
+            <View style={styles.aiChipsScroll}>
+              {[
+                "2 Boiled Eggs & Toast",
+                "Grilled Chicken & Rice",
+                "Salmon with Quinoa",
+                "Oatmeal & Berries",
+                "Protein Shake",
+                "Paneer Salad",
+              ].map((chip) => (
+                <Pressable
+                  key={chip}
+                  style={styles.aiChipPill}
+                  onPress={() => {
+                    setAiFoodQuery(chip);
+                    handleEstimateFoodNutrition(chip);
+                  }}
+                >
+                  <Text style={styles.aiChipText}>{chip}</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            {/* Error Message if any */}
+            {aiEstimateError && (
+              <View style={styles.scanErrorContainer}>
+                <AlertCircle size={16} color="#ef4444" />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.scanErrorTitle}>Estimation Note</Text>
+                  <Text style={styles.scanErrorDesc}>{aiEstimateError}</Text>
+                </View>
+              </View>
+            )}
+
+            {/* AI Estimation Result Card */}
+            {aiEstimateResult && !isEstimatingAi && (
+              <View style={styles.aiResultCard}>
+                <View style={styles.aiResultHeader}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.aiResultFoodName}>{aiEstimateResult.name}</Text>
+                    <Text style={styles.aiResultVitamins}>{aiEstimateResult.vitamins}</Text>
+                  </View>
+                  <View style={styles.aiResultMealTypeBadge}>
+                    <Text style={styles.aiResultMealTypeText}>{aiEstimateResult.mealType}</Text>
+                  </View>
+                </View>
+
+                {/* 4 Macro Pods in a clean row */}
+                <View style={styles.aiResultMacrosGrid}>
+                  <View style={[styles.aiMacroPod, { borderColor: "rgba(212, 249, 51, 0.4)" }]}>
+                    <Text style={[styles.aiMacroPodVal, { color: "#d4f933" }]}>{aiEstimateResult.calories}</Text>
+                    <Text style={styles.aiMacroPodLabel}>Calories</Text>
+                  </View>
+
+                  <View style={[styles.aiMacroPod, { borderColor: "rgba(16, 185, 129, 0.4)" }]}>
+                    <Text style={[styles.aiMacroPodVal, { color: "#10b981" }]}>{aiEstimateResult.proteinGrams}g</Text>
+                    <Text style={styles.aiMacroPodLabel}>Protein</Text>
+                  </View>
+
+                  <View style={[styles.aiMacroPod, { borderColor: "rgba(6, 182, 212, 0.4)" }]}>
+                    <Text style={[styles.aiMacroPodVal, { color: "#06b6d4" }]}>{aiEstimateResult.carbsGrams}g</Text>
+                    <Text style={styles.aiMacroPodLabel}>Carbs</Text>
+                  </View>
+
+                  <View style={[styles.aiMacroPod, { borderColor: "rgba(245, 158, 11, 0.4)" }]}>
+                    <Text style={[styles.aiMacroPodVal, { color: "#f59e0b" }]}>{aiEstimateResult.fatGrams}g</Text>
+                    <Text style={styles.aiMacroPodLabel}>Fat</Text>
+                  </View>
+                </View>
+
+                {/* Clinical Notes */}
+                {aiEstimateResult.notes && (
+                  <Text style={styles.aiResultNotes}>💡 {aiEstimateResult.notes}</Text>
+                )}
+
+                {/* 1-Tap Log + Customize Buttons */}
+                <View style={styles.aiResultActionsRow}>
+                  <Pressable
+                    style={styles.aiCommitLogBtn}
+                    onPress={handleCommitAiEstimatedMeal}
+                  >
+                    <Check size={16} color="#050b08" strokeWidth={2.8} />
+                    <Text style={styles.aiCommitLogBtnText}>1-Tap Log Meal</Text>
+                  </Pressable>
+
+                  <Pressable
+                    style={styles.aiCustomizeBtn}
+                    onPress={handleCustomizeAiEstimatedMeal}
+                  >
+                    <Sliders size={15} color="#e2e8f0" />
+                    <Text style={styles.aiCustomizeBtnText}>Customize</Text>
+                  </Pressable>
+                </View>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* ========================================================================= */}
         {/* MANUAL LOGGING FORM */}
         {/* ========================================================================= */}
         {showLogForm && (
@@ -1005,7 +1352,23 @@ export default function NutritionScreen() {
 
             <View style={styles.formGrid}>
               <View style={[styles.inputGroup, { width: "100%" }]}>
-                <Text style={styles.inputLabel}>Food or Dish Name *</Text>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
+                  <Text style={styles.inputLabel}>Food or Dish Name *</Text>
+                  <Pressable
+                    style={styles.autoFillBtn}
+                    onPress={handleAutoFillManualFromAi}
+                    disabled={isAutoFillingManual}
+                  >
+                    {isAutoFillingManual ? (
+                      <ActivityIndicator size="small" color="#d4f933" />
+                    ) : (
+                      <>
+                        <Sparkles size={11} color="#d4f933" />
+                        <Text style={styles.autoFillBtnText}>✨ AI Auto-Fill</Text>
+                      </>
+                    )}
+                  </Pressable>
+                </View>
                 <TextInput
                   style={styles.input}
                   value={foodName}
@@ -1475,44 +1838,249 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 
-  // 1-Tap Action Row
+  // 1-Tap Action Row (3 Action Buttons)
   actionRow: {
     flexDirection: "row",
-    gap: 12,
+    gap: 8,
   },
   scanActionBtn: {
     flex: 1,
-    height: 48,
+    height: 46,
     backgroundColor: "#10b981",
-    borderRadius: 16,
+    borderRadius: 14,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
+    gap: 6,
     ...THEME.shadows.card,
   },
   scanActionBtnText: {
-    fontSize: 13,
+    fontSize: 11.5,
     fontWeight: "900",
     color: "#050b08",
     letterSpacing: 0.2,
   },
+  aiTextActionBtn: {
+    flex: 1,
+    height: 46,
+    backgroundColor: "#d4f933",
+    borderRadius: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    ...THEME.shadows.card,
+  },
+  aiTextActionBtnText: {
+    fontSize: 11.5,
+    fontWeight: "900",
+    color: "#0b1410",
+    letterSpacing: 0.2,
+  },
   manualActionBtn: {
     flex: 1,
-    height: 48,
+    height: 46,
     backgroundColor: "rgba(232, 241, 237, 0.12)",
     borderWidth: 1,
     borderColor: "rgba(200, 218, 210, 0.3)",
-    borderRadius: 16,
+    borderRadius: 14,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
   },
   manualActionBtnText: {
-    fontSize: 13,
+    fontSize: 11.5,
     fontWeight: "800",
     color: THEME.colors.textOnDarkPrimary,
+  },
+
+  // AI Food Text Estimator HUD
+  aiTextHudCard: {
+    backgroundColor: THEME.colors.cardBg,
+    borderRadius: 24,
+    borderWidth: 1.5,
+    borderColor: "rgba(212, 249, 51, 0.4)",
+    padding: 16,
+    gap: 12,
+    ...THEME.shadows.card,
+  },
+  aiTextInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 2,
+  },
+  aiTextSearchInput: {
+    flex: 1,
+    backgroundColor: "rgba(232, 241, 237, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(212, 249, 51, 0.35)",
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 12.5,
+    color: THEME.colors.cardTextPrimary,
+    ...Platform.select({
+      web: { outlineStyle: "none" } as any,
+    }),
+  },
+  aiTextEstimateBtn: {
+    backgroundColor: "#d4f933",
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    height: 42,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  aiTextEstimateBtnText: {
+    color: "#0b1410",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  aiChipsScroll: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  aiChipPill: {
+    backgroundColor: "rgba(232, 241, 237, 0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(200, 218, 210, 0.18)",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+  },
+  aiChipText: {
+    color: THEME.colors.cardTextSecondary,
+    fontSize: 10.5,
+    fontWeight: "700",
+  },
+  aiResultCard: {
+    backgroundColor: "rgba(232, 241, 237, 0.05)",
+    borderWidth: 1,
+    borderColor: "rgba(212, 249, 51, 0.3)",
+    borderRadius: 18,
+    padding: 14,
+    gap: 10,
+    marginTop: 4,
+  },
+  aiResultHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  aiResultFoodName: {
+    fontSize: 15,
+    fontWeight: "900",
+    color: THEME.colors.cardTextPrimary,
+  },
+  aiResultVitamins: {
+    fontSize: 11,
+    color: "#10b981",
+    fontWeight: "600",
+    marginTop: 2,
+  },
+  aiResultMealTypeBadge: {
+    backgroundColor: "rgba(212, 249, 51, 0.15)",
+    borderWidth: 1,
+    borderColor: "#d4f933",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  aiResultMealTypeText: {
+    color: "#d4f933",
+    fontSize: 10,
+    fontWeight: "900",
+    textTransform: "uppercase",
+  },
+  aiResultMacrosGrid: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 2,
+  },
+  aiMacroPod: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.3)",
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  aiMacroPodVal: {
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  aiMacroPodLabel: {
+    fontSize: 9,
+    color: THEME.colors.cardTextSecondary,
+    fontWeight: "700",
+    marginTop: 2,
+  },
+  aiResultNotes: {
+    fontSize: 11,
+    color: THEME.colors.cardTextSecondary,
+    lineHeight: 16,
+    fontStyle: "italic",
+    paddingHorizontal: 2,
+  },
+  aiResultActionsRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 6,
+  },
+  aiCommitLogBtn: {
+    flex: 1,
+    height: 42,
+    backgroundColor: "#10b981",
+    borderRadius: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  aiCommitLogBtnText: {
+    color: "#050b08",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  aiCustomizeBtn: {
+    paddingHorizontal: 16,
+    height: 42,
+    backgroundColor: "rgba(232, 241, 237, 0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(200, 218, 210, 0.25)",
+    borderRadius: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  aiCustomizeBtnText: {
+    color: THEME.colors.cardTextPrimary,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  autoFillBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(212, 249, 51, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(212, 249, 51, 0.35)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  autoFillBtnText: {
+    color: "#d4f933",
+    fontSize: 10,
+    fontWeight: "800",
   },
 
   // AI Food Scanner HUD

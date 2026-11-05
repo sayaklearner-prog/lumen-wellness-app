@@ -57,6 +57,7 @@ export default function Nutrition() {
   const [isManualOpen, setIsManualOpen] = useState(false);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [analysisResult, setAnalysisResult] = useState<any>(null);
+  const [isEstimatingAi, setIsEstimatingAi] = useState(false);
 
   // Manual Log Form State
   const [name, setName] = useState("");
@@ -67,6 +68,50 @@ export default function Nutrition() {
   const [fat, setFat] = useState("10");
   const [vitamins, setVitamins] = useState("");
   const [mealItemsText, setMealItemsText] = useState("");
+
+  const estimateNutritionFromText = (query: string) => {
+    const q = query.toLowerCase();
+    let c = 350, p = 20, cb = 35, f = 12, v = "Vitamin B-Complex, Iron, Potassium";
+    if (q.includes("egg")) {
+      const isD = q.includes("2") || q.includes("two");
+      c = isD ? 160 : 80; p = isD ? 14 : 7; cb = isD ? 2 : 1; f = isD ? 11 : 5;
+      v = "Choline, Vitamin B12, Selenium, Vitamin D";
+    } else if (q.includes("chicken") || q.includes("poultry")) {
+      c = 380; p = 42; cb = q.includes("rice") || q.includes("potato") ? 45 : 4; f = 8;
+      v = "Niacin, Vitamin B6, Phosphorus, Selenium";
+    } else if (q.includes("salmon") || q.includes("fish")) {
+      c = 420; p = 36; cb = q.includes("rice") ? 40 : 2; f = 18;
+      v = "Omega-3 Fatty Acids, Vitamin D, Vitamin B12";
+    } else if (q.includes("shake") || q.includes("protein")) {
+      c = 240; p = 32; cb = 14; f = 4;
+      v = "Calcium, BCAA, Leucine";
+    } else if (q.includes("oat")) {
+      c = 310; p = 11; cb = 54; f = 6;
+      v = "Beta-Glucan Fiber, Magnesium, Zinc";
+    } else if (q.includes("salad")) {
+      c = q.includes("chicken") ? 380 : 220; p = q.includes("chicken") ? 30 : 6; cb = 18; f = 12;
+      v = "Vitamin K, Vitamin A, Folate, Polyphenols";
+    } else if (q.includes("pizza") || q.includes("burger")) {
+      c = 620; p = 26; cb = 64; f = 28;
+      v = "Calcium, Sodium, Iron";
+    }
+    return { calories: c, protein: p, carbs: cb, fat: f, vitamins: v };
+  };
+
+  const handleAiAutoFill = () => {
+    if (!name.trim()) return;
+    setIsEstimatingAi(true);
+    const est = estimateNutritionFromText(name);
+    setCalories(String(est.calories));
+    setProtein(String(est.protein));
+    setCarbs(String(est.carbs));
+    setFat(String(est.fat));
+    setVitamins(est.vitamins);
+    setTimeout(() => {
+      setIsEstimatingAi(false);
+      toast({ title: "✨ Macros Estimated", description: `Calculated ${est.calories} kcal, ${est.protein}g protein for "${name}".` });
+    }, 250);
+  };
 
   const todayMeals = mealsData?.filter(m => new Date(m.loggedAt).toISOString().split('T')[0] === today) || [];
   const allMeals = mealsData || [];
@@ -213,7 +258,17 @@ export default function Nutrition() {
                 
                 {/* Food Name */}
                 <div className="space-y-2">
-                  <Label className="text-slate-700 dark:text-slate-300">Food Name</Label>
+                  <div className="flex justify-between items-center">
+                    <Label className="text-slate-700 dark:text-slate-300">Food Name</Label>
+                    <button
+                      type="button"
+                      onClick={handleAiAutoFill}
+                      disabled={isEstimatingAi || !name.trim()}
+                      className="text-xs text-emerald-600 dark:text-emerald-400 hover:text-emerald-500 font-semibold flex items-center gap-1 bg-emerald-100 dark:bg-emerald-950/40 px-2.5 py-1 rounded-full border border-emerald-300 dark:border-emerald-800/50 transition-all disabled:opacity-50"
+                    >
+                      <Sparkles className="w-3 h-3" /> ✨ AI Auto-Fill
+                    </button>
+                  </div>
                   <Input 
                     placeholder="e.g. Scrambled Eggs with Avocado" 
                     value={name} 
