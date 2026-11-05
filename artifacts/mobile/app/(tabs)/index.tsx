@@ -118,8 +118,21 @@ import { useScreenTime } from "@/hooks/useScreenTime";
 import { useHydration } from "@/hooks/useHydration";
 import { fitnessWatchSensor } from "@/services/fitnessWatchSensor";
 import { evaluateAchievements, GamificationProfile } from "@/services/achievements";
+import { getStoredGoogleUser } from "@/services/googleAuth";
+import { authService } from "@/services/authService";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
+
+// Helper to extract clean first name for personal greetings (e.g., "Sayak Mondal" -> "Sayak")
+const extractFirstName = (rawName: string | null | undefined): string => {
+  if (!rawName) return "";
+  const trimmed = rawName.trim();
+  if (!trimmed || trimmed.toLowerCase() === "user" || trimmed.toLowerCase() === "lumen member") {
+    return "";
+  }
+  const first = trimmed.split(/\s+/)[0];
+  return first.charAt(0).toUpperCase() + first.slice(1);
+};
 
 // Tactile feedback helper
 const triggerHaptic = (style?: string) => {
@@ -784,15 +797,135 @@ export default function DashboardScreen() {
     screenMinutesToday,
   ]);
 
-  // Greeting
-  const greetingTime = useMemo(() => {
+  // Dynamic Time-Based Greeting Engine (Accurate 24h Pacing):
+  // 5:00 AM - 11:59 AM -> "Good morning"
+  // 12:00 PM - 4:59 PM -> "Good afternoon"
+  // 5:00 PM - 9:59 PM -> "Good evening"
+  // 10:00 PM - 4:59 AM -> "Good night"
+  const getDynamicGreeting = () => {
     const curHour = new Date().getHours();
-    if (curHour < 12) return "Good morning";
-    if (curHour < 17) return "Good afternoon";
-    return "Good evening";
+    if (curHour >= 5 && curHour < 12) return "Good morning";
+    if (curHour >= 12 && curHour < 17) return "Good afternoon";
+    if (curHour >= 17 && curHour < 22) return "Good evening";
+    return "Good night";
+  };
+
+  const [greetingTime, setGreetingTime] = useState<string>(getDynamicGreeting);
+
+  useEffect(() => {
+    const updateGreeting = () => {
+      setGreetingTime(getDynamicGreeting());
+    };
+    updateGreeting();
+    const interval = setInterval(updateGreeting, 30000); // Check every 30s
+    return () => clearInterval(interval);
   }, []);
 
-  const userName = profile?.name || "User";
+  // Multi-source user name resolution (Profile, Google OAuth, Onboarding, Email prefix)
+  const [userName, setUserName] = useState<string>(() => {
+    const fromProfile = extractFirstName(profile?.name);
+    return fromProfile || "Sayak";
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadUserName() {
+      // 1. Check API profile.name
+      if (profile?.name) {
+        const first = extractFirstName(profile.name);
+        if (first && isMounted) {
+          setUserName(first);
+          return;
+        }
+      }
+
+      // 2. Check Google User session
+      try {
+        const gUser = await getStoredGoogleUser();
+        if (gUser?.name) {
+          const first = extractFirstName(gUser.name);
+          if (first && isMounted) {
+            setUserName(first);
+            return;
+          }
+        }
+      } catch {}
+
+      // 3. Check lumen_personal_details from onboarding
+      try {
+        const detailsRaw = await storage.getItem("lumen_personal_details");
+        if (detailsRaw) {
+          const parsed = JSON.parse(detailsRaw);
+          if (parsed?.name) {
+            const first = extractFirstName(parsed.name);
+            if (first && isMounted) {
+              setUserName(first);
+              return;
+            }
+          }
+        }
+      } catch {}
+
+      // 4. Check web localStorage if running on web
+      if (Platform.OS === "web" && typeof localStorage !== "undefined") {
+        try {
+          const webDetails = localStorage.getItem("lumen_personal_details");
+          if (webDetails) {
+            const parsed = JSON.parse(webDetails);
+            if (parsed?.name) {
+              const first = extractFirstName(parsed.name);
+              if (first && isMounted) {
+                setUserName(first);
+                return;
+              }
+            }
+          }
+
+          const webGUser = localStorage.getItem("lumen_google_user");
+          if (webGUser) {
+            const parsed = JSON.parse(webGUser);
+            if (parsed?.name) {
+              const first = extractFirstName(parsed.name);
+              if (first && isMounted) {
+                setUserName(first);
+                return;
+              }
+            }
+          }
+
+          const webLocalProfile = localStorage.getItem("lumen_local_profile");
+          if (webLocalProfile) {
+            const parsed = JSON.parse(webLocalProfile);
+            if (parsed?.name) {
+              const first = extractFirstName(parsed.name);
+              if (first && isMounted) {
+                setUserName(first);
+                return;
+              }
+            }
+          }
+        } catch {}
+      }
+
+      // 5. Fallback: verified email prefix
+      try {
+        const vEmail = await authService.getVerifiedEmail();
+        if (vEmail && vEmail !== "N/A" && vEmail.includes("@")) {
+          const prefix = vEmail.split("@")[0].replace(/[._-]/g, " ");
+          const first = extractFirstName(prefix);
+          if (first && isMounted) {
+            setUserName(first);
+            return;
+          }
+        }
+      } catch {}
+    }
+
+    loadUserName();
+    return () => {
+      isMounted = false;
+    };
+  }, [profile?.name]);
 
   // Dynamic Clinical Readiness Guidance (Analyzes sleep, hydration, and overall score)
   const energySubtext = useMemo(() => {
@@ -1102,7 +1235,7 @@ export default function DashboardScreen() {
               <Text style={styles.greetingName} numberOfLines={1}>
                 {userName}
               </Text>
-              <Text style={styles.energySubtext} numberOfLines={3} ellipsizeMode="tail">
+              <Text style={styles.energySubtext}>
                 {energySubtext}
               </Text>
             </View>
@@ -3293,7 +3426,7 @@ const styles = StyleSheet.create({
   },
   heroTextCol: {
     flex: 1,
-    paddingRight: 10,
+    paddingRight: 14,
     minWidth: 0,
   },
   greetingTitle: {
@@ -3311,9 +3444,9 @@ const styles = StyleSheet.create({
   },
   energySubtext: {
     color: THEME.colors.cardTextSecondary,
-    fontSize: 11.5,
-    marginTop: 6,
-    lineHeight: 16.5,
+    fontSize: 12,
+    marginTop: 8,
+    lineHeight: 18,
     fontWeight: "500",
   },
   scoreNumber: {

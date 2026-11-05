@@ -43,6 +43,16 @@ export default function Dashboard() {
 
   if (!profile || !dashboard) return null;
 
+  const curHour = new Date().getHours();
+  const greetingTime = curHour >= 5 && curHour < 12 
+    ? "Good morning" 
+    : curHour >= 12 && curHour < 17 
+    ? "Good afternoon" 
+    : curHour >= 17 && curHour < 22 
+    ? "Good evening" 
+    : "Good night";
+  const firstName = profile?.name ? profile.name.trim().split(/\s+/)[0] : "Sayak";
+
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6 max-w-5xl mx-auto">
       {/* Hero Section */}
@@ -50,7 +60,7 @@ export default function Dashboard() {
         <GlassCard className="md:col-span-2 overflow-hidden bg-gradient-to-br from-primary/10 to-transparent border-none">
           <CardContent className="p-6 md:p-8 flex flex-col md:flex-row items-center gap-6">
             <div className="flex-1 text-center md:text-left">
-              <h2 className="text-3xl font-bold tracking-tight mb-2">Good morning, {profile.name}</h2>
+              <h2 className="text-3xl font-bold tracking-tight mb-2">{greetingTime}, {firstName}</h2>
               <p className="text-muted-foreground mb-6">Today is looking like a {dashboard.moodLabel?.toLowerCase() || 'great'} day.</p>
               
               <div className="flex flex-wrap gap-3 justify-center md:justify-start">
