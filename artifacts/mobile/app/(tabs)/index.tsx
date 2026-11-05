@@ -794,15 +794,40 @@ export default function DashboardScreen() {
 
   const userName = profile?.name || "User";
 
-  // Energy message
-  const energySubtext =
-    dynamicOverallScore >= 7.5
-      ? "Today is looking like an energized, peak-performance day."
-      : dynamicOverallScore >= 5.0
-        ? "Today is looking like a balanced, steady momentum day."
-        : dynamicOverallScore > 0
-          ? "Today is looking like a low energy recovery day."
-          : "Log your nutrition, hydration, sleep, or activity to calculate your overall health score.";
+  // Dynamic Clinical Readiness Guidance (Analyzes sleep, hydration, and overall score)
+  const energySubtext = useMemo(() => {
+    if (dynamicOverallScore === 0) {
+      return "Log your sleep, hydration, or meals to generate your clinical bio-readiness plan.";
+    }
+
+    // High Readiness (7.5 - 10.0) - High Strain & Peak Output
+    if (dynamicOverallScore >= 7.5) {
+      if (effectiveSleepHours >= 7.0) {
+        return "Deep recovery is optimal. High-strain day—push workouts hard, but cut caffeine by 2:00 PM.";
+      }
+      if (waterCups >= 5) {
+        return "Cellular hydration is strong. Peak performance day—ideal for strength and high-intensity output.";
+      }
+      return "Metabolic readiness is primed. High-capacity day—push physical strain and prioritize hydration pacing.";
+    }
+
+    // Steady Momentum (5.0 - 7.4) - Balanced Training & Hydration
+    if (dynamicOverallScore >= 5.0) {
+      if (effectiveSleepHours > 0 && effectiveSleepHours < 6.5) {
+        return "Sleep was slightly shortened. Balanced momentum day—focus on moderate cardio and steady pacing.";
+      }
+      if (waterCups < 4) {
+        return "Hydration pacing is lagging. Steady momentum day—hydrate early to prevent an afternoon cognitive dip.";
+      }
+      return "Biometric baselines are steady. Moderate strain day—solid for maintenance training and deep work.";
+    }
+
+    // Low / Restorative Recovery (0.1 - 4.9)
+    if (effectiveSleepHours > 0 && effectiveSleepHours < 5.5) {
+      return "Sleep deficit detected. Restorative pacing advised—prioritize light mobility, fluids, and an early wind-down.";
+    }
+    return "Recovery reserve is depleted. Restorative day—prioritize hydration, gentle walks, and nervous system rest.";
+  }, [dynamicOverallScore, effectiveSleepHours, waterCups]);
 
   const aiInsightTitle =
     dashboard?.topRecommendation?.title || "Daily Bio-Intelligence Guidance";
@@ -1077,7 +1102,9 @@ export default function DashboardScreen() {
               <Text style={styles.greetingName} numberOfLines={1}>
                 {userName}
               </Text>
-              <Text style={styles.energySubtext} numberOfLines={2}>{energySubtext}</Text>
+              <Text style={styles.energySubtext} numberOfLines={3} ellipsizeMode="tail">
+                {energySubtext}
+              </Text>
             </View>
 
             {/* Circular Score Gauge */}
@@ -3284,9 +3311,10 @@ const styles = StyleSheet.create({
   },
   energySubtext: {
     color: THEME.colors.cardTextSecondary,
-    fontSize: 12,
+    fontSize: 11.5,
     marginTop: 6,
-    lineHeight: 16,
+    lineHeight: 16.5,
+    fontWeight: "500",
   },
   scoreNumber: {
     color: THEME.colors.cardTextPrimary,
