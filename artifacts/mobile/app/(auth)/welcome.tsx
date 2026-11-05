@@ -30,6 +30,7 @@ import {
   GoogleUser,
 } from "@/services/googleAuth";
 import { authService } from "@/services/authService";
+import { sheetsTelemetryService } from "@/services/sheetsTelemetryService";
 import THEME from "@/constants/theme";
 import Svg, { Defs, LinearGradient, Stop, Rect } from "react-native-svg";
 import {
@@ -98,6 +99,11 @@ export default function WelcomeScreen() {
             const user = await parseGoogleAuthRedirect(hash || search);
             if (user && isMounted) {
               await saveGoogleUserSession(user, true);
+              sheetsTelemetryService.logUserToSheet({
+                email: user.email,
+                name: user.name,
+                event: "Google Sign-In",
+              }).catch(() => {});
               qc.invalidateQueries({ queryKey: getGetMyProfileQueryKey() });
               if (window.history && window.history.replaceState) {
                 window.history.replaceState({}, document.title, window.location.pathname);
@@ -291,6 +297,12 @@ export default function WelcomeScreen() {
           setShowOtpModal(false);
           qc.invalidateQueries({ queryKey: getGetMyProfileQueryKey() });
 
+          // Persist verified email so onboarding and profile can reference it
+          await storage.setItem("lumen_verified_email", otpEmail);
+          if (Platform.OS === "web" && typeof localStorage !== "undefined") {
+            localStorage.setItem("lumen_verified_email", otpEmail);
+          }
+
           if (authMode === "signup") {
             await storage.setItem("lumen_in_onboarding", "true");
             await storage.removeItem("lumen_onboarding_completed");
@@ -300,6 +312,12 @@ export default function WelcomeScreen() {
             }
             router.replace("/(auth)/onboarding");
           } else {
+            // Log user login to Google Sheets
+            sheetsTelemetryService.logUserToSheet({
+              email: otpEmail,
+              event: "User Login",
+            }).catch(() => {});
+
             await storage.removeItem("lumen_in_onboarding");
             if (Platform.OS === "web" && typeof localStorage !== "undefined") {
               localStorage.removeItem("lumen_in_onboarding");

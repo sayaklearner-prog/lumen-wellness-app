@@ -73,6 +73,7 @@ import { nativeStepCounter } from "@/services/nativeStepCounter";
 import { digitalWellbeingService } from "@/services/digitalWellbeingService";
 import { getStoredGoogleUser, GoogleUser } from "@/services/googleAuth";
 import { authService } from "@/services/authService";
+import { sheetsTelemetryService } from "@/services/sheetsTelemetryService";
 import { getMeals, getWorkouts, getSleepRecords, getScreenTimeRecords } from "@/services/db";
 import { 
   NotificationPreferences, 
@@ -209,6 +210,10 @@ export default function SettingsScreen() {
   const [isTestingGemini, setIsTestingGemini] = useState<boolean>(false);
   const [geminiTestFeedback, setGeminiTestFeedback] = useState<string | null>(null);
   const [isSavingGemini, setIsSavingGemini] = useState<boolean>(false);
+
+  // Google Sheets Telemetry Sync State
+  const [isTestingSheets, setIsTestingSheets] = useState<boolean>(false);
+  const [sheetsFeedback, setSheetsFeedback] = useState<string | null>(null);
 
   // Storage Stats & Sync
   const [dbRecordCount, setDbRecordCount] = useState({ meals: 0, workouts: 0, sleep: 0, screen: 0 });
@@ -362,6 +367,35 @@ export default function SettingsScreen() {
       Alert.alert("Error Saving Key", e?.message || "Failed saving key.");
     } finally {
       setIsSavingGemini(false);
+    }
+  };
+
+  // Google Sheets Telemetry Test Ping Handler
+  const handleTestSheetsSync = async () => {
+    setIsTestingSheets(true);
+    setSheetsFeedback(null);
+    try {
+      const activeEmail = verifiedEmail || googleUser?.email || "admin@lumen.health";
+      const activeName = name || (profile as any)?.name || "Lumen Admin User";
+      const success = await sheetsTelemetryService.logUserToSheet({
+        name: activeName,
+        email: activeEmail,
+        event: "System Verification",
+        healthMode: (profile as any)?.mode || "Standard Longevity",
+        calorieTarget: (profile as any)?.dailyCalorieTarget || 2200,
+        sleepTarget: (profile as any)?.dailySleepTargetHours || 8,
+        stepsTarget: (profile as any)?.dailyStepsTarget || 10000,
+      });
+
+      if (success) {
+        setSheetsFeedback("Connected! Verification row appended to your Google Sheet.");
+      } else {
+        setSheetsFeedback("Queued in offline cache. Will dispatch automatically when online.");
+      }
+    } catch (err: any) {
+      setSheetsFeedback("Sync ping error: " + (err?.message || "Check network connection"));
+    } finally {
+      setIsTestingSheets(false);
     }
   };
 
@@ -1840,6 +1874,68 @@ export default function SettingsScreen() {
               </View>
             </View>
 
+            {/* Google Sheets Telemetry Auto-Sync Card */}
+            <View style={styles.card}>
+              <View style={styles.sectionHeaderRow}>
+                <View style={[styles.sectionIconBox, { backgroundColor: "rgba(16, 185, 129, 0.15)" }]}>
+                  <Send size={18} color="#10b981" />
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={styles.sectionTitle} numberOfLines={1}>Google Sheets User Telemetry</Text>
+                  <Text style={styles.sectionSub} numberOfLines={2}>
+                    Live tracking active • New signups and logins auto-sync to your Google Sheet
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.sheetsStatusRow}>
+                <View style={styles.sheetsStatusBadge}>
+                  <View style={styles.sheetsActiveDot} />
+                  <Text style={styles.sheetsStatusText}>Auto-Sync Active</Text>
+                </View>
+                <Text style={styles.sheetsWebhookHint} numberOfLines={1} ellipsizeMode="middle">
+                  AKfycbzt...VJlxw
+                </Text>
+              </View>
+
+              {sheetsFeedback ? (
+                <View
+                  style={[
+                    styles.geminiFeedbackBox,
+                    sheetsFeedback.includes("Connected")
+                      ? styles.geminiFeedbackBoxSuccess
+                      : styles.geminiFeedbackBoxError,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.geminiFeedbackText,
+                      sheetsFeedback.includes("Connected")
+                        ? styles.geminiFeedbackTextSuccess
+                        : styles.geminiFeedbackTextError,
+                    ]}
+                  >
+                    {sheetsFeedback}
+                  </Text>
+                </View>
+              ) : null}
+
+              <Pressable
+                style={[styles.geminiTestBtn, { marginTop: 12 }, isTestingSheets && styles.btnDisabled]}
+                onPress={handleTestSheetsSync}
+                disabled={isTestingSheets}
+              >
+                {isTestingSheets ? (
+                  <ActivityIndicator size="small" color="#10b981" />
+                ) : (
+                  <Send size={14} color="#10b981" />
+                )}
+                <Text style={[styles.geminiTestBtnText, { color: "#10b981" }]}>
+                  {isTestingSheets ? "Sending Test Ping..." : "Send Test Ping to Google Sheet"}
+                </Text>
+              </Pressable>
+            </View>
+
             {/* AI Coach Persona Selection Card */}
             <View style={styles.card}>
               <View style={styles.sectionHeaderRow}>
@@ -3257,5 +3353,42 @@ const styles = StyleSheet.create({
   },
   btnDisabled: {
     opacity: 0.5,
+  },
+  sheetsStatusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(200, 218, 210, 0.2)",
+    maxWidth: "100%",
+  },
+  sheetsStatusBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.3)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  sheetsActiveDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: "#10b981",
+  },
+  sheetsStatusText: {
+    color: "#10b981",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  sheetsWebhookHint: {
+    color: THEME.colors.textOnDarkSecondary,
+    fontSize: 11,
+    fontWeight: "600",
+    maxWidth: "50%",
   },
 });

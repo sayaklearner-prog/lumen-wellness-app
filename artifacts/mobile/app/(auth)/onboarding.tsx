@@ -19,6 +19,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { storage } from "@/services/storage";
 import { getStoredGoogleUser } from "@/services/googleAuth";
 import { authService } from "@/services/authService";
+import { sheetsTelemetryService } from "@/services/sheetsTelemetryService";
 import {
   ChevronLeft,
   ChevronRight,
@@ -584,6 +585,24 @@ export default function PersonalInformationScreen() {
       localStorage.removeItem("lumen_in_onboarding");
       localStorage.setItem("lumen_local_profile", JSON.stringify(profilePayload));
     }
+
+    // Auto-sync full user registration & clinical targets to Developer's Google Sheet
+    try {
+      const verifiedEmail =
+        (await authService.getVerifiedEmail()) ||
+        (await storage.getItem("lumen_verified_email")) ||
+        "N/A";
+
+      sheetsTelemetryService.logUserToSheet({
+        name: name.trim() || "User",
+        email: verifiedEmail,
+        event: "New Signup",
+        healthMode: selectedMode,
+        calorieTarget: calorieTarget,
+        sleepTarget: sleepTargetHours,
+        stepsTarget: stepsTarget,
+      }).catch(() => {});
+    } catch {}
 
     try {
       await updateProfile.mutateAsync({
