@@ -122,11 +122,19 @@ function InteractiveRulerModal({
   onConfirm,
   onClose,
 }: InteractiveRulerModalProps) {
+  const [localVal, setLocalVal] = useState<number>(value);
+  const [inputValue, setInputValue] = useState<string>(String(value));
   const initialValRef = useRef<number>(value);
   const currentValRef = useRef<number>(value);
-  currentValRef.current = value;
-
+  const lastHapticRef = useRef<number>(0);
   const repeatTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Synchronize local state whenever value or modal visibility changes
+  useEffect(() => {
+    setLocalVal(value);
+    currentValRef.current = value;
+    setInputValue(String(value));
+  }, [value, visible]);
 
   // Clear any holding repeat timer on unmount
   useEffect(() => {
@@ -135,11 +143,43 @@ function InteractiveRulerModal({
     };
   }, []);
 
+  const handleConfirm = () => {
+    triggerHaptic(Haptics.ImpactFeedbackStyle.Medium);
+    onChange(currentValRef.current);
+    onConfirm();
+  };
+
+  const handleClose = () => {
+    onChange(currentValRef.current);
+    onClose();
+  };
+
+  const handleToggleUnit = () => {
+    triggerHaptic();
+    onChange(currentValRef.current);
+    if (onToggleUnit) {
+      onToggleUnit();
+    }
+  };
+
+  const handleInputBlur = () => {
+    const num = parseInt(inputValue.replace(/[^0-9]/g, ""), 10);
+    if (isNaN(num)) {
+      setInputValue(String(localVal));
+    } else {
+      const clamped = Math.min(max, Math.max(min, num));
+      setLocalVal(clamped);
+      currentValRef.current = clamped;
+      setInputValue(String(clamped));
+    }
+  };
+
   const startHoldRepeat = (direction: -1 | 1) => {
     triggerHaptic();
-    const next = direction > 0 ? Math.min(max, value + step) : Math.max(min, value - step);
+    const next = direction > 0 ? Math.min(max, currentValRef.current + step) : Math.max(min, currentValRef.current - step);
     currentValRef.current = next;
-    onChange(next);
+    setLocalVal(next);
+    setInputValue(String(next));
 
     if (repeatTimerRef.current) clearInterval(repeatTimerRef.current);
     repeatTimerRef.current = setInterval(() => {
@@ -147,7 +187,8 @@ function InteractiveRulerModal({
       const updated = direction > 0 ? Math.min(max, prev + step) : Math.max(min, prev - step);
       if (updated !== prev) {
         currentValRef.current = updated;
-        onChange(updated);
+        setLocalVal(updated);
+        setInputValue(String(updated));
         if (Platform.OS !== "web") {
           try {
             Haptics.selectionAsync();
@@ -164,7 +205,7 @@ function InteractiveRulerModal({
     }
   };
 
-  // True horizontal touch-drag pan responder across the ruler track
+  // Ultra-smooth 60-120fps horizontal touch-drag pan responder
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
@@ -173,18 +214,24 @@ function InteractiveRulerModal({
         initialValRef.current = currentValRef.current;
       },
       onPanResponderMove: (_, gestureState) => {
-        // Every 8 pixels dragged horizontally adjusts by 1 step
-        const PIXELS_PER_STEP = 8;
-        // Dragging right (dx > 0) pulls value up; dragging left (dx < 0) pulls value down
+        // Every 6 pixels dragged horizontally adjusts by 1 step for snappy, buttery-smooth tracking
+        const PIXELS_PER_STEP = 6;
         const deltaSteps = Math.round(gestureState.dx / PIXELS_PER_STEP);
         const nextVal = Math.min(max, Math.max(min, initialValRef.current + deltaSteps * step));
         if (nextVal !== currentValRef.current) {
           currentValRef.current = nextVal;
-          onChange(nextVal);
-          if (Platform.OS !== "web") {
-            try {
-              Haptics.selectionAsync();
-            } catch {}
+          setLocalVal(nextVal);
+          setInputValue(String(nextVal));
+
+          // Throttle haptics so JS thread is never blocked during fast gestures
+          const now = Date.now();
+          if (now - lastHapticRef.current > 110) {
+            lastHapticRef.current = now;
+            if (Platform.OS !== "web") {
+              try {
+                Haptics.selectionAsync();
+              } catch {}
+            }
           }
         }
       },
@@ -197,9 +244,9 @@ function InteractiveRulerModal({
   const tickOffsets = [-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5];
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
       <View style={styles.modalBackdrop}>
-        <Pressable style={StyleSheet.absoluteFillObject} onPress={onClose} />
+        <Pressable style={StyleSheet.absoluteFillObject} onPress={handleClose} />
         <View style={styles.rulerModalPanel}>
           {/* Top Drag Handle */}
           <View style={styles.modalHandle} />
@@ -207,19 +254,35 @@ function InteractiveRulerModal({
           {/* Header Row: Title & Unit Pill */}
           <View style={styles.rulerHeaderRow}>
             <Text style={styles.rulerModalTitle}>{title}</Text>
-            <Pressable style={styles.unitTogglePill} onPress={onToggleUnit}>
+            <Pressable style={styles.unitTogglePill} onPress={handleToggleUnit}>
               <Text style={styles.unitToggleText}>{unit} ˅</Text>
             </Pressable>
           </View>
 
-          {/* Floating Number Bubble */}
+          {/* Floating Number Bubble with Direct Keyboard Typing Support */}
           <View style={styles.valueBubbleContainer}>
             <View style={styles.valueBubble}>
-              <Text style={styles.valueBubbleText}>
-                {value} <Text style={{ fontSize: 13, fontWeight: "700" }}>{unit.toLowerCase()}</Text>
-              </Text>
+              <TextInput
+                style={styles.valueBubbleInput}
+                value={inputValue}
+                onChangeText={(txt) => {
+                  setInputValue(txt);
+                  const parsed = parseInt(txt.replace(/[^0-9]/g, ""), 10);
+                  if (!isNaN(parsed)) {
+                    const clamped = Math.min(max, Math.max(min, parsed));
+                    currentValRef.current = clamped;
+                    setLocalVal(clamped);
+                  }
+                }}
+                onBlur={handleInputBlur}
+                keyboardType="numeric"
+                maxLength={4}
+                selectTextOnFocus
+              />
+              <Text style={styles.valueBubbleUnit}>{unit.toLowerCase()}</Text>
             </View>
             <View style={styles.bubblePointer} />
+            <Text style={styles.valueBubbleHint}>Tap number to type or slide ruler below</Text>
           </View>
 
           {/* Touch-Drag Sliding Ruler Area */}
@@ -246,7 +309,7 @@ function InteractiveRulerModal({
                 {...panResponder.panHandlers}
               >
                 {tickOffsets.map((offset) => {
-                  const tickVal = value + offset * step;
+                  const tickVal = localVal + offset * step;
                   const isCenter = offset === 0;
                   const isMajor = tickVal % (step * 5) === 0;
                   const isOutOfBounds = tickVal < min || tickVal > max;
@@ -261,7 +324,9 @@ function InteractiveRulerModal({
                       style={styles.tickItem}
                       onPress={() => {
                         triggerHaptic();
-                        onChange(tickVal);
+                        currentValRef.current = tickVal;
+                        setLocalVal(tickVal);
+                        setInputValue(String(tickVal));
                       }}
                     >
                       <View
@@ -311,14 +376,16 @@ function InteractiveRulerModal({
           {presets.length > 0 && (
             <View style={styles.rulerPresetsRow}>
               {presets.map((p) => {
-                const isSelected = value === p;
+                const isSelected = localVal === p;
                 return (
                   <Pressable
                     key={p}
                     style={[styles.rulerPresetPill, isSelected && styles.rulerPresetPillActive]}
                     onPress={() => {
                       triggerHaptic();
-                      onChange(p);
+                      currentValRef.current = p;
+                      setLocalVal(p);
+                      setInputValue(String(p));
                     }}
                   >
                     <Text
@@ -338,7 +405,7 @@ function InteractiveRulerModal({
               styles.confirmVibrantBtn,
               pressed && { opacity: 0.9, transform: [{ scale: 0.99 }] },
             ]}
-            onPress={onConfirm}
+            onPress={handleConfirm}
           >
             <Text style={styles.confirmVibrantBtnText}>Confirm</Text>
           </Pressable>
@@ -971,12 +1038,9 @@ export default function PersonalInformationScreen() {
             setWeightVal(Math.round(weightVal / 2.20462));
           }
         }}
-        presets={weightUnit === "KG" ? [60, 70, 75, 80, 85, 95] : [135, 155, 165, 175, 190]}
+        presets={weightUnit === "KG" ? [55, 60, 65, 70, 75, 80, 85, 90] : [120, 135, 150, 165, 180, 195]}
         onChange={setWeightVal}
-        onConfirm={() => {
-          triggerHaptic(Haptics.ImpactFeedbackStyle.Medium);
-          setShowWeightModal(false);
-        }}
+        onConfirm={() => setShowWeightModal(false)}
         onClose={() => setShowWeightModal(false)}
       />
 
@@ -993,14 +1057,19 @@ export default function PersonalInformationScreen() {
         unit={heightUnit}
         onToggleUnit={() => {
           triggerHaptic();
-          setHeightUnit(heightUnit === "Cm" ? "Ft" : "Cm");
+          if (heightUnit === "Cm") {
+            setHeightUnit("Ft");
+            const ft = Math.max(3, Math.min(8, Math.round(heightVal / 30.48)));
+            setHeightVal(ft);
+          } else {
+            setHeightUnit("Cm");
+            const cm = Math.max(110, Math.min(230, Math.round(heightVal * 30.48)));
+            setHeightVal(cm);
+          }
         }}
-        presets={heightUnit === "Cm" ? [160, 165, 170, 175, 180, 185] : [5, 6]}
+        presets={heightUnit === "Cm" ? [155, 160, 165, 170, 175, 180, 185, 190] : [4, 5, 6, 7]}
         onChange={setHeightVal}
-        onConfirm={() => {
-          triggerHaptic(Haptics.ImpactFeedbackStyle.Medium);
-          setShowHeightModal(false);
-        }}
+        onConfirm={() => setShowHeightModal(false)}
         onClose={() => setShowHeightModal(false)}
       />
     </View>
@@ -1391,18 +1460,41 @@ const styles = StyleSheet.create({
   valueBubble: {
     backgroundColor: "#d4f933",
     borderRadius: 16,
-    paddingHorizontal: 20,
-    paddingVertical: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 5,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
     shadowColor: "#d4f933",
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.5,
     shadowRadius: 8,
     elevation: 5,
   },
-  valueBubbleText: {
+  valueBubbleInput: {
     color: "#0b1410",
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: "900",
+    textAlign: "center",
+    padding: 0,
+    margin: 0,
+    minWidth: 42,
+    ...Platform.select({
+      web: { outlineStyle: "none" } as any,
+    }),
+  },
+  valueBubbleUnit: {
+    color: "#0b1410",
+    fontSize: 13,
+    fontWeight: "800",
+    marginTop: 2,
+  },
+  valueBubbleHint: {
+    color: "#6b8377",
+    fontSize: 10,
+    fontWeight: "600",
+    marginTop: 4,
   },
   bubblePointer: {
     width: 0,
