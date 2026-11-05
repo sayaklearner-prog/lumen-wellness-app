@@ -1,355 +1,220 @@
-# Lumen AI OS 🌿
-### *Next-Generation Bio-Intelligence & Clinical Longevity Telemetry Platform*
+<div align="center">
 
-[![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20iOS%20%7C%20Web-10b981?style=for-the-badge&logo=android)](https://github.com/sayaklearner-prog/lumen-wellness-app)
-[![AI Engine](https://img.shields.io/badge/AI%20Engine-Google%20Gemini%201.5%20Pro%20%2F%20Flash-38bdf8?style=for-the-badge&logo=google)](https://ai.google.dev/)
-[![Native Alarms](https://img.shields.io/badge/Native%20Alarms-Android%20AlarmManager-f59e0b?style=for-the-badge&logo=android)](https://developer.android.com/)
-[![Telemetry](https://img.shields.io/badge/Telemetry-Google%20Sheets%20Real--Time%20Sync-059669?style=for-the-badge&logo=googlesheets)](https://sheets.google.com/)
+# 🌿 Lumen AI OS
 
----
+### Bio-Intelligence • Wellness Tracking • AI-Powered Longevity Insights
 
-## 📌 Executive Summary
+A wellness companion that brings nutrition, hydration, sleep, activity, and digital-wellbeing signals together to help users build healthier, more consistent routines.
 
-**Lumen AI OS** is a clinical-grade bio-intelligence and wellness operating system built for modern longevity, metabolic pacing, and circadian synchronization. Designed with an ultra-premium, dark-mode medical telemetry aesthetic (inspired by *Whoop*, *Oura*, and *Apple Health*), Lumen bridges hardware sensor telemetry, multimodal computer vision, and cutting-edge generative AI into a unified, local-first mobile ecosystem.
+[![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20iOS%20%7C%20Web-10b981?style=for-the-badge)](#)
+[![AI](https://img.shields.io/badge/AI-Google%20Gemini-4285F4?style=for-the-badge&logo=googlegemini&logoColor=white)](https://ai.google.dev/)
+[![Backend](https://img.shields.io/badge/Backend-FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 
-Unlike traditional fitness apps that function as static "graveyards of charts," Lumen functions as an active clinical companion: evaluating biometric recovery, calculating dynamic daily readiness, ringing loud acoustic bio-alarms directly through hardware channels, and automatically streaming administrative telemetry to cloud spreadsheets in real time.
+**Evidence-informed wellness. Useful insights. Consistent habits.**
 
----
-
-## 🏛 System Architecture & Data Flow
-
-```
-                                      +---------------------------------------------+
-                                      |            LUMEN CLIENT APPS                |
-                                      |  (Expo / React Native + Capacitor Android)   |
-                                      +---------------------------------------------+
-                                                             |
-                                                             | Bi-directional RPC / State
-                                                             v
-+--------------------------------------------------------------------------------------------------------------------+
-|                                           LUMEN MOBILE CORE RUNTIME                                                |
-|                                                                                                                    |
-|   +-----------------------+   +------------------------+   +-----------------------+   +-----------------------+   |
-|   |  Dashboard & Hero     |   |   3-Pillar Clinical    |   |  Native Bio-Alarms &  |   |   AI Coach & Persona  |   |
-|   |  Readiness Engine     |   |   Synthesis (Gemini)   |   |  Hydration (Android)  |   |   Memory Engine       |   |
-|   +-----------------------+   +------------------------+   +-----------------------+   +-----------------------+   |
-|              |                            |                            |                            |              |
-|   +------------------------------------------------------------------------------------------------------------+   |
-|   |                                    UNIFIED CLIENT SERVICES LAYER                                           |   |
-|   |  * sheetsTelemetryService  * nativeStepCounter  * digitalWellbeingService  * fitnessWatchSensor * googleAuth   |   |
-|   +------------------------------------------------------------------------------------------------------------+   |
-|              |                                                         |                            |              |
-|              v                                                         v                            v              |
-|   +-----------------------+                                 +----------------------+   +-----------------------+   |
-|   | Local-First Storage   |                                 | Hardware Sensor Bus  |   | Native AlarmManager   |   |
-|   | SQLite Master + KV    |                                 | Pedometer/Step Counter|   | Acoustic Ring & Vibe  |   |
-|   +-----------------------+                                 +----------------------+   +-----------------------+   |
-+--------------------------------------------------------------------------------------------------------------------+
-       |                                                   |                                          |
-       | Offline Queue Flush                               | Telemetry Webhook                        | Generative AI
-       v                                                   v                                          v
-+-----------------------+                       +-----------------------+                  +-----------------------+
-|  FASTAPI / DOCKER     |                       |  GOOGLE APPS SCRIPT   |                  |     GOOGLE GEMINI     |
-|  BACKEND API SERVER   |                       |  WEBHOOK (SHEETS)     |                  |  AI 1.5 PRO / FLASH   |
-|  * Biometric Analysis |                       |  * Real-Time Logins   |                  |  * 3-Pillar Synthesis |
-|  * Meal Vision Engine |                       |  * User Signups       |                  |  * Clinical Insights  |
-|  * Long-Term Backups  |                       |  * Clinical Targets   |                  |  * Vision Food Macros |
-+-----------------------+                       +-----------------------+                  +-----------------------+
-```
+</div>
 
 ---
 
-## 📂 Monorepo Repository Structure
+## 📱 Screenshots
 
-```
-lumen-wellness-app/
-├── android/                             # Android Studio native Capacitor project
-│   ├── app/
-│   │   ├── src/main/assets/public/      # Bundled production mobile web assets
-│   │   ├── src/main/java/.../           # Native AlarmReceiver & NotificationReceiver
-│   │   └── AndroidManifest.xml          # Exact alarm, wake lock, sensor permissions
-│   └── build.gradle                     # Gradle configuration & SDK target specifications
-│
-├── artifacts/
-│   ├── mobile/                          # Primary Expo / React Native Mobile Application
-│   │   ├── app/
-│   │   │   ├── (auth)/                  # Onboarding, Welcome, OAuth & OTP verification
-│   │   │   │   ├── welcome.tsx          # Google OAuth, Email OTP, and Guest access
-│   │   │   │   └── onboarding.tsx       # Clinical targets, personal metrics, mode selection
-│   │   │   ├── (tabs)/                  # Main Application Navigation Screens
-│   │   │   │   ├── index.tsx            # Dashboard, Hero Readiness, Circular Ring, Streaks
-│   │   │   │   ├── activity.tsx         # Sensor tracking, steps, workouts, calorie burn
-│   │   │   │   ├── analytics.tsx        # 3-Pillar Clinical AI Synthesis (Gemini Engine)
-│   │   │   │   ├── nutrition.tsx        # Macro pacing, daily meals, hydration logs
-│   │   │   │   ├── coach.tsx            # Conversational AI Advisor with 4 clinical personas
-│   │   │   │   ├── reminders.tsx        # Hardware Bio-Alarms & Cellular Hydration engine
-│   │   │   │   ├── safety.tsx           # Clinical guardrails, red flags & disclaimer modal
-│   │   │   │   ├── profile.tsx          # Settings, Gemini Key manager, Sheets diagnostics
-│   │   │   │   └── achievements.tsx     # Gamified badges, milestones & consistency streaks
-│   │   │   └── _layout.tsx              # Root Stack router, Slide Navigation menu & Drawer
-│   │   ├── services/                    # Core business logic & native bridge services
-│   │   │   ├── sheetsTelemetryService.ts# Real-time Google Sheets auto-sync with offline queue
-│   │   │   ├── geminiAi.ts              # Gemini AI API failover, prompt synthesis, caching
-│   │   │   ├── authService.ts           # Email OTP, session tokens & verified identity
-│   │   │   ├── googleAuth.ts            # Google Cloud OAuth 2.0 PKCE & JWT decoder
-│   │   │   ├── notifications.ts         # Android AlarmManager exact alarm scheduler
-│   │   │   ├── alarm.ts                 # Acoustic sound synthesizer & vibration motor
-│   │   │   ├── hydrationService.ts      # Cellular fluid algorithm & daytime prompt engine
-│   │   │   ├── nativeStepCounter.ts     # Device pedometer / accelerometer sensor bridge
-│   │   │   ├── digitalWellbeingService.ts# Screen time, circadian blue-light monitor
-│   │   │   └── db.ts / storage.ts       # Unified SQLite Master database & key-value cache
-│   │   └── constants/theme.ts           # Emerald luxury dark-mode design tokens
-│   │
-│   ├── api-server/                      # Express & Node.js microservice endpoints
-│   ├── hosting/                         # Static Firebase OAuth bridge callback handler
-│   └── wellness/                        # Legacy React + Vite desktop web interface
-│
-├── backend/                             # High-performance FastAPI Python Backend
-│   ├── app/
-│   │   ├── api/v1/                      # REST endpoints (auth, workouts, coach, analytics)
-│   │   ├── core/                        # Configuration, JWT signing, security helpers
-│   │   ├── database/                    # SQLAlchemy models & SQLite/Postgres sessions
-│   │   └── ai/                          # Anthropic Claude & OpenAI GPT vision analyzers
-│   └── main.py                          # FastAPI application initialization & middleware
-│
-├── lib/                                 # Shared TypeScript monorepo packages
-│   ├── api-spec/                        # OpenAPI 3.0 contract specification
-│   ├── api-client-react/                # Auto-generated TanStack React Query SDK hooks
-│   └── api-zod/                         # Zod schema validators & runtime guards
-│
-├── package.json                         # Monorepo workspaces & pnpm dependencies
-└── capacitor.config.json                # Capacitor native Android app metadata
+<p align="center">
+  <img src="assets/screenshots/home-dashboard.jpg" alt="Lumen home dashboard" width="30%" />
+  <img src="assets/screenshots/nutrition-dashboard.jpg" alt="Lumen nutrition and macronutrient dashboard" width="30%" />
+  <img src="assets/screenshots/achievements-badges.jpg" alt="Lumen achievements and habit badges" width="30%" />
+</p>
+
+## ✨ What is Lumen?
+
+**Lumen AI OS** is a cross-platform wellness and bio-intelligence application focused on everyday health habits and longevity-oriented routines. It combines personal tracking, local-first data storage, native mobile capabilities, and AI-assisted interpretation in a single experience.
+
+The dashboard presents a daily readiness-style score and wellness summaries. Users can log meals and hydration, track activity and sleep, configure reminders, and receive AI-generated guidance based on available information.
+
+> Lumen is a wellness and educational tool—not a medical device. Its scores and AI outputs are not diagnoses or a substitute for professional medical care.
+
+## 🌟 Key Features
+
+### 🧬 Daily Bio-Readiness Dashboard
+- A central 0–10 readiness-style score and daily overview.
+- Summaries across nutrition, hydration, sleep, activity, and screen-time signals.
+- Contextual guidance based on recorded metrics and available data.
+
+### 🥗 Nutrition & Metabolic Tracking
+- Meal logging and daily calorie tracking.
+- Macronutrient tracking for protein, carbohydrates, and fats.
+- Nutrition timeline and progress toward configurable targets.
+- Meal-photo scanning / AI-assisted estimation where configured.
+
+### 💤 Sleep, Activity & Digital Wellbeing
+- Activity and step tracking using supported device sensors.
+- Sleep and circadian-routine tracking.
+- Digital-wellbeing and screen-time signals.
+- Combined views intended to help users understand their daily habits.
+
+### 🤖 Gemini-Powered AI Guidance
+- AI-assisted synthesis across three wellness pillars:
+  1. Biometrics and recovery
+  2. Hydration and metabolism
+  3. Sleep and circadian rhythm
+- Conversational wellness coach with selectable guidance personas.
+- AI-assisted meal estimation and interpretation when configured.
+- Local caching and fallback behavior for resilience.
+
+### ⏰ Reminders & Hydration
+- Configurable hydration reminders and intake goals.
+- Android-native alarm and notification integration, subject to device permissions and OS behavior.
+- Reminder controls for habit consistency.
+
+### 🏆 Achievements & Habit Streaks
+- XP, levels, badges, and milestones.
+- Progress tracking for consecutive wellness logging.
+- A gamified approach to encourage consistency.
+
+### 🔐 Local-First Data & Account Features
+- SQLite-backed storage for supported mobile workflows.
+- Authentication options documented in the project, including Google sign-in and email OTP.
+- Offline queue support for configured telemetry synchronization.
+- Google Sheets operational telemetry integration when enabled.
+
+## 🧱 Architecture Overview
+
+```text
+Mobile / Web Client
+  ├── Expo + React Native application
+  ├── Capacitor Android runtime and native integrations
+  ├── Dashboard, nutrition, activity, coach, reminders
+  └── Local persistence (SQLite / platform storage)
+          │
+          ├── Google Gemini API
+          │     └── AI wellness synthesis and meal interpretation
+          │
+          ├── FastAPI backend
+          │     └── API, analysis, persistence, and supporting services
+          │
+          └── Google Apps Script Web App
+                └── Optional Google Sheets telemetry
 ```
 
----
+## 🛠️ Technology Stack
 
-## 🌟 Core Technical Innovations
+| Area | Technologies |
+|---|---|
+| Mobile application | Expo, React Native, TypeScript |
+| Android integration | Capacitor, native Android APIs |
+| Navigation | Expo Router |
+| AI | Google Gemini API |
+| Backend | Python, FastAPI, Uvicorn |
+| Data | SQLite, SQLAlchemy, PostgreSQL / SQLite backend options |
+| Client data fetching | TanStack React Query |
+| Validation / API contracts | Zod, OpenAPI |
+| Operational telemetry | Google Apps Script, Google Sheets |
+| UI | React Native StyleSheet, custom design tokens, SVG visuals |
 
-### 1. Dynamic Hero Bio-Readiness Engine (`app/(tabs)/index.tsx`)
-- **Circular Readiness Gauge**: Preserves a normalized 0–10 clinical scale visualizing composite physiological capacity across 5 evaluated pillars (Nutrition, Hydration, Sleep, Activity, Screen Time).
-- **Intelligent Clinical Interpretation**: Rather than displaying static or generic text, Lumen synthesizes real-time metrics into actionable circadian recommendations:
-  - *Optimal Recovery ($\ge 7.5$ score + $\ge 7$h sleep)*:  
-    `"Deep recovery is optimal. High-strain day—push workouts hard, but cut caffeine by 2:00 PM."`
-  - *Cellular Hydration Leading*:  
-    `"Cellular hydration is strong. Peak performance day—ideal for strength and high-intensity output."`
-  - *Sleep Deficit (< 6.0h sleep)*:  
-    `"Sleep deficit detected. Restorative pacing advised—prioritize light mobility, fluids, and an early wind-down."`
-- **Responsive Viewport Containment**: Built with `flex: 1`, `minWidth: 0`, and `numberOfLines={3}` with `ellipsizeMode="tail"`, ensuring the layout **never clips or overflows** on compact 320px–360px mobile viewports.
+*The exact packages and versions may vary by branch. Refer to the repository manifests for the authoritative dependency list.*
 
----
-
-### 2. 3-Pillar Clinical AI Synthesis (`app/(tabs)/analytics.tsx` & `geminiAi.ts`)
-- **Real-Time Gemini AI Integration**: Connects directly to Google's official Gemini Generative Language API (`v1beta` models including `gemini-1.5-flash` and `gemini-1.5-pro`).
-- **Clinical Tri-Pillar Architecture**:
-  1. **Biometrics & Autonomic Recovery**: Analyzes resting heart rate, step strain, and screen time fatigue.
-  2. **Cellular Hydration & Metabolism**: Correlates fluid intake pacing, calorie distribution, and macro splits.
-  3. **Sleep Architecture & Circadian Rhythm**: Evaluates sleep duration, rest quality, and next-day energy reserve.
-- **Failover & Caching Resilience**:
-  - Automatically caches generated reports by date key (`lumen_ai_synthesis_YYYY-MM-DD`) in local SQLite storage, eliminating redundant API consumption.
-  - Multi-endpoint failover: tries user-managed API keys, falls back to environment keys, and provides rule-based clinical synthesis if network connectivity is absent.
-- **Relocated Key Security**: Relocated the Gemini API Key management interface completely out of the analysis tab into **Settings (Profile ➔ AI & Units)** with live format validation (`AIzaSy...`) and connection health diagnostics.
-
----
-
-### 3. Production Native Bio-Alarms & Hydration Engine (`app/(tabs)/reminders.tsx`)
-- **Exact Android AlarmManager**: Uses `setExactAndAllowWhileIdle()` via native receivers, allowing Lumen alarms to fire loudly **even when the app is killed, the screen is turned off, or the phone is set to Do-Not-Disturb / Silent mode**.
-- **Continuous Acoustic Tone & Vibration**: Plays custom wake audio with infinite loop vibration until dismissed or snoozed via a glowing, full-screen HUD modal.
-- **Cellular Hydration Prompts**:
-  - Smart daytime scheduler operating strictly between **8:00 AM and 10:00 PM**.
-  - Configurable nudge frequencies: **1h, 1.5h, 2h, and 3h**.
-  - Visual intake tracking against clinical daily milliliter targets.
-
----
-
-### 4. Real-Time Google Sheets User Telemetry (`sheetsTelemetryService.ts`)
-- **Zero-Maintenance Cloud Tracking**: Every time a user verifies their account, logs in via Google, or completes their onboarding health profile, Lumen silently relays their telemetry to a private Google Sheet via Google Apps Script Web App.
-- **Logged Columns**:
-  | Column | Data Description |
-  |---|---|
-  | `Timestamp` | Local formatted date and time (`Nov 5, 2026, 10:47 PM`) |
-  | `Full Name` | User's full name (from onboarding or Google profile) |
-  | `Email Address` | Verified email address (Google account or Email OTP) |
-  | `Event Type` | `"New Signup"`, `"User Login"`, `"Google Sign-In"`, or `"Profile Update"` |
-  | `Platform / OS` | Client runtime (`android`, `ios`, `web`) |
-  | `Health Goal Mode` | Clinical focus (`standard`, `athletic`, `longevity`, etc.) |
-  | `Daily Calorie Target` | Calorie baseline (e.g. `2600`) |
-  | `Daily Sleep Target` | Target sleep duration in hours (e.g. `8.0`) |
-  | `Daily Steps Target` | Target step count (e.g. `10000`) |
-  | `App Version` | Client release version (`1.0.0`) |
-- **Offline Queue Fallback**: If the device loses internet connection, payloads are automatically stored in an offline queue inside SQLite (`lumen_pending_sheets_telemetry`) and automatically flushed when network access resumes.
-- **In-App Testing Dashboard**: Profile ➔ Settings includes an **Auto-Sync Active** badge and a **"Send Test Ping to Google Sheet"** button for immediate end-to-end verification.
-
----
-
-### 5. Multi-Persona Longevity Coach (`app/(tabs)/coach.tsx`)
-Lumen features a stateful conversational AI coach that can be calibrated across 4 distinct behavioral personas:
-1. **Clinical Specialist (Dr. Thorne)**: Evidence-based, biochemical, biomarker-focused guidance.
-2. **Empathetic Guide (Maya)**: Supportive, mindful, stress-reduction and habit-forming mentorship.
-3. **Biohacker (Kai)**: High-performance optimization, cold thermogenesis, fasting protocols, and HRV training.
-4. **Disciplined Trainer (Marcus)**: Direct, motivational, accountability-driven physical conditioning.
-
----
-
-### 6. Local-First Unified Persistence (`services/storage.ts` & `services/db.ts`)
-- **Bypasses Android 2KB Limit**: Native Android `SecureStore` caps individual keys at 2KB. Lumen circumvents this with a unified SQLite database engine capable of storing arbitrary JSON payloads, historical snapshots, and meal databases.
-- **Immediate In-Memory Consistency**: Dual-layer architecture provides an in-memory `Map` cache for synchronous zero-latency reads while asynchronously flushing writes to disk.
-
----
-
-## 🛠 Technology Stack
-
-| Layer | Framework / Technology | Purpose |
-|---|---|---|
-| **Mobile Runtime** | Expo 52 / React Native 0.76 | Cross-platform native mobile engine |
-| **Native Bridge** | Capacitor 7 (Android) | Hardware bridge, APK generation, AlarmManager integration |
-| **Styling & Design** | React Native StyleSheet + Custom Design System | Luxury emerald dark-mode tokens (`#050b08`, `#10b981`) |
-| **Navigation** | Expo Router (File-based Routing) | Deep linking, modal stacks, tab layouts |
-| **Icons & Visuals** | Lucide React Native & SVG Linear Gradients | Scalable high-contrast icons & vector gauges |
-| **AI Synthesis** | Google Gemini 1.5 Flash & Pro API | Multimodal vision & 3-pillar clinical synthesis |
-| **Cloud Telemetry** | Google Apps Script Web App / Sheets API | Real-time user login & registration telemetry |
-| **Database (Client)** | SQLite (Android/iOS) + LocalStorage (Web) | Local-first biometric history, offline queues |
-| **State Management** | TanStack React Query 5 | Server synchronization, cache invalidation |
-| **Backend API** | FastAPI (Python 3.11) + Uvicorn | High-throughput async REST microservice |
-| **ORM & DB (Server)** | SQLAlchemy + PostgreSQL / SQLite | Server persistence & long-term data storage |
-
----
-
-## 🚀 Getting Started & Local Development
+## 🚀 Getting Started
 
 ### Prerequisites
-- **Node.js**: `v20.x` or higher
-- **pnpm**: `npm install -g pnpm`
-- **Python**: `3.10+` (optional, for FastAPI backend)
-- **Android Studio**: Ladybug / Jellyfish (for compiling native Android APK)
 
----
+- Node.js 20 or later
+- pnpm
+- Python 3.10+ for the backend
+- Android Studio and Android SDK for native Android builds
 
-### 1. Clone & Install Dependencies
+### 1. Clone the repository
+
 ```bash
 git clone https://github.com/sayaklearner-prog/lumen-wellness-app.git
 cd lumen-wellness-app
-
-# Install monorepo dependencies
 pnpm install
 ```
 
----
+### 2. Configure environment variables
 
-### 2. Environment Configuration
-Create a `.env` file in `artifacts/mobile/.env`:
+Create `artifacts/mobile/.env` and add only the services you intend to use:
+
 ```env
-# Gemini API Key (Optional fallback; users can also set this in Settings)
-EXPO_PUBLIC_GEMINI_API_KEY=AIzaSy...
-
-# Google Sheets Telemetry Webhook URL
-EXPO_PUBLIC_SHEETS_WEBHOOK_URL=https://script.google.com/macros/s/AKfycbztZswgy51yZvpA21CxtYiGVizELYmfX0U2eIufOgMqKE1vzCCEL14oRIdirscXYVJlxw/exec
-
-# Backend API Base URL
-EXPO_PUBLIC_API_URL=https://lumen-wellness-app.onrender.com
+EXPO_PUBLIC_GEMINI_API_KEY=your_gemini_api_key
+EXPO_PUBLIC_SHEETS_WEBHOOK_URL=your_google_apps_script_web_app_url
+EXPO_PUBLIC_API_URL=your_backend_base_url
 ```
 
----
+**Security note:** Values prefixed with `EXPO_PUBLIC_` are bundled into the client application and should be treated as public. Do not place privileged or server-side secrets in these variables. For a production app, proxy sensitive API calls through a secured backend and apply appropriate key restrictions.
 
-### 3. Run Mobile App in Development
+### 3. Start the mobile application
+
 ```bash
-# Navigate to mobile project
 cd artifacts/mobile
-
-# Run Expo Dev Server
 npx expo start
 ```
-- Press `w` to open in browser (Web mode).
-- Press `a` to run on an attached Android device or emulator.
-- Scan QR code with Expo Go on iOS / Android.
+
+Use the Expo CLI prompts to open the app on a supported device, emulator, or web target.
+
+### 4. Build the Android application
+
+The repository includes an Android native project. Follow the current project build instructions and Android Studio / Gradle configuration to generate an APK or app bundle.
+
+> Native alarms, sensors, background behavior, and notifications depend on Android permissions, device settings, and OS-specific restrictions. Test these behaviors on real devices before release.
+
+## 🔑 Integrations & Configuration
+
+- **Google Gemini:** Configure a valid API key and select a supported model. Model availability and API behavior may change; consult the [Gemini API documentation](https://ai.google.dev/gemini-api/docs).
+- **FastAPI backend:** Set the client API base URL to your deployed or local backend.
+- **Google Sheets telemetry:** Optional. If enabled, configure your own Apps Script deployment and spreadsheet. Review the data being transmitted and access settings before deploying.
+- **Native Android features:** Configure and test required permissions in the Android project.
+
+Never commit `.env` files, credentials, signing keys, private telemetry URLs, or user data. Keep a sanitized `.env.example` in the repository instead.
+
+## 🗺️ Roadmap
+
+Potential areas for continued development:
+
+- [ ] Improve onboarding and explain how wellness scores are calculated.
+- [ ] Add transparent data-source and confidence indicators to AI-generated insights.
+- [ ] Expand accessibility and responsive-layout testing.
+- [ ] Add user-controlled data export and deletion workflows.
+- [ ] Strengthen privacy documentation and production security review.
+- [ ] Add automated tests for core tracking, scoring, and reminder workflows.
+
+## 🤝 Contributing
+
+Contributions, bug reports, and thoughtful feature suggestions are welcome.
+
+1. Fork the repository.
+2. Create a feature branch: `git checkout -b feature/your-feature`.
+3. Make focused changes and test them.
+4. Commit your work with a clear message.
+5. Open a pull request describing the change and any relevant screenshots.
+
+Please avoid submitting real personal health data, API keys, or credentials in issues and pull requests.
+
+## 🛡️ Privacy & Wellness Disclaimer
+
+Lumen is intended for wellness tracking and educational guidance. It does not diagnose, treat, cure, or prevent disease and is not a replacement for a qualified healthcare professional.
+
+Health information is sensitive. Before using Lumen with real users, review the app’s storage, authentication, analytics, telemetry, API-key handling, data retention, and deletion behavior. Do not assume that a feature is private or compliant solely because it is described as local-first.
+
+## 📄 License
+
+This project is licensed under the **MIT License**. See [`LICENSE`](LICENSE) for details.
+
+If you prefer to keep the code proprietary, do not publish this MIT license; use an appropriate proprietary license instead. The license should reflect your actual distribution intention.
+
+## 👨‍💻 Author
+
+**Sayak Mondal**  
+AI, software development, and product engineering
+
+- GitHub: [@sayaklearner-prog](https://github.com/sayaklearner-prog)
+- Repository: [lumen-wellness-app](https://github.com/sayaklearner-prog/lumen-wellness-app)
 
 ---
 
-### 4. Build Production Web Bundle for Android WebView
-Whenever frontend code is updated, export the bundle and copy it to the Android assets directory:
-```bash
-cd artifacts/mobile
+<div align="center">
 
-# Export production web bundle
-EXPO_NO_TELEMETRY=1 EXPO_OFFLINE=1 npx expo export --platform web --clear
+**Built with 💚 to make everyday wellness more understandable and actionable.**
 
-# Copy bundle into Android native assets
-cd ../..
-cp -r artifacts/mobile/dist/* android/app/src/main/assets/public/
-```
+⭐ If you find Lumen interesting, consider starring the repository!
 
----
-
-### 5. Compile Android APK with Gradle
-```bash
-cd android
-
-# Compile Debug APK
-./gradlew assembleDebug
-
-# Output APK location:
-# android/app/build/outputs/apk/debug/app-debug.apk
-```
-
----
-
-## 📊 Google Sheets Setup Guide (for Custom Sheets)
-
-If you wish to deploy a new Google Sheet to collect user telemetry:
-
-1. Open **[sheets.new](https://sheets.new)** in your browser and create a spreadsheet.
-2. In the top menu, navigate to **Extensions ➔ Apps Script**.
-3. Replace the editor contents with:
-```javascript
-function doPost(e) {
-  try {
-    var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-    if (sheet.getLastRow() === 0) {
-      sheet.appendRow([
-        "Timestamp", "Full Name", "Email Address", "Event Type",
-        "Platform / OS", "Health Goal Mode", "Daily Calorie Target",
-        "Daily Sleep Target", "Daily Steps Target", "App Version"
-      ]);
-      sheet.getRange(1, 1, 1, 10).setFontWeight("bold").setBackground("#e6f4ea");
-      sheet.setFrozenRows(1);
-    }
-    var data = JSON.parse(e.postData.contents);
-    sheet.appendRow([
-      data.timestamp || new Date().toISOString(),
-      data.name || "N/A",
-      data.email || "N/A",
-      data.event || "Signup",
-      data.platform || "Unknown",
-      data.healthMode || "N/A",
-      data.calorieTarget || "N/A",
-      data.sleepTarget || "N/A",
-      data.stepsTarget || "N/A",
-      data.appVersion || "1.0.0"
-    ]);
-    return ContentService.createTextOutput(JSON.stringify({ status: "success" }))
-      .setMimeType(ContentService.MimeType.JSON);
-  } catch (err) {
-    return ContentService.createTextOutput(JSON.stringify({ status: "error", message: err.toString() }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-}
-```
-4. Click **Deploy ➔ New deployment**.
-5. Select type **Web app**, configure **Execute as: Me**, and **Who has access: Anyone**.
-6. Copy the resulting URL and paste it into `sheetsTelemetryService.ts` or `EXPO_PUBLIC_SHEETS_WEBHOOK_URL`.
-
----
-
-## 🔒 Security, Privacy & Compliance Disclaimers
-
-> [!IMPORTANT]
-> **Clinical Boundary Disclaimer**: Lumen AI OS provides physiological tracking, wellness habit optimization, and educational AI synthesis. It is **not** a certified medical diagnostic device and does not diagnose, treat, cure, or prevent any acute medical condition. Users experiencing clinical emergencies or severe health red flags are prompted with immediate emergency contact hotlines via `safety.tsx`.
-
-- **Client-Side Key Isolation**: Gemini API keys are persisted exclusively in device-encrypted storage and are never logged to public telemetry or external servers.
-- **Zero Ingestion of Sensitive Biometrics into Public Sheets**: The Google Sheets telemetry webhook only captures administrative operational metrics (name, email, platform, and broad daily targets); granular meal pictures, chat coach transcripts, and private health notes remain safely stored in local device SQLite storage.
-
----
-
-## 📄 License & Attribution
-
-Developed with 💚 by the **Lumen Engineering & Longevity Research Team**.  
-All rights reserved © 2026.
+</div>
