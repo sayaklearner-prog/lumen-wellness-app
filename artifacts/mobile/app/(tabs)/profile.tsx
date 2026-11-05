@@ -375,8 +375,9 @@ export default function SettingsScreen() {
     setIsTestingSheets(true);
     setSheetsFeedback(null);
     try {
-      const activeEmail = verifiedEmail || googleUser?.email || "admin@lumen.health";
-      const activeName = name || (profile as any)?.name || "Lumen Admin User";
+      const vEmail = await authService.getVerifiedEmail();
+      const activeEmail: string = verifiedEmail || googleUser?.email || vEmail || "admin@lumen.health";
+      const activeName = name || (profile as any)?.name || googleUser?.name || "Lumen Admin User";
       const success = await sheetsTelemetryService.logUserToSheet({
         name: activeName,
         email: activeEmail,

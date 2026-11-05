@@ -180,11 +180,17 @@ export async function saveGoogleUserSession(
   // 1. Storage persistence
   await storage.setItem("lumen_auth_token", "authenticated");
   await storage.setItem("lumen_google_user", userJson);
+  if (user.email) {
+    await storage.setItem("lumen_verified_email", user.email);
+  }
   await storage.setItem("lumen_auth_provider", "google");
 
   // 2. Synchronize with master SQLite database
   try {
     await setKV("lumen_google_user", userJson);
+    if (user.email) {
+      await setKV("lumen_verified_email", user.email);
+    }
     await setKV("lumen_auth_provider", "google");
 
     // Update Profile state in DB with real Google User name
@@ -215,6 +221,9 @@ export async function saveGoogleUserSession(
   if (Platform.OS === "web" && typeof localStorage !== "undefined") {
     localStorage.setItem("lumen_authenticated", "true");
     localStorage.setItem("lumen_google_user", userJson);
+    if (user.email) {
+      localStorage.setItem("lumen_verified_email", user.email);
+    }
     localStorage.setItem("lumen_auth_provider", "google");
   }
 

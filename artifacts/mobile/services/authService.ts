@@ -247,8 +247,28 @@ class AuthService {
     if (Platform.OS === "web" && typeof localStorage !== "undefined") {
       const webEmail = localStorage.getItem("lumen_verified_email");
       if (webEmail) return webEmail;
+
+      const gUser = localStorage.getItem("lumen_google_user");
+      if (gUser) {
+        try {
+          const parsed = JSON.parse(gUser);
+          if (parsed?.email) return parsed.email;
+        } catch {}
+      }
     }
-    return await storage.getItem("lumen_verified_email");
+
+    const email = await storage.getItem("lumen_verified_email");
+    if (email) return email;
+
+    const gUser = await storage.getItem("lumen_google_user");
+    if (gUser) {
+      try {
+        const parsed = JSON.parse(gUser);
+        if (parsed?.email) return parsed.email;
+      } catch {}
+    }
+
+    return null;
   }
 
   /**

@@ -588,14 +588,45 @@ export default function PersonalInformationScreen() {
 
     // Auto-sync full user registration & clinical targets to Developer's Google Sheet
     try {
-      const verifiedEmail =
-        (await authService.getVerifiedEmail()) ||
-        (await storage.getItem("lumen_verified_email")) ||
-        "N/A";
+      let verifiedEmail = await authService.getVerifiedEmail();
+
+      if (!verifiedEmail || verifiedEmail === "N/A") {
+        const gUser = await getStoredGoogleUser();
+        if (gUser?.email) {
+          verifiedEmail = gUser.email;
+        }
+      }
+
+      if (!verifiedEmail || verifiedEmail === "N/A") {
+        verifiedEmail = (await storage.getItem("lumen_verified_email")) || "N/A";
+      }
+
+      if ((!verifiedEmail || verifiedEmail === "N/A") && Platform.OS === "web" && typeof localStorage !== "undefined") {
+        const webEmail = localStorage.getItem("lumen_verified_email");
+        if (webEmail) {
+          verifiedEmail = webEmail;
+        } else {
+          const rawG = localStorage.getItem("lumen_google_user");
+          if (rawG) {
+            try {
+              const parsed = JSON.parse(rawG);
+              if (parsed?.email) verifiedEmail = parsed.email;
+            } catch {}
+          }
+        }
+      }
+
+      // Guarantee verified email is saved for future sessions
+      if (verifiedEmail && verifiedEmail !== "N/A") {
+        await storage.setItem("lumen_verified_email", verifiedEmail);
+        if (Platform.OS === "web" && typeof localStorage !== "undefined") {
+          localStorage.setItem("lumen_verified_email", verifiedEmail);
+        }
+      }
 
       sheetsTelemetryService.logUserToSheet({
         name: name.trim() || "User",
-        email: verifiedEmail,
+        email: verifiedEmail || "N/A",
         event: "New Signup",
         healthMode: selectedMode,
         calorieTarget: calorieTarget,

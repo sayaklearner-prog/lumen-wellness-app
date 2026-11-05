@@ -123,6 +123,11 @@ export default function WelcomeScreen() {
             const user = await parseGoogleAuthRedirect(initialUrl);
             if (user && isMounted) {
               await saveGoogleUserSession(user, true);
+              sheetsTelemetryService.logUserToSheet({
+                email: user.email,
+                name: user.name,
+                event: "Google Sign-In",
+              }).catch(() => {});
               qc.invalidateQueries({ queryKey: getGetMyProfileQueryKey() });
               router.replace("/(auth)/onboarding");
               return;
@@ -143,6 +148,11 @@ export default function WelcomeScreen() {
         const user = await parseGoogleAuthRedirect(event.url);
         if (user && isMounted) {
           await saveGoogleUserSession(user, true);
+          sheetsTelemetryService.logUserToSheet({
+            email: user.email,
+            name: user.name,
+            event: "Google Sign-In",
+          }).catch(() => {});
           qc.invalidateQueries({ queryKey: getGetMyProfileQueryKey() });
           router.replace("/(auth)/onboarding");
         }
@@ -158,6 +168,11 @@ export default function WelcomeScreen() {
         const user = await parseGoogleAuthRedirect(url);
         if (user && isMounted) {
           await saveGoogleUserSession(user, true);
+          sheetsTelemetryService.logUserToSheet({
+            email: user.email,
+            name: user.name,
+            event: "Google Sign-In",
+          }).catch(() => {});
           qc.invalidateQueries({ queryKey: getGetMyProfileQueryKey() });
           router.replace("/(auth)/onboarding");
         }
