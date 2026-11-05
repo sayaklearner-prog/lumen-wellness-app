@@ -28,6 +28,7 @@ import {
   Activity,
   AlertCircle,
   Flame,
+  Menu,
 } from "lucide-react-native";
 import { useSlideMenu } from "@/context/SlideMenuContext";
 
@@ -92,6 +93,45 @@ const INITIAL_REMINDERS: AlarmReminder[] = [
     soundEnabled: true,
   },
 ];
+
+function formatRepeatDays(repeat: string): string {
+  if (!repeat) return "Once";
+  const upper = repeat.toUpperCase().replace(/\s+/g, "");
+  if (
+    upper.includes("MON") &&
+    upper.includes("TUE") &&
+    upper.includes("WED") &&
+    upper.includes("THU") &&
+    upper.includes("FRI") &&
+    upper.includes("SAT") &&
+    upper.includes("SUN")
+  ) {
+    return "Every day";
+  }
+  if (
+    upper.includes("MON") &&
+    upper.includes("TUE") &&
+    upper.includes("WED") &&
+    upper.includes("THU") &&
+    upper.includes("FRI") &&
+    !upper.includes("SAT") &&
+    !upper.includes("SUN")
+  ) {
+    return "Weekdays (Mon–Fri)";
+  }
+  if (
+    !upper.includes("MON") &&
+    !upper.includes("TUE") &&
+    !upper.includes("WED") &&
+    !upper.includes("THU") &&
+    !upper.includes("FRI") &&
+    upper.includes("SAT") &&
+    upper.includes("SUN")
+  ) {
+    return "Weekends (Sat–Sun)";
+  }
+  return repeat;
+}
 
 export default function RemindersScreen() {
   const router = useRouter();
@@ -302,14 +342,31 @@ export default function RemindersScreen() {
       {/* Top Navbar */}
       <View style={styles.topBar}>
         <View style={styles.brandRow}>
-          <Pressable onPress={openLeftMenu} style={styles.menuIconBox}>
-            <View style={styles.brandDot} />
+          <Pressable
+            onPress={openLeftMenu}
+            accessibilityLabel="Open Navigation Slide Menu"
+            style={styles.hamburgerBtn}
+          >
+            <Menu size={19} color="#10b981" />
           </Pressable>
-          <Text style={styles.brandTitle}>Lumen Alarms & Prompts</Text>
+
+          <View style={styles.brandTextCol}>
+            <View style={styles.brandTitleRow}>
+              <Text style={styles.brandTitle} numberOfLines={1} ellipsizeMode="tail">
+                ALARMS
+              </Text>
+              <View style={styles.brandPill}>
+                <Text style={styles.brandPillText}>LUMEN</Text>
+              </View>
+            </View>
+            <Text style={styles.brandSubtitle} numberOfLines={1} ellipsizeMode="tail">
+              Biometric Prompts & Sync
+            </Text>
+          </View>
         </View>
 
         <Pressable style={styles.addBtn} onPress={() => setShowAddModal(true)}>
-          <Plus size={16} color="#050b08" />
+          <Plus size={15} color="#050b08" />
           <Text style={styles.addBtnText}>Add Alarm</Text>
         </Pressable>
       </View>
@@ -318,22 +375,22 @@ export default function RemindersScreen() {
         {/* Header Hero */}
         <View style={styles.heroBox}>
           <View style={styles.heroLeft}>
-            <Text style={styles.heroSub}>Production Bio-Alarms</Text>
-            <Text style={styles.heroTitle}>Smart Phone Alarms</Text>
-            <Text style={styles.heroDesc}>
+            <Text style={styles.heroSub} numberOfLines={1}>Production Bio-Alarms</Text>
+            <Text style={styles.heroTitle} numberOfLines={1}>Smart Phone Alarms</Text>
+            <Text style={styles.heroDesc} numberOfLines={3} ellipsizeMode="tail">
               Rings loudly via Android AlarmManager even when the app is closed, screen is locked, or phone is on silent mode.
             </Text>
           </View>
-          <Bell size={36} color="#10b981" />
+          <Bell size={34} color="#10b981" style={{ flexShrink: 0 }} />
         </View>
 
         {/* Global Test Ring Button */}
         <Pressable style={styles.testRingBanner} onPress={() => handleTestPreviewRing()}>
           <View style={styles.testRingLeft}>
-            <Volume2 size={20} color="#10b981" />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.testRingTitle}>Preview Alarm Sound & Vibration</Text>
-              <Text style={styles.testRingSub}>Tap to verify loud acoustic alarm ring and vibration</Text>
+            <Volume2 size={20} color="#10b981" style={{ flexShrink: 0 }} />
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={styles.testRingTitle} numberOfLines={1} ellipsizeMode="tail">Preview Alarm Sound & Vibration</Text>
+              <Text style={styles.testRingSub} numberOfLines={1} ellipsizeMode="tail">Tap to verify loud acoustic alarm ring and vibration</Text>
             </View>
           </View>
           <Text style={styles.testRingBadge}>Test ➔</Text>
@@ -345,9 +402,11 @@ export default function RemindersScreen() {
             <View style={styles.hydrationCardIconBox}>
               <Droplets size={22} color="#06b6d4" />
             </View>
-            <View style={{ flex: 1, marginLeft: 12 }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Text style={styles.hydrationCardTitle}>Cellular Hydration Prompts</Text>
+            <View style={styles.hydrationHeaderInfo}>
+              <View style={styles.hydrationTitleBadgeRow}>
+                <Text style={styles.hydrationCardTitle} numberOfLines={1} ellipsizeMode="tail">
+                  Cellular Hydration
+                </Text>
                 <View
                   style={[
                     styles.hydrationLiveBadge,
@@ -368,7 +427,7 @@ export default function RemindersScreen() {
                   </Text>
                 </View>
               </View>
-              <Text style={styles.hydrationCardSub}>
+              <Text style={styles.hydrationCardSub} numberOfLines={1} ellipsizeMode="tail">
                 {hydration.remindersEnabled
                   ? `Next prompt: ${hydration.nextPromptTimeStr || "Scheduled"}`
                   : "Daytime fluid reminders disabled"}
@@ -381,6 +440,7 @@ export default function RemindersScreen() {
               }}
               trackColor={{ false: "#1e293b", true: "#06b6d4" }}
               thumbColor={hydration.remindersEnabled ? "#ffffff" : "#94a3b8"}
+              style={styles.headerSwitch}
             />
           </View>
 
@@ -389,10 +449,10 @@ export default function RemindersScreen() {
               <Text style={styles.hydrationConfigLabel}>PROMPT FREQUENCY (8:00 AM – 10:00 PM)</Text>
               <View style={styles.intervalChipsRow}>
                 {[
-                  { label: "Every 1h", val: 1 },
-                  { label: "Every 1.5h", val: 1.5 },
-                  { label: "Every 2h", val: 2 },
-                  { label: "Every 3h", val: 3 },
+                  { label: "1h", val: 1 },
+                  { label: "1.5h", val: 1.5 },
+                  { label: "2h", val: 2 },
+                  { label: "3h", val: 3 },
                 ].map((chip) => {
                   const isSelected = hydration.reminderIntervalHours === chip.val;
                   return (
@@ -406,6 +466,7 @@ export default function RemindersScreen() {
                           styles.intervalChipText,
                           isSelected && styles.intervalChipTextActive,
                         ]}
+                        numberOfLines={1}
                       >
                         {chip.label}
                       </Text>
@@ -416,7 +477,7 @@ export default function RemindersScreen() {
 
               <View style={styles.hydrationTestRow}>
                 <View style={styles.hydrationIntakeProgress}>
-                  <Text style={styles.hydrationProgressText}>
+                  <Text style={styles.hydrationProgressText} numberOfLines={1} ellipsizeMode="tail">
                     Today: {hydration.todayMl.toLocaleString()} / {hydration.targetMl.toLocaleString()} ml
                   </Text>
                 </View>
@@ -462,13 +523,16 @@ export default function RemindersScreen() {
                   onValueChange={(val) => handleToggle(rem.id, val)}
                   trackColor={{ false: "#1e293b", true: "#10b981" }}
                   thumbColor={rem.enabled ? "#050b08" : "#94a3b8"}
+                  style={{ flexShrink: 0 }}
                 />
               </View>
 
-              <Text style={[styles.alarmTitle, !rem.enabled && styles.alarmTitleDisabled]} numberOfLines={1}>
+              <Text style={[styles.alarmTitle, !rem.enabled && styles.alarmTitleDisabled]} numberOfLines={1} ellipsizeMode="tail">
                 {rem.title}
               </Text>
-              <Text style={styles.alarmRepeat} numberOfLines={1}>{rem.repeat}</Text>
+              <Text style={styles.alarmRepeat} numberOfLines={1} ellipsizeMode="tail">
+                {formatRepeatDays(rem.repeat)}
+              </Text>
 
               {/* Bottom Controls of Card */}
               <View style={styles.cardActionsRow}>
@@ -479,24 +543,26 @@ export default function RemindersScreen() {
                   {rem.soundEnabled ? (
                     <>
                       <Volume2 size={14} color="#10b981" />
-                      <Text style={styles.soundToggleText}>Loud Alarm</Text>
+                      <Text style={styles.soundToggleText} numberOfLines={1}>Loud Alarm</Text>
                     </>
                   ) : (
                     <>
                       <VolumeX size={14} color="#64748b" />
-                      <Text style={[styles.soundToggleText, { color: "#64748b" }]}>Muted</Text>
+                      <Text style={[styles.soundToggleText, { color: "#64748b" }]} numberOfLines={1}>Muted</Text>
                     </>
                   )}
                 </Pressable>
 
-                <Pressable style={styles.previewBtn} onPress={() => handleTestPreviewRing(rem)}>
-                  <Bell size={13} color="#f8fafc" />
-                  <Text style={styles.previewBtnText}>Test Ring</Text>
-                </Pressable>
+                <View style={styles.cardRightActions}>
+                  <Pressable style={styles.previewBtn} onPress={() => handleTestPreviewRing(rem)}>
+                    <Bell size={13} color="#f8fafc" />
+                    <Text style={styles.previewBtnText}>Test</Text>
+                  </Pressable>
 
-                <Pressable style={styles.deleteBtn} onPress={() => handleDelete(rem.id)}>
-                  <Trash2 size={16} color="#64748b" />
-                </Pressable>
+                  <Pressable style={styles.deleteBtn} onPress={() => handleDelete(rem.id)} accessibilityLabel="Delete reminder">
+                    <Trash2 size={16} color="#64748b" />
+                  </Pressable>
+                </View>
               </View>
             </View>
           ))}
@@ -568,28 +634,30 @@ export default function RemindersScreen() {
             </View>
 
             <View style={styles.addSwitchRow}>
-              <View>
-                <Text style={styles.addSwitchTitle}>Loud Alarm & Vibration</Text>
-                <Text style={styles.addSwitchDesc}>Rings continuous phone alarm even if sleeping</Text>
+              <View style={styles.addSwitchTextContainer}>
+                <Text style={styles.addSwitchTitle} numberOfLines={1} ellipsizeMode="tail">Loud Alarm & Vibration</Text>
+                <Text style={styles.addSwitchDesc} numberOfLines={2}>Rings continuous phone alarm even if sleeping</Text>
               </View>
               <Switch
                 value={newSound}
                 onValueChange={setNewSound}
                 trackColor={{ false: "#1e293b", true: "#10b981" }}
                 thumbColor={newSound ? "#050b08" : "#94a3b8"}
+                style={{ flexShrink: 0 }}
               />
             </View>
 
             <View style={styles.addSwitchRow}>
-              <View>
-                <Text style={styles.addSwitchTitle}>AI Adaptive Timing</Text>
-                <Text style={styles.addSwitchDesc}>Nudges according to circadian biometric peak</Text>
+              <View style={styles.addSwitchTextContainer}>
+                <Text style={styles.addSwitchTitle} numberOfLines={1} ellipsizeMode="tail">AI Adaptive Timing</Text>
+                <Text style={styles.addSwitchDesc} numberOfLines={2}>Nudges according to circadian biometric peak</Text>
               </View>
               <Switch
                 value={newIsAi}
                 onValueChange={setNewIsAi}
                 trackColor={{ false: "#1e293b", true: "#10b981" }}
                 thumbColor={newIsAi ? "#050b08" : "#94a3b8"}
+                style={{ flexShrink: 0 }}
               />
             </View>
 
@@ -613,56 +681,90 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === "ios" ? 52 : 36,
+    paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: "rgba(200, 218, 210, 0.15)",
+    maxWidth: "100%",
   },
   brandRow: {
+    flex: 1,
+    minWidth: 0,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
+    marginRight: 10,
   },
-  menuIconBox: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "rgba(232, 241, 237, 0.15)",
+  hamburgerBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: "rgba(232, 241, 237, 0.08)",
     borderWidth: 1,
-    borderColor: "rgba(200, 218, 210, 0.25)",
+    borderColor: "rgba(200, 218, 210, 0.2)",
     alignItems: "center",
     justifyContent: "center",
+    flexShrink: 0,
   },
-  brandDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: THEME.colors.accentGreen,
+  brandTextCol: {
+    flex: 1,
+    minWidth: 0,
+    justifyContent: "center",
+  },
+  brandTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
   brandTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
+    fontSize: 16,
+    fontWeight: "900",
     color: THEME.colors.textOnDarkPrimary,
+    letterSpacing: 1.1,
+  },
+  brandPill: {
+    backgroundColor: "rgba(16, 185, 129, 0.16)",
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.35)",
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 6,
+  },
+  brandPillText: {
+    color: "#10b981",
+    fontSize: 9,
+    fontWeight: "900",
+    letterSpacing: 0.6,
+  },
+  brandSubtitle: {
+    color: THEME.colors.textOnDarkSecondary,
+    fontSize: 9.5,
+    fontWeight: "600",
+    letterSpacing: 0.4,
+    marginTop: 1,
   },
   addBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 5,
     backgroundColor: THEME.colors.accentGreen,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
+    flexShrink: 0,
   },
   addBtnText: {
     color: "#ffffff",
     fontWeight: "bold",
-    fontSize: 13,
+    fontSize: 12.5,
   },
   scrollContent: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 40,
-    gap: 18,
+    gap: 16,
+    maxWidth: "100%",
   },
   heroBox: {
     flexDirection: "row",
@@ -672,12 +774,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: THEME.colors.cardBorder,
     borderRadius: 24,
-    padding: 20,
+    padding: 18,
+    maxWidth: "100%",
     ...THEME.shadows.card,
   },
   heroLeft: {
     flex: 1,
-    paddingRight: 14,
+    minWidth: 0,
+    paddingRight: 12,
   },
   heroSub: {
     color: THEME.colors.accentGreen,
@@ -706,13 +810,15 @@ const styles = StyleSheet.create({
     borderColor: THEME.colors.cardBorder,
     borderRadius: 20,
     padding: 14,
+    maxWidth: "100%",
     ...THEME.shadows.cardLight,
   },
   testRingLeft: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 10,
     flex: 1,
+    minWidth: 0,
   },
   testRingTitle: {
     color: THEME.colors.cardTextPrimary,
@@ -729,6 +835,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "bold",
     paddingLeft: 8,
+    flexShrink: 0,
   },
   // Hydration card styles
   hydrationReminderCard: {
@@ -736,25 +843,45 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(6, 182, 212, 0.3)",
     borderRadius: 24,
-    padding: 18,
+    padding: 16,
+    maxWidth: "100%",
     ...THEME.shadows.card,
   },
   hydrationCardHeader: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
+    maxWidth: "100%",
   },
   hydrationCardIconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: "rgba(6, 182, 212, 0.12)",
     alignItems: "center",
     justifyContent: "center",
+    flexShrink: 0,
+  },
+  hydrationHeaderInfo: {
+    flex: 1,
+    minWidth: 0,
+    marginLeft: 10,
+    marginRight: 8,
+  },
+  hydrationTitleBadgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flexShrink: 1,
   },
   hydrationCardTitle: {
     color: THEME.colors.cardTextPrimary,
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "800",
+    flexShrink: 1,
+  },
+  headerSwitch: {
+    flexShrink: 0,
   },
   hydrationCardSub: {
     color: THEME.colors.cardTextSecondary,
@@ -762,12 +889,13 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   hydrationLiveBadge: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: 8,
+    flexShrink: 0,
   },
   hydrationLiveBadgeText: {
-    fontSize: 10,
+    fontSize: 9.5,
     fontWeight: "900",
     letterSpacing: 0.5,
   },
@@ -819,6 +947,8 @@ const styles = StyleSheet.create({
   },
   hydrationIntakeProgress: {
     flex: 1,
+    minWidth: 0,
+    marginRight: 8,
   },
   hydrationProgressText: {
     fontSize: 11,
@@ -828,13 +958,14 @@ const styles = StyleSheet.create({
   hydrationTestBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 5,
     backgroundColor: "rgba(6, 182, 212, 0.12)",
     borderWidth: 1,
     borderColor: "rgba(6, 182, 212, 0.3)",
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 12,
+    flexShrink: 0,
   },
   hydrationTestBtnText: {
     fontSize: 11,
@@ -862,7 +993,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: THEME.colors.cardBorder,
     borderRadius: 24,
-    padding: 18,
+    padding: 16,
+    maxWidth: "100%",
     ...THEME.shadows.card,
   },
   alarmCardDisabled: {
@@ -926,8 +1058,18 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: "rgba(200, 218, 210, 0.4)",
+    maxWidth: "100%",
+  },
+  cardRightActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flexShrink: 0,
   },
   soundToggleBtn: {
+    flex: 1,
+    minWidth: 0,
+    marginRight: 8,
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
@@ -942,13 +1084,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 5,
     backgroundColor: "rgba(232, 241, 237, 0.6)",
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 12,
   },
   previewBtnText: {
     color: THEME.colors.cardTextPrimary,
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: "bold",
   },
   deleteBtn: {
@@ -1096,7 +1238,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 6,
+    paddingVertical: 8,
+    maxWidth: "100%",
+  },
+  addSwitchTextContainer: {
+    flex: 1,
+    minWidth: 0,
+    paddingRight: 10,
   },
   addSwitchTitle: {
     color: THEME.colors.cardTextPrimary,

@@ -1001,21 +1001,37 @@ export default function DashboardScreen() {
 
       {/* Top Header Bar */}
       <View style={styles.topBar}>
-        {/* Top-Left: Menu Trigger shifted to top left as requested */}
+        {/* Top-Left: Menu Trigger & Polished Lumen OS Brand Lockup */}
         <View style={styles.brandRow}>
           <Pressable
             onPress={openLeftMenu}
             accessibilityLabel="Open Navigation Slide Menu"
             style={styles.hamburgerBtn}
           >
-            <Menu size={20} color="#10b981" />
+            <Menu size={19} color="#10b981" />
           </Pressable>
-          <Image
-            source={require("../../assets/icon.png")}
-            style={{ width: 26, height: 26, borderRadius: 7, marginRight: 8 }}
-            resizeMode="cover"
-          />
-          <Text style={styles.brandTitle}>Lumen OS</Text>
+
+          <View style={styles.brandIconWrapper}>
+            <Image
+              source={require("../../assets/icon.png")}
+              style={styles.brandIconImg}
+              resizeMode="cover"
+            />
+          </View>
+
+          <View style={styles.brandTextCol}>
+            <View style={styles.brandTitleRow}>
+              <Text style={styles.brandTitle} numberOfLines={1} ellipsizeMode="tail">
+                LUMEN
+              </Text>
+              <View style={styles.brandPill}>
+                <Text style={styles.brandPillText}>AI OS</Text>
+              </View>
+            </View>
+            <Text style={styles.brandSubtitle} numberOfLines={1} ellipsizeMode="tail">
+              Bio-Intelligence Telemetry
+            </Text>
+          </View>
         </View>
 
         <View style={styles.topRightActions}>
@@ -1023,13 +1039,14 @@ export default function DashboardScreen() {
           <Pressable 
             onPress={openRightMenu}
             accessibilityLabel="Open Profile Drawer"
-            style={{ flexDirection: "row", alignItems: "center" }}
+            style={styles.avatarPressable}
           >
             <View style={styles.avatarCircle}>
               <Text style={styles.avatarInitial}>
                 {userName ? userName[0].toUpperCase() : "A"}
               </Text>
             </View>
+            <View style={styles.avatarActiveDot} />
           </Pressable>
         </View>
       </View>
@@ -3106,16 +3123,20 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 20,
-    paddingTop: Platform.OS === "ios" ? 54 : 44,
-    paddingBottom: 12,
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === "ios" ? 52 : 40,
+    paddingBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: "rgba(255, 255, 255, 0.05)",
+    maxWidth: "100%",
   },
   brandRow: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
+    minWidth: 0,
+    marginRight: 10,
   },
   hamburgerBtn: {
     width: 36,
@@ -3126,54 +3147,97 @@ const styles = StyleSheet.create({
     borderColor: "rgba(200, 218, 210, 0.2)",
     alignItems: "center",
     justifyContent: "center",
+    flexShrink: 0,
   },
-  brandDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#10b981",
+  brandIconWrapper: {
+    width: 32,
+    height: 32,
+    borderRadius: 9,
+    borderWidth: 1.5,
+    borderColor: "rgba(16, 185, 129, 0.35)",
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+    flexShrink: 0,
+  },
+  brandIconImg: {
+    width: 28,
+    height: 28,
+    borderRadius: 7,
+  },
+  brandTextCol: {
+    flex: 1,
+    minWidth: 0,
+    justifyContent: "center",
+  },
+  brandTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
   brandTitle: {
     color: THEME.colors.textOnDarkPrimary,
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "900",
-    letterSpacing: -0.3,
+    letterSpacing: 1.2,
+  },
+  brandPill: {
+    backgroundColor: "rgba(16, 185, 129, 0.16)",
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.35)",
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 6,
+  },
+  brandPillText: {
+    color: "#10b981",
+    fontSize: 9,
+    fontWeight: "900",
+    letterSpacing: 0.6,
+  },
+  brandSubtitle: {
+    color: THEME.colors.textOnDarkSecondary,
+    fontSize: 9.5,
+    fontWeight: "600",
+    letterSpacing: 0.4,
+    marginTop: 1,
   },
   topRightActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    flexShrink: 0,
   },
-  syncChip: {
-    flexDirection: "row",
+  avatarPressable: {
+    position: "relative",
     alignItems: "center",
-    gap: 4,
-    backgroundColor: "rgba(255, 255, 255, 0.14)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.25)",
-    borderRadius: 14,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-  },
-  syncChipText: {
-    color: "#ffffff",
-    fontSize: 10.5,
-    fontWeight: "800",
+    justifyContent: "center",
   },
   avatarCircle: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: THEME.colors.cardBg,
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
     borderWidth: 1.5,
-    borderColor: THEME.colors.cardBorder,
+    borderColor: "rgba(16, 185, 129, 0.35)",
     alignItems: "center",
     justifyContent: "center",
   },
   avatarInitial: {
-    color: THEME.colors.accentTeal,
+    color: "#10b981",
     fontSize: 14,
-    fontWeight: "bold",
+    fontWeight: "800",
+  },
+  avatarActiveDot: {
+    position: "absolute",
+    bottom: -1,
+    right: -1,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#10b981",
+    borderWidth: 2,
+    borderColor: THEME.colors.bgSolid,
   },
   scrollContent: {
     paddingHorizontal: 16,
