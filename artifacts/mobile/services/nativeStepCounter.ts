@@ -226,6 +226,21 @@ class NativeStepCounterService {
     }
   }
 
+  public async resetDailySteps(): Promise<void> {
+    const plugin = getNativePlugin();
+    if (!plugin) return;
+    try {
+      if (typeof plugin.resetDailySteps === "function") {
+        await plugin.resetDailySteps();
+      } else if (typeof plugin.startBackgroundTracking === "function") {
+        await plugin.startBackgroundTracking({ initialSteps: 0 });
+      }
+      this.lastSyncedSteps = 0;
+    } catch (e) {
+      console.warn("resetDailySteps plugin error:", e);
+    }
+  }
+
   public async stopBackgroundTracking(): Promise<boolean> {
     const plugin = getNativePlugin();
     if (!plugin || typeof plugin.stopBackgroundTracking !== "function") return false;

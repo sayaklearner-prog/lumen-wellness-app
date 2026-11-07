@@ -224,6 +224,19 @@ public class StepCounterPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void resetDailySteps(PluginCall call) {
+        Context context = getContext();
+        if (context != null) {
+            StepCounterService.resetTodayStepsToZero(context);
+        }
+        JSObject ret = new JSObject();
+        ret.put("steps", 0);
+        ret.put("success", true);
+        ret.put("date", StepCounterService.getTodayDateString());
+        call.resolve(ret);
+    }
+
+    @PluginMethod
     public void isBatteryOptimizationIgnored(PluginCall call) {
         Context context = getContext();
         boolean isIgnoring = true;

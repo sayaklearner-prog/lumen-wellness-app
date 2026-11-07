@@ -284,8 +284,22 @@ public class StepCounterService extends Service implements SensorEventListener {
         int rebootOffset = prefs.getInt(KEY_REBOOT_OFFSET, 0);
         int currentTodaySteps = prefs.getInt(KEY_TODAY_STEPS, 0);
 
-        if (!today.equals(savedDate) || baseBootSteps == -1) {
-            // New day or first run: set today's baseline, preserving any prior steps logged today
+        if (!today.equals(savedDate)) {
+            // It is a NEW DAY: cleanly reset daily step counters to 0 and establish fresh baseline
+            currentTodaySteps = 0;
+            rebootOffset = 0;
+            baseBootSteps = rawBootSteps;
+            prefs.edit()
+                .putString(KEY_PREF_DATE, today)
+                .putInt(KEY_TODAY_STEPS, 0)
+                .putInt(KEY_BASE_BOOT_STEPS, rawBootSteps)
+                .putInt(KEY_REBOOT_OFFSET, 0)
+                .apply();
+            notifySteps(0);
+            return;
+        } else if (baseBootSteps == -1) {
+            // First run on today
+            baseBootSteps = rawBootSteps;
             prefs.edit()
                 .putString(KEY_PREF_DATE, today)
                 .putInt(KEY_BASE_BOOT_STEPS, rawBootSteps)
@@ -422,6 +436,23 @@ public class StepCounterService extends Service implements SensorEventListener {
                 .putString(KEY_PREF_DATE, today)
                 .putInt(KEY_TODAY_STEPS, initialSteps)
                 .apply();
+        }
+    }
+
+    // Static helper to cleanly reset today's steps to zero on midnight rollover
+    public static void resetTodayStepsToZero(Context context) {
+        if (context == null) return;
+        SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        String today = getTodayDateString();
+        prefs.edit()
+            .putString(KEY_PREF_DATE, today)
+            .putInt(KEY_TODAY_STEPS, 0)
+            .putInt(KEY_REBOOT_OFFSET, 0)
+            .apply();
+        if (sListener != null) {
+            try {
+                sListener.onStepUpdate(0, 0.0, 0.0, 0);
+            } catch (Exception ignored) {}
         }
     }
 

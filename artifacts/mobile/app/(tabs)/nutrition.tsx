@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
+  TouchableOpacity,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as Haptics from "expo-haptics";
@@ -50,9 +51,11 @@ import {
   Clock,
   Layers,
   AlertCircle,
+  Calendar,
 } from "lucide-react-native";
-import { queueOfflineLog, getMeals, saveMeal, deleteMeal, MealRecord } from "@/services/db";
+import { queueOfflineLog, getMeals, saveMeal, deleteMeal, MealRecord, formatDateKey } from "@/services/db";
 import { storage } from "@/services/storage";
+import { dailyRolloverService } from "@/services/dailyRolloverService";
 import { useSlideMenu } from "@/context/SlideMenuContext";
 import THEME from "@/constants/theme";
 import { AmbientAtmosphere } from "@/components/AmbientAtmosphere";
@@ -96,6 +99,22 @@ export default function NutritionScreen() {
   const [mealType, setMealType] = useState<"breakfast" | "lunch" | "dinner" | "snack">("breakfast");
   const [localMeals, setLocalMeals] = useState<Array<MealRecord>>([]);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Date Navigation & Midnight Rollover State
+  const initialTodayKey = formatDateKey(new Date());
+  const [activeTodayKey, setActiveTodayKey] = useState<string>(initialTodayKey);
+  const [selectedDateKey, setSelectedDateKey] = useState<string>(initialTodayKey);
+  const [viewMode, setViewMode] = useState<"today" | "history">("today");
+
+  // Subscribe to daily rollover
+  useEffect(() => {
+    const unsub = dailyRolloverService.subscribe((newKey) => {
+      setActiveTodayKey(newKey);
+      setSelectedDateKey(newKey);
+      setViewMode("today");
+    });
+    return unsub;
+  }, []);
 
   // Form states
   const [foodName, setFoodName] = useState("");
@@ -685,10 +704,28 @@ export default function NutritionScreen() {
     }
   }
 
-  const totalCalories = allMeals.reduce((acc: number, m: any) => acc + (m.calories || 0), 0);
-  const totalProtein = allMeals.reduce((acc: number, m: any) => acc + (m.proteinGrams ?? m.protein_grams ?? 0), 0);
-  const totalCarbs = allMeals.reduce((acc: number, m: any) => acc + (m.carbsGrams ?? m.carbs_grams ?? 0), 0);
-  const totalFat = allMeals.reduce((acc: number, m: any) => acc + (m.fatGrams ?? m.fat_grams ?? 0), 0);
+  // Active target date key (Today resets cleanly to 0 at midnight; Past Days viewable in History)
+  const activeDateKey = viewMode === "today" ? activeTodayKey : selectedDateKey;
+
+  // Filter meals strictly for the currently viewed date
+  const displayedMeals = allMeals.filter((m) => {
+    const mealDate = (m.loggedAt || (m as any).logged_at || "").slice(0, 10);
+    return mealDate === activeDateKey;
+  });
+
+  // Extract all unique past dates for historical inspection
+  const availablePastDates = Array.from(
+    new Set(
+      allMeals
+        .map((m) => (m.loggedAt || (m as any).logged_at || "").slice(0, 10))
+        .filter((d) => d && d.length === 10 && d !== activeTodayKey)
+    )
+  ).sort((a, b) => b.localeCompare(a));
+
+  const totalCalories = displayedMeals.reduce((acc: number, m: any) => acc + (m.calories || 0), 0);
+  const totalProtein = displayedMeals.reduce((acc: number, m: any) => acc + (m.proteinGrams ?? m.protein_grams ?? 0), 0);
+  const totalCarbs = displayedMeals.reduce((acc: number, m: any) => acc + (m.carbsGrams ?? m.carbs_grams ?? 0), 0);
+  const totalFat = displayedMeals.reduce((acc: number, m: any) => acc + (m.fatGrams ?? m.fat_grams ?? 0), 0);
 
   // Concentric Hero Gauge calculations
   const DIAL_SIZE = 220;
@@ -758,6 +795,93 @@ export default function NutritionScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* ========================================================================= */}
+        {/* DATE SELECTION & MIDNIGHT ROLLOVER SWITCHER */}
+        {/* ========================================================================= */}
+        <View style={styles.dateSelectorContainer}>
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => {
+              triggerHaptic("light");
+              setViewMode("today");
+              setSelectedDateKey(activeTodayKey);
+            }}
+            style={[styles.dateTabPill, viewMode === "today" && styles.dateTabPillActive]}
+          >
+            <Sparkles size={13} color={viewMode === "today" ? "#10b981" : "#94a3b8"} />
+            <Text style={[styles.dateTabPillText, viewMode === "today" && styles.dateTabPillTextActive]}>
+              Today's Targets
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => {
+              triggerHaptic("light");
+              setViewMode("history");
+              if (availablePastDates.length > 0 && !availablePastDates.includes(selectedDateKey)) {
+                setSelectedDateKey(availablePastDates[0]);
+              }
+            }}
+            style={[styles.dateTabPill, viewMode === "history" && styles.dateTabPillActive]}
+          >
+            <Clock size={13} color={viewMode === "history" ? "#38bdf8" : "#94a3b8"} />
+            <Text style={[styles.dateTabPillText, viewMode === "history" && styles.dateTabPillTextActive]}>
+              Past Days History ({availablePastDates.length})
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {viewMode === "history" && (
+          <View style={styles.pastDatesWrapper}>
+            {availablePastDates.length === 0 ? (
+              <View style={styles.noPastDatesBox}>
+                <Text style={styles.noPastDatesText}>
+                  No past day logs yet. As each day resets at 12 midnight, historical logs will automatically archive here!
+                </Text>
+              </View>
+            ) : (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pastDatesScroll}>
+                {availablePastDates.map((dateStr) => {
+                  const isSelected = selectedDateKey === dateStr;
+                  return (
+                    <TouchableOpacity
+                      key={dateStr}
+                      activeOpacity={0.8}
+                      onPress={() => {
+                        triggerHaptic("light");
+                        setSelectedDateKey(dateStr);
+                      }}
+                      style={[styles.pastDateChip, isSelected && styles.pastDateChipActive]}
+                    >
+                      <Calendar size={12} color={isSelected ? "#38bdf8" : "#64748b"} />
+                      <Text style={[styles.pastDateChipText, isSelected && styles.pastDateChipTextActive]}>
+                        {dateStr}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            )}
+
+            <View style={styles.historyViewingBanner}>
+              <Text style={styles.historyViewingText}>
+                Viewing logs for <Text style={{ color: "#38bdf8", fontWeight: "bold" }}>{activeDateKey}</Text>
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  triggerHaptic("light");
+                  setViewMode("today");
+                  setSelectedDateKey(activeTodayKey);
+                }}
+                style={styles.returnTodayBtn}
+              >
+                <Text style={styles.returnTodayBtnText}>Back to Today ➔</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         {/* ========================================================================= */}
         {/* HERO BIO-METER: CONCENTRIC CALORIE & PROTEIN DIAL */}
         {/* ========================================================================= */}
@@ -1463,18 +1587,22 @@ export default function NutritionScreen() {
         {/* ========================================================================= */}
         <View style={styles.scheduleHeaderRow}>
           <View>
-            <Text style={styles.scheduleTitle}>Today's Nutrition Timeline</Text>
+            <Text style={styles.scheduleTitle}>
+              {viewMode === "today" ? "Today's Nutrition Timeline" : `Nutrition Timeline • ${activeDateKey}`}
+            </Text>
             <Text style={styles.scheduleSub}>
-              {allMeals.length > 0
-                ? `${allMeals.length} logged entries • ${totalCalories} kcal total`
-                : "No meals logged yet today"}
+              {displayedMeals.length > 0
+                ? `${displayedMeals.length} logged ${viewMode === "today" ? "entries" : "records"} • ${totalCalories} kcal total`
+                : viewMode === "today"
+                ? "No meals logged yet today • Clean slate for today!"
+                : "No meals recorded for this date"}
             </Text>
           </View>
         </View>
 
         <View style={styles.scheduleContainer}>
           {mealTypes.map((type) => {
-            const typeMeals = allMeals.filter((m: any) => (m.mealType || m.meal_type) === type);
+            const typeMeals = displayedMeals.filter((m: any) => (m.mealType || m.meal_type) === type);
             const subtotalCal = typeMeals.reduce((acc: number, m: any) => acc + (m.calories || 0), 0);
 
             return (
@@ -2641,5 +2769,108 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "900",
     color: "#050b08",
+  },
+
+  // DATE SELECTOR & MIDNIGHT ROLLOVER HISTORY STYLES
+  dateSelectorContainer: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 16,
+  },
+  dateTabPill: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    backgroundColor: "rgba(255, 255, 255, 0.04)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.08)",
+  },
+  dateTabPillActive: {
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    borderColor: "rgba(16, 185, 129, 0.35)",
+  },
+  dateTabPillText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#94a3b8",
+  },
+  dateTabPillTextActive: {
+    color: "#10b981",
+  },
+  pastDatesWrapper: {
+    marginBottom: 16,
+    gap: 10,
+  },
+  noPastDatesBox: {
+    backgroundColor: "rgba(255, 255, 255, 0.03)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.07)",
+    borderRadius: 14,
+    padding: 12,
+  },
+  noPastDatesText: {
+    fontSize: 12,
+    color: "#94a3b8",
+    textAlign: "center",
+    lineHeight: 16,
+  },
+  pastDatesScroll: {
+    gap: 8,
+    paddingVertical: 2,
+  },
+  pastDateChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: "rgba(255, 255, 255, 0.04)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.08)",
+  },
+  pastDateChipActive: {
+    backgroundColor: "rgba(56, 189, 248, 0.15)",
+    borderColor: "rgba(56, 189, 248, 0.4)",
+  },
+  pastDateChipText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#94a3b8",
+  },
+  pastDateChipTextActive: {
+    color: "#38bdf8",
+    fontWeight: "700",
+  },
+  historyViewingBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(56, 189, 248, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(56, 189, 248, 0.25)",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  historyViewingText: {
+    fontSize: 12,
+    color: "#cbd5e1",
+  },
+  returnTodayBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: "rgba(56, 189, 248, 0.15)",
+  },
+  returnTodayBtnText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#38bdf8",
   },
 });

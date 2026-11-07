@@ -17,6 +17,7 @@ import {
   Switch,
   Linking,
   TextInput,
+  TouchableOpacity,
 } from "react-native";
 import { useRouter } from "expo-router";
 import {
@@ -120,6 +121,7 @@ import { fitnessWatchSensor } from "@/services/fitnessWatchSensor";
 import { evaluateAchievements, GamificationProfile } from "@/services/achievements";
 import { getStoredGoogleUser } from "@/services/googleAuth";
 import { authService } from "@/services/authService";
+import { dailyRolloverService } from "@/services/dailyRolloverService";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -310,6 +312,7 @@ export default function DashboardScreen() {
   // Local storage meals for live nutrition calculation
   const [localMealsCount, setLocalMealsCount] = useState(0);
   const [localCaloriesConsumed, setLocalCaloriesConsumed] = useState(0);
+  const [showFreshDayToast, setShowFreshDayToast] = useState(false);
 
   // Sleep Modal & interactive state
   const [showSleepModal, setShowSleepModal] = useState(false);
@@ -374,43 +377,31 @@ export default function DashboardScreen() {
       const status = await getLastSyncStatus();
       setSyncStatus(status);
 
-      // 1. Read meals from SQLite master DB
+      // 1. Read meals from SQLite master DB for today
       try {
-        const dbMeals = await getMeals();
+        const todayStr = formatDateKey(new Date());
+        const dbMeals = await getMeals(todayStr);
         if (dbMeals && dbMeals.length > 0) {
           setLocalMealsCount(dbMeals.length);
           const totalCal = dbMeals.reduce((sum: number, m: any) => sum + (Number(m.calories) || 0), 0);
           setLocalCaloriesConsumed(totalCal);
         } else {
-          const storedMeals = await storage.getItem("lumen_local_meals");
-          if (storedMeals) {
-            const parsed = JSON.parse(storedMeals);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              setLocalMealsCount(parsed.length);
-              const totalCal = parsed.reduce((sum: number, m: any) => sum + (Number(m.calories) || 0), 0);
-              setLocalCaloriesConsumed(totalCal);
-            }
-          }
+          setLocalMealsCount(0);
+          setLocalCaloriesConsumed(0);
         }
       } catch {}
 
-      // 2. Read saved sleep from SQLite master DB
+      // 2. Read saved sleep from SQLite master DB for today
       try {
+        const todayStr = formatDateKey(new Date());
         const dbSleep = await getLatestSleep();
-        if (dbSleep) {
+        if (dbSleep && (dbSleep.loggedAt || "").startsWith(todayStr)) {
           setSleepHoursLogged(Number(dbSleep.durationHours));
           setSleepQuality(dbSleep.quality || "Restorative");
           setHasLoggedSleepToday(true);
         } else {
-          const storedSleep = await storage.getItem("lumen_sleep_session");
-          if (storedSleep) {
-            const parsed = JSON.parse(storedSleep);
-            if (parsed.hours) {
-              setSleepHoursLogged(Number(parsed.hours));
-              setSleepQuality(parsed.quality || "Restorative");
-              setHasLoggedSleepToday(true);
-            }
-          }
+          setSleepHoursLogged(0);
+          setHasLoggedSleepToday(false);
         }
       } catch {}
 
@@ -492,7 +483,31 @@ export default function DashboardScreen() {
       }
     }
     loadLocalHealthState();
+
+    // Check if fresh day toast should be shown on startup
+    dailyRolloverService.consumeFreshDayToast().then((shouldShow) => {
+      if (shouldShow) setShowFreshDayToast(true);
+    });
+
+    // Initialize the automated 24/7 midnight rollover watcher
+    dailyRolloverService.initDailyRolloverWatcher(async (newDateKey) => {
+      setShowFreshDayToast(true);
+      refetch();
+      refetchWorkouts();
+      refetchTimeline();
+      loadLocalHealthState();
+    });
   }, []);
+
+  // Auto-dismiss fresh day toast after 6 seconds
+  useEffect(() => {
+    if (showFreshDayToast) {
+      const timer = setTimeout(() => {
+        setShowFreshDayToast(false);
+      }, 6000);
+      return () => clearTimeout(timer);
+    }
+  }, [showFreshDayToast]);
 
   // Subscribe to live Focus Mode ticker & state machine
   useEffect(() => {
@@ -594,12 +609,17 @@ export default function DashboardScreen() {
     return unsub;
   }, []);
 
-  // Base metrics
+  // Base metrics for today
+  const todayKeyStr = formatDateKey(new Date());
   const workoutCaloriesBurned =
-    workouts?.reduce((acc: number, w: any) => acc + (Number(w.caloriesBurned) || 0), 0) || 0;
+    workouts?.reduce((acc: number, w: any) => {
+      const wDate = (w.loggedAt || w.logged_at || "").slice(0, 10);
+      if (wDate && wDate !== todayKeyStr) return acc;
+      return acc + (Number(w.caloriesBurned) || 0);
+    }, 0) || 0;
 
-  // Use live continuous steps (wearable or phone pedometer), fall back to backend dashboard
-  const stepsCount = Math.max(liveSensorMetrics.dailySteps, dashboard?.steps || 0);
+  // Use live continuous steps (wearable or phone pedometer)
+  const stepsCount = liveSensorMetrics.dailySteps;
   const stepsCaloriesBurned = liveSensorMetrics.dailyActiveCalories > 0
     ? liveSensorMetrics.dailyActiveCalories
     : Math.round(stepsCount * 0.045);
@@ -631,16 +651,13 @@ export default function DashboardScreen() {
     }
   }, [hydration.todayCups]);
 
-  // Real Consumed Calories (combine backend dashboard + local meals)
-  const caloriesConsumed = Math.max(
-    Number(dashboard?.caloriesConsumed || 0),
-    localCaloriesConsumed
-  );
+  // Real Consumed Calories for today
+  const caloriesConsumed = localCaloriesConsumed;
   const caloriesPercent = Math.min(100, Math.round((caloriesConsumed / caloriesTarget) * 100));
 
-  const proteinGrams = Math.max(Number(dashboard?.proteinGrams || 0), localMealsCount * 28);
-  const carbsGrams = Math.max(Number(dashboard?.carbsGrams || 0), localMealsCount * 42);
-  const fatGrams = Math.max(Number(dashboard?.fatGrams || 0), localMealsCount * 14);
+  const proteinGrams = localMealsCount > 0 ? (dashboard?.proteinGrams || localMealsCount * 28) : 0;
+  const carbsGrams = localMealsCount > 0 ? (dashboard?.carbsGrams || localMealsCount * 42) : 0;
+  const fatGrams = localMealsCount > 0 ? (dashboard?.fatGrams || localMealsCount * 14) : 0;
 
   // =========================================================================
   // DYNAMIC 5 PILLAR CALCULATIONS (Nutrition, Hydration, Sleep, Activity, Screen Time)
@@ -1223,6 +1240,38 @@ export default function DashboardScreen() {
           />
         }
       >
+        {/* ========================================================= */}
+        {/* CELEBRATORY FRESH START / MIDNIGHT ROLLOVER TOAST BANNER */}
+        {/* ========================================================= */}
+        {showFreshDayToast && (
+          <View style={styles.freshDayBanner}>
+            <View style={styles.freshDayBannerGlow} />
+            <View style={styles.freshDayBannerRow}>
+              <View style={styles.freshDayIconBadge}>
+                <Text style={styles.freshDayEmoji}>🌅</Text>
+              </View>
+              <View style={styles.freshDayTextCol}>
+                <View style={styles.freshDayTitleRow}>
+                  <Text style={styles.freshDayTitle}>New Day, Clean Slate!</Text>
+                  <View style={styles.freshDayLivePill}>
+                    <Text style={styles.freshDayLivePillText}>00:00 RESET</Text>
+                  </View>
+                </View>
+                <Text style={styles.freshDaySubtitle}>
+                  Steps, calories, nutrition & hydration are fresh for today.
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowFreshDayToast(false)}
+                style={styles.freshDayCloseBtn}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <X size={15} color="#94a3b8" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         {/* ========================================================= */}
         {/* HERO SECTION: Greeting + Circular Score + Quick Actions   */}
         {/* ========================================================= */}
@@ -3403,6 +3452,86 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 150, // Generous clearance so floating capsule tab bar never obscures content
+  },
+
+  // FRESH START / MIDNIGHT ROLLOVER CELEBRATORY BANNER
+  freshDayBanner: {
+    marginHorizontal: 0,
+    marginBottom: 16,
+    borderRadius: 20,
+    backgroundColor: "rgba(16, 185, 129, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.3)",
+    padding: 14,
+    overflow: "hidden",
+    position: "relative",
+  },
+  freshDayBannerGlow: {
+    position: "absolute",
+    top: -30,
+    left: -30,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+  },
+  freshDayBannerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  freshDayIconBadge: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.35)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  freshDayEmoji: {
+    fontSize: 22,
+  },
+  freshDayTextCol: {
+    flex: 1,
+  },
+  freshDayTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 3,
+  },
+  freshDayTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#f8fafc",
+    letterSpacing: -0.2,
+  },
+  freshDayLivePill: {
+    backgroundColor: "rgba(16, 185, 129, 0.2)",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.4)",
+  },
+  freshDayLivePillText: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: "#34d399",
+    letterSpacing: 0.5,
+  },
+  freshDaySubtitle: {
+    fontSize: 12,
+    color: "#94a3b8",
+    lineHeight: 16,
+  },
+  freshDayCloseBtn: {
+    padding: 6,
+    marginLeft: 8,
+    borderRadius: 12,
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
   },
 
   // HERO CARD (Matches Reference)

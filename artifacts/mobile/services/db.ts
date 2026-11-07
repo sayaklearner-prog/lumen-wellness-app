@@ -6,6 +6,16 @@ import { Platform } from "react-native";
 // Zero 2KB size limit, never resets on app close, ACID transactions
 // ============================================================================
 
+/**
+ * Format Date object as YYYY-MM-DD in local time
+ */
+export function formatDateKey(d: Date = new Date()): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export interface MealRecord {
   id: string;
   name: string;
@@ -474,17 +484,29 @@ export async function getAllKVKeys(): Promise<string[]> {
 // 2. MEALS & NUTRITION ENGINE
 // ============================================================================
 
-export async function getMeals(): Promise<MealRecord[]> {
+export async function getMeals(dateStr?: string): Promise<MealRecord[]> {
   const db = await getDb();
   if (!db) {
     const store = getWebStore();
-    return Array.isArray(store.meals_table) ? store.meals_table : [];
+    const list: MealRecord[] = Array.isArray(store.meals_table) ? store.meals_table : [];
+    if (dateStr) {
+      return list.filter((m) => (m.loggedAt || "").startsWith(dateStr));
+    }
+    return list;
   }
 
   try {
-    const rows: any[] = await db.getAllAsync(
-      `SELECT * FROM meals ORDER BY logged_at DESC`
-    );
+    let rows: any[];
+    if (dateStr) {
+      rows = await db.getAllAsync(
+        `SELECT * FROM meals WHERE logged_at LIKE ? ORDER BY logged_at DESC`,
+        `${dateStr}%`
+      );
+    } else {
+      rows = await db.getAllAsync(
+        `SELECT * FROM meals ORDER BY logged_at DESC`
+      );
+    }
     return rows.map((r) => ({
       id: r.id,
       name: r.name,
@@ -502,7 +524,11 @@ export async function getMeals(): Promise<MealRecord[]> {
   } catch (err) {
     console.warn("getMeals error:", err);
     const store = getWebStore();
-    return Array.isArray(store.meals_table) ? store.meals_table : [];
+    const list: MealRecord[] = Array.isArray(store.meals_table) ? store.meals_table : [];
+    if (dateStr) {
+      return list.filter((m) => (m.loggedAt || "").startsWith(dateStr));
+    }
+    return list;
   }
 }
 
@@ -570,9 +596,11 @@ export async function deleteMeal(id: string): Promise<void> {
 // 3. WORKOUTS & ACTIVITY ENGINE
 // ============================================================================
 
-export async function getWorkouts(): Promise<WorkoutRecord[]> {
+export async function getWorkouts(dateStr?: string): Promise<WorkoutRecord[]> {
   const filterValid = (list: WorkoutRecord[]) =>
-    list.filter((w) => w.id !== "w-001" && !(w.durationMinutes <= 1 && w.caloriesBurned <= 12));
+    list
+      .filter((w) => w.id !== "w-001" && !(w.durationMinutes <= 1 && w.caloriesBurned <= 12))
+      .filter((w) => (dateStr ? (w.loggedAt || "").startsWith(dateStr) : true));
 
   const db = await getDb();
   if (!db) {
@@ -581,9 +609,17 @@ export async function getWorkouts(): Promise<WorkoutRecord[]> {
   }
 
   try {
-    const rows: any[] = await db.getAllAsync(
-      `SELECT * FROM workouts ORDER BY logged_at DESC`
-    );
+    let rows: any[];
+    if (dateStr) {
+      rows = await db.getAllAsync(
+        `SELECT * FROM workouts WHERE logged_at LIKE ? ORDER BY logged_at DESC`,
+        `${dateStr}%`
+      );
+    } else {
+      rows = await db.getAllAsync(
+        `SELECT * FROM workouts ORDER BY logged_at DESC`
+      );
+    }
     const parsed = rows.map((r) => ({
       id: r.id,
       type: r.type,
@@ -741,29 +777,32 @@ export async function saveSleepSession(session: SleepRecord): Promise<void> {
 // 5. HYDRATION ENGINE
 // ============================================================================
 
-export async function getHydrationToday(): Promise<number> {
+export async function getHydrationForDate(dateStr: string): Promise<number> {
   const db = await getDb();
-  const todayStr = new Date().toISOString().slice(0, 10);
 
   if (!db) {
     const store = getWebStore();
-    return Number(store[`hydration_${todayStr}`] || 0);
+    return Number(store[`hydration_${dateStr}`] || 0);
   }
 
   try {
     const row: any = await db.getFirstAsync(
       `SELECT cups FROM hydration_logs WHERE id = ?`,
-      `hyd-${todayStr}`
+      `hyd-${dateStr}`
     );
     return row ? Number(row.cups) : 0;
   } catch {
     const store = getWebStore();
-    return Number(store[`hydration_${todayStr}`] || 0);
+    return Number(store[`hydration_${dateStr}`] || 0);
   }
 }
 
+export async function getHydrationToday(): Promise<number> {
+  return getHydrationForDate(formatDateKey());
+}
+
 export async function setHydrationToday(cups: number): Promise<void> {
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = formatDateKey();
   const store = getWebStore();
   store[`hydration_${todayStr}`] = cups;
   saveWebStore(store);
@@ -815,14 +854,13 @@ export async function addHydrationEntry(entry: HydrationEntryRecord): Promise<vo
   }
 }
 
-export async function getHydrationEntriesToday(): Promise<HydrationEntryRecord[]> {
-  const todayStr = new Date().toISOString().slice(0, 10);
+export async function getHydrationEntriesForDate(dateStr: string): Promise<HydrationEntryRecord[]> {
   const db = await getDb();
 
   if (!db) {
     const store = getWebStore();
     const entries: HydrationEntryRecord[] = store["hydration_entries"] || [];
-    return entries.filter((e) => (e.loggedAt || "").startsWith(todayStr));
+    return entries.filter((e) => (e.loggedAt || "").startsWith(dateStr));
   }
 
   try {
@@ -831,14 +869,18 @@ export async function getHydrationEntriesToday(): Promise<HydrationEntryRecord[]
        FROM hydration_entries
        WHERE logged_at LIKE ?
        ORDER BY logged_at ASC`,
-      `${todayStr}%`
+      `${dateStr}%`
     );
     return rows || [];
   } catch {
     const store = getWebStore();
     const entries: HydrationEntryRecord[] = store["hydration_entries"] || [];
-    return entries.filter((e) => (e.loggedAt || "").startsWith(todayStr));
+    return entries.filter((e) => (e.loggedAt || "").startsWith(dateStr));
   }
+}
+
+export async function getHydrationEntriesToday(): Promise<HydrationEntryRecord[]> {
+  return getHydrationEntriesForDate(formatDateKey());
 }
 
 export async function deleteHydrationEntry(id: string): Promise<void> {
@@ -861,10 +903,9 @@ export async function deleteHydrationEntry(id: string): Promise<void> {
 // 6. SCREEN TIME & DIGITAL WELLBEING ENGINE
 // ============================================================================
 
-export async function getScreenTimeToday(): Promise<ScreenTimeRecord> {
-  const todayStr = new Date().toISOString().slice(0, 10);
+export async function getScreenTimeForDate(dateStr: string): Promise<ScreenTimeRecord> {
   const defaultRecord: ScreenTimeRecord = {
-    id: `screen-${todayStr}`,
+    id: `screen-${dateStr}`,
     screenMinutes: 0,
     limitMinutes: 240,
     productivityMinutes: 0,
@@ -879,13 +920,13 @@ export async function getScreenTimeToday(): Promise<ScreenTimeRecord> {
   const db = await getDb();
   if (!db) {
     const store = getWebStore();
-    return store[`screentime_${todayStr}`] || defaultRecord;
+    return store[`screentime_${dateStr}`] || defaultRecord;
   }
 
   try {
     const row: any = await db.getFirstAsync(
       `SELECT * FROM screentime_logs WHERE id = ?`,
-      `screen-${todayStr}`
+      `screen-${dateStr}`
     );
     if (!row) return defaultRecord;
     return {
@@ -901,9 +942,12 @@ export async function getScreenTimeToday(): Promise<ScreenTimeRecord> {
       loggedAt: row.logged_at,
     };
   } catch {
-    const store = getWebStore();
-    return store[`screentime_${todayStr}`] || defaultRecord;
+    return defaultRecord;
   }
+}
+
+export async function getScreenTimeToday(): Promise<ScreenTimeRecord> {
+  return getScreenTimeForDate(formatDateKey());
 }
 
 export async function saveScreenTime(st: ScreenTimeRecord): Promise<void> {

@@ -13,7 +13,7 @@
 
 import { Platform } from "react-native";
 import * as Haptics from "expo-haptics";
-import { getKV, setKV } from "./db";
+import { getKV, setKV, formatDateKey } from "./db";
 import { wearableSyncService } from "./wearableSyncService";
 
 export type WorkoutMode = 
@@ -263,23 +263,55 @@ class FitnessWatchSensorEngine {
     this.userBody = { ...this.userBody, ...body };
   }
 
+  private currentTrackingDate = formatDateKey();
+
+  public checkDateRollover(): boolean {
+    const todayKey = formatDateKey();
+    if (this.currentTrackingDate !== todayKey) {
+      this.currentTrackingDate = todayKey;
+      this.dailyAmbientSteps = 0;
+      this.dailyAmbientActiveCalories = 0;
+      this.dailyAmbientDistanceKm = 0;
+      this.persistDailySteps();
+      this.notify();
+      return true;
+    }
+    return false;
+  }
+
+  public resetDailyCounters(newDayDateStr?: string) {
+    this.currentTrackingDate = newDayDateStr || formatDateKey();
+    this.dailyAmbientSteps = 0;
+    this.dailyAmbientActiveCalories = 0;
+    this.dailyAmbientDistanceKm = 0;
+    this.persistDailySteps();
+    this.notify();
+  }
+
   // Persistent Daily Steps in Lumen SQLite kv_store
   private async initAmbientStepStorage() {
     try {
-      const todayKey = `lumen_daily_steps_${new Date().toISOString().slice(0, 10)}`;
+      this.currentTrackingDate = formatDateKey();
+      const todayKey = `lumen_daily_steps_${this.currentTrackingDate}`;
       const saved = await getKV(todayKey);
       if (saved) {
         this.dailyAmbientSteps = parseInt(saved, 10) || 0;
+      } else {
+        this.dailyAmbientSteps = 0;
       }
-      const calsKey = `lumen_daily_cals_${new Date().toISOString().slice(0, 10)}`;
+      const calsKey = `lumen_daily_cals_${this.currentTrackingDate}`;
       const savedCals = await getKV(calsKey);
       if (savedCals) {
         this.dailyAmbientActiveCalories = parseFloat(savedCals) || 0;
+      } else {
+        this.dailyAmbientActiveCalories = 0;
       }
-      const distKey = `lumen_daily_dist_${new Date().toISOString().slice(0, 10)}`;
+      const distKey = `lumen_daily_dist_${this.currentTrackingDate}`;
       const savedDist = await getKV(distKey);
       if (savedDist) {
         this.dailyAmbientDistanceKm = parseFloat(savedDist) || 0;
+      } else {
+        this.dailyAmbientDistanceKm = 0;
       }
     } catch (e) {
       console.warn("Could not load ambient step storage:", e);
@@ -288,11 +320,12 @@ class FitnessWatchSensorEngine {
 
   private async persistDailySteps() {
     try {
-      const todayKey = `lumen_daily_steps_${new Date().toISOString().slice(0, 10)}`;
+      const dateKey = this.currentTrackingDate || formatDateKey();
+      const todayKey = `lumen_daily_steps_${dateKey}`;
       await setKV(todayKey, String(this.dailyAmbientSteps));
-      const calsKey = `lumen_daily_cals_${new Date().toISOString().slice(0, 10)}`;
+      const calsKey = `lumen_daily_cals_${dateKey}`;
       await setKV(calsKey, String(this.dailyAmbientActiveCalories));
-      const distKey = `lumen_daily_dist_${new Date().toISOString().slice(0, 10)}`;
+      const distKey = `lumen_daily_dist_${dateKey}`;
       await setKV(distKey, String(this.dailyAmbientDistanceKm));
     } catch {
       // Ignore background persistence hiccups
@@ -304,6 +337,7 @@ class FitnessWatchSensorEngine {
   }
 
   public getDailySteps(): number {
+    this.checkDateRollover();
     if (wearableSyncService.isWearableStepSourceActive()) {
       const wTel = wearableSyncService.getLatestTelemetry();
       if (wTel.steps > 0) {
@@ -314,6 +348,7 @@ class FitnessWatchSensorEngine {
   }
 
   public getDailyActiveCalories(): number {
+    this.checkDateRollover();
     if (wearableSyncService.isWearableStepSourceActive()) {
       const wTel = wearableSyncService.getLatestTelemetry();
       if (wTel.activeCalories > 0) {
@@ -334,6 +369,7 @@ class FitnessWatchSensorEngine {
    * when the app was closed, suspended, or screen was off.
    */
   public syncNativeBackgroundSteps(nativeSteps: number, nativeCals?: number, nativeDist?: number) {
+    this.checkDateRollover();
     this.hasNativePedometer = true;
     if (nativeSteps > this.dailyAmbientSteps) {
       this.dailyAmbientSteps = nativeSteps;

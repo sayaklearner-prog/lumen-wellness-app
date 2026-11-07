@@ -9,7 +9,10 @@ import {
   getWorkouts,
   getLatestSleep,
   getHydrationEntriesToday,
+  getHydrationEntriesForDate,
   getScreenTimeToday,
+  getScreenTimeForDate,
+  formatDateKey,
   getProfileState,
   getKV,
   setKV,
@@ -74,13 +77,8 @@ export interface ThreePillarAiInsights {
   modelUsed?: string;
 }
 
-/** Format Date object as YYYY-MM-DD in local time */
-export function formatDateKey(d: Date = new Date()): string {
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
+/** Re-export local date formatter */
+export { formatDateKey };
 
 /** Get Month Name from 1-indexed month number */
 export function getMonthName(monthNumber: number): string {
@@ -105,13 +103,13 @@ export async function computeAndSaveDailySnapshot(
     dailyStepsTarget: 9000,
   };
 
-  // Fetch current domain logs if needed
+  // Fetch domain logs specific to target date
   const [meals, workouts, sleep, hydrationEntries, screenTime] = await Promise.all([
-    getMeals().catch(() => [] as MealRecord[]),
-    getWorkouts().catch(() => [] as WorkoutRecord[]),
+    getMeals(dateStr).catch(() => [] as MealRecord[]),
+    getWorkouts(dateStr).catch(() => [] as WorkoutRecord[]),
     getLatestSleep().catch(() => null),
-    getHydrationEntriesToday().catch(() => [] as HydrationEntryRecord[]),
-    getScreenTimeToday().catch(() => null),
+    getHydrationEntriesForDate(dateStr).catch(() => [] as HydrationEntryRecord[]),
+    getScreenTimeForDate(dateStr).catch(() => null),
   ]);
 
   // 1. Nutrition Metrics

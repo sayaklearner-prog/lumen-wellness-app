@@ -4,6 +4,7 @@ from app.repositories.wellness import WellnessRepository
 from typing import Dict, Any
 from functools import lru_cache
 import time
+from datetime import datetime
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -18,7 +19,8 @@ from app.ai.provider import default_provider
 @router.get("/today", response_model=TodayDashboardResponse)
 async def get_today_dashboard(wellness_repo: WellnessRepository = Depends(get_wellness_repo)):
     profile = await wellness_repo.get_or_create_profile()
-    cache_key = f"dashboard_today_{profile.id}"
+    today_date_str = datetime.utcnow().date().isoformat()
+    cache_key = f"dashboard_today_{profile.id}_{today_date_str}"
     
     # Check cache
     if cache_key in dashboard_cache:
@@ -26,46 +28,78 @@ async def get_today_dashboard(wellness_repo: WellnessRepository = Depends(get_we
         if time.time() - timestamp < CACHE_TTL:
             return cached_data
             
-    # If not in cache, construct the response
-    # This is a mocked structure that the frontend expects based on useGetTodayDashboard
+    target_date = datetime.utcnow().date()
+    totals = await wellness_repo.get_day_totals(target_date)
+    
+    cal_consumed = sum(m.calories for m in totals["dayMeals"])
+    protein = sum(m.protein_grams for m in totals["dayMeals"])
+    carbs = sum(m.carbs_grams for m in totals["dayMeals"])
+    fat = sum(m.fat_grams for m in totals["dayMeals"])
+    
+    steps = sum(w.steps or 0 for w in totals["dayWorkouts"])
+    active_mins = sum(w.duration_minutes for w in totals["dayWorkouts"])
+    
+    water_ml = sum(h.amount_ml for h in totals["dayHydration"])
+    water_cups = round(water_ml / 250) if water_ml > 0 else 0
+    
+    sleep_hours = totals["sleepRow"].duration_hours if totals.get("sleepRow") else 0.0
+    screen_mins = totals["screenRow"].screen_time_minutes if totals.get("screenRow") else 0
+    
+    # Dynamic scores based on real day progress
+    cal_target = getattr(profile, "daily_calorie_target", 2100) or 2100
+    pro_target = getattr(profile, "daily_protein_target", 110) or 110
+    step_target = getattr(profile, "daily_steps_target", 9000) or 9000
+    sleep_target = getattr(profile, "daily_sleep_target_hours", 8.0) or 8.0
+    
+    nutrition_score = round(min(10.0, (cal_consumed / cal_target * 5 + protein / pro_target * 5)), 1) if cal_consumed > 0 else 0.0
+    activity_score = round(min(10.0, (steps / step_target * 7 + (active_mins / 45) * 3)), 1) if (steps > 0 or active_mins > 0) else 0.0
+    sleep_score = round(min(10.0, (sleep_hours / sleep_target * 10)), 1) if sleep_hours > 0 else 0.0
+    mindfulness_score = 8.5
+    
+    active_pillars = []
+    if nutrition_score > 0: active_pillars.append(nutrition_score)
+    if activity_score > 0: active_pillars.append(activity_score)
+    if sleep_score > 0: active_pillars.append(sleep_score)
+    overall_score = round(sum(active_pillars) / len(active_pillars), 1) if active_pillars else 0.0
+
     response = {
-        "date": datetime.utcnow().date().isoformat(),
-        "overall_score": 8.5,
+        "date": today_date_str,
+        "overall_score": overall_score,
         "scores": [
-            {"category": "nutrition", "score": 8.0, "label": "On track"},
-            {"category": "activity", "score": 9.2, "label": "Excellent"},
-            {"category": "sleep", "score": 7.5, "label": "Fair"},
-            {"category": "mindfulness", "score": 8.5, "label": "Good"}
+            {"category": "nutrition", "score": nutrition_score, "label": "On track" if nutrition_score >= 7.0 else "Log meals"},
+            {"category": "activity", "score": activity_score, "label": "Active" if activity_score >= 6.0 else "Standby"},
+            {"category": "sleep", "score": sleep_score, "label": "Restored" if sleep_score >= 7.0 else "Standby"},
+            {"category": "mindfulness", "score": mindfulness_score, "label": "Good"}
         ],
-        "calories_consumed": 1450,
-        "calories_target": 2200,
-        "protein_grams": 85,
-        "protein_target": 120,
-        "carbs_grams": 150,
-        "fat_grams": 45,
-        "steps": 6500,
-        "steps_target": 9000,
-        "active_minutes": 45,
-        "sleep_hours": 7.5,
-        "sleep_target": 8.0,
-        "screen_time_minutes": 120,
+        "calories_consumed": cal_consumed,
+        "calories_target": cal_target,
+        "protein_grams": protein,
+        "protein_target": pro_target,
+        "carbs_grams": carbs,
+        "fat_grams": fat,
+        "steps": steps,
+        "steps_target": step_target,
+        "active_minutes": active_mins,
+        "sleep_hours": sleep_hours,
+        "sleep_target": sleep_target,
+        "screen_time_minutes": screen_mins,
         "screen_time_limit": 180,
-        "water_cups": 4,
+        "water_cups": water_cups,
         "mood_label": "Energetic",
         "top_recommendation": {
             "id": "1",
             "category": "hydration",
             "title": "Stay Hydrated",
-            "body": "You're slightly behind on your water goal today.",
+            "body": "Hydrate consistently throughout the day.",
             "priority": "high",
             "action": "Log 1 Cup"
         },
         "briefing": {
-            "title": "Morning Readiness",
-            "summary": "You had a highly restorative sleep last night.",
+            "title": "Daily Telemetry",
+            "summary": "Start tracking movement and nutrition for today.",
             "priorities": [
-                "Aim for 120g of protein",
-                "Complete a high-intensity cardio session",
+                f"Aim for {pro_target}g of protein",
+                f"Complete {step_target:,} steps",
                 "Hit 8 cups of water by 5 PM"
             ]
         }
@@ -76,7 +110,6 @@ async def get_today_dashboard(wellness_repo: WellnessRepository = Depends(get_we
     
     return response
 
-from datetime import datetime
 from pydantic import BaseModel
 from typing import List
 from pydantic.alias_generators import to_camel
