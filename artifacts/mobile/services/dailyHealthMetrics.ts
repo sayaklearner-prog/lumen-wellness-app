@@ -8,6 +8,7 @@ import {
   getMeals,
   getWorkouts,
   getLatestSleep,
+  getSleepForDate,
   getHydrationEntriesToday,
   getHydrationEntriesForDate,
   getScreenTimeToday,
@@ -20,6 +21,7 @@ import {
   WorkoutRecord,
   HydrationEntryRecord,
 } from "./db";
+import { getAggregatedMealsForDate } from "./nutritionSync";
 import { sendLocalNotification } from "./notifications";
 
 // ============================================================================
@@ -103,14 +105,19 @@ export async function computeAndSaveDailySnapshot(
     dailyStepsTarget: 9000,
   };
 
-  // Fetch domain logs specific to target date
-  const [meals, workouts, sleep, hydrationEntries, screenTime] = await Promise.all([
-    getMeals(dateStr).catch(() => [] as MealRecord[]),
+  // Fetch domain logs specific to target date across SQLite, storage fallbacks, and ambient telemetry
+  const [meals, workouts, sleep, hydrationEntries, screenTime, ambientStepsStr, ambientCalsStr] = await Promise.all([
+    getAggregatedMealsForDate(dateStr).catch(() => [] as MealRecord[]),
     getWorkouts(dateStr).catch(() => [] as WorkoutRecord[]),
-    getLatestSleep().catch(() => null),
+    getSleepForDate(dateStr).catch(() => null),
     getHydrationEntriesForDate(dateStr).catch(() => [] as HydrationEntryRecord[]),
     getScreenTimeForDate(dateStr).catch(() => null),
+    getKV(`lumen_daily_steps_${dateStr}`).catch(() => null),
+    getKV(`lumen_daily_cals_${dateStr}`).catch(() => null),
   ]);
+
+  const ambientSteps = Number(ambientStepsStr || 0);
+  const ambientCals = Number(ambientCalsStr || 0);
 
   // 1. Nutrition Metrics
   const caloriesConsumed =
@@ -134,16 +141,20 @@ export async function computeAndSaveDailySnapshot(
     nutritionScore = Math.min(10, Math.max(1, Math.round(base * 10) / 10));
   }
 
-  // 2. Movement / Activity Metrics
-  const steps =
-    overrides?.steps ??
-    workouts.reduce((sum: number, w: WorkoutRecord) => sum + (w.steps || 0), 0);
-  const activeCalories =
-    overrides?.activeCalories ??
-    workouts.reduce((sum: number, w: WorkoutRecord) => sum + (w.caloriesBurned || 0), 0);
+  // 2. Movement / Activity Metrics (Combines active workouts + ambient sensor steps)
+  const workoutSteps = workouts.reduce((sum: number, w: WorkoutRecord) => sum + (w.steps || 0), 0);
+  const workoutCals = workouts.reduce((sum: number, w: WorkoutRecord) => sum + (w.caloriesBurned || 0), 0);
+  const steps = overrides?.steps ?? Math.max(workoutSteps, ambientSteps);
+  const activeCalories = overrides?.activeCalories ?? Math.max(workoutCals, ambientCals);
   const distanceKm =
     overrides?.distanceKm ??
-    workouts.reduce((sum: number, w: WorkoutRecord) => sum + (w.distanceKm || 0), 0);
+    (workouts.reduce((sum: number, w: WorkoutRecord) => sum + (w.distanceKm || 0), 0) ||
+      Math.round(steps * 0.00075 * 100) / 100);
+
+  // Fat Burned (Grams) calculated via lipid oxidation: ~7.7 kcal active deficit per gram fat
+  const fatBurnedGrams =
+    overrides?.fatBurnedGrams ??
+    (activeCalories > 0 ? Math.round(((activeCalories * 0.75) / 7.7) * 10) / 10 : 0);
 
   let activityScore = 0;
   const targetSteps = profile.dailyStepsTarget || 9000;
@@ -212,6 +223,7 @@ export async function computeAndSaveDailySnapshot(
     overallScore: overrides?.overallScore ?? overallScore,
     steps: overrides?.steps ?? steps,
     activeCalories: overrides?.activeCalories ?? activeCalories,
+    fatBurnedGrams: overrides?.fatBurnedGrams ?? fatBurnedGrams,
     distanceKm: overrides?.distanceKm ?? distanceKm,
     nutritionScore: overrides?.nutritionScore ?? nutritionScore,
     caloriesConsumed: overrides?.caloriesConsumed ?? caloriesConsumed,

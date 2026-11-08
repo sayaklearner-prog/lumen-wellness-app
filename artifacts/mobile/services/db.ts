@@ -1,4 +1,5 @@
 import { Platform } from "react-native";
+import { notifyNutritionChanges, isMealLoggedOnDate } from "./nutritionSync";
 
 // ============================================================================
 // LUMEN MASTER SQLITE DATABASE & PERSISTENT STORAGE ENGINE
@@ -135,6 +136,7 @@ export interface DailyHealthRecord {
   overallScore: number; // 0.0 - 10.0
   steps: number;
   activeCalories: number;
+  fatBurnedGrams?: number;
   distanceKm: number;
   nutritionScore: number;
   caloriesConsumed: number;
@@ -347,6 +349,7 @@ export async function getDb() {
         overall_score REAL NOT NULL,
         steps INTEGER DEFAULT 0,
         active_calories REAL DEFAULT 0,
+        fat_burned_grams REAL DEFAULT 0,
         distance_km REAL DEFAULT 0,
         nutrition_score REAL DEFAULT 0,
         calories_consumed REAL DEFAULT 0,
@@ -367,6 +370,10 @@ export async function getDb() {
 
       DELETE FROM workouts WHERE id = 'w-001' OR (duration_minutes <= 1 AND calories_burned <= 12);
     `);
+
+    try {
+      await nativeDbInstance.execAsync(`ALTER TABLE daily_health_metrics ADD COLUMN fat_burned_grams REAL DEFAULT 0;`);
+    } catch {}
 
     isDbInitialized = true;
     await seedDefaultDataIfNeeded();
@@ -490,24 +497,16 @@ export async function getMeals(dateStr?: string): Promise<MealRecord[]> {
     const store = getWebStore();
     const list: MealRecord[] = Array.isArray(store.meals_table) ? store.meals_table : [];
     if (dateStr) {
-      return list.filter((m) => (m.loggedAt || "").startsWith(dateStr));
+      return list.filter((m) => isMealLoggedOnDate(m.loggedAt, dateStr));
     }
     return list;
   }
 
   try {
-    let rows: any[];
-    if (dateStr) {
-      rows = await db.getAllAsync(
-        `SELECT * FROM meals WHERE logged_at LIKE ? ORDER BY logged_at DESC`,
-        `${dateStr}%`
-      );
-    } else {
-      rows = await db.getAllAsync(
-        `SELECT * FROM meals ORDER BY logged_at DESC`
-      );
-    }
-    return rows.map((r) => ({
+    const rows: any[] = await db.getAllAsync(
+      `SELECT * FROM meals ORDER BY logged_at DESC`
+    );
+    const parsed = rows.map((r) => ({
       id: r.id,
       name: r.name,
       mealType: r.meal_type,
@@ -521,12 +520,16 @@ export async function getMeals(dateStr?: string): Promise<MealRecord[]> {
       source: r.source,
       loggedAt: r.logged_at,
     }));
+    if (dateStr) {
+      return parsed.filter((m) => isMealLoggedOnDate(m.loggedAt, dateStr));
+    }
+    return parsed;
   } catch (err) {
     console.warn("getMeals error:", err);
     const store = getWebStore();
     const list: MealRecord[] = Array.isArray(store.meals_table) ? store.meals_table : [];
     if (dateStr) {
-      return list.filter((m) => (m.loggedAt || "").startsWith(dateStr));
+      return list.filter((m) => isMealLoggedOnDate(m.loggedAt, dateStr));
     }
     return list;
   }
@@ -575,6 +578,8 @@ export async function saveMeal(meal: MealRecord): Promise<void> {
   } catch (err) {
     console.warn("saveMeal error:", err);
   }
+
+  notifyNutritionChanges();
 }
 
 export async function deleteMeal(id: string): Promise<void> {
@@ -584,12 +589,16 @@ export async function deleteMeal(id: string): Promise<void> {
     saveWebStore(store);
   }
   const db = await getDb();
-  if (!db) return;
+  if (!db) {
+    notifyNutritionChanges();
+    return;
+  }
   try {
     await db.runAsync(`DELETE FROM meals WHERE id = ?`, id);
   } catch (err) {
     console.warn("deleteMeal error:", err);
   }
+  notifyNutritionChanges();
 }
 
 // ============================================================================
@@ -600,7 +609,7 @@ export async function getWorkouts(dateStr?: string): Promise<WorkoutRecord[]> {
   const filterValid = (list: WorkoutRecord[]) =>
     list
       .filter((w) => w.id !== "w-001" && !(w.durationMinutes <= 1 && w.caloriesBurned <= 12))
-      .filter((w) => (dateStr ? (w.loggedAt || "").startsWith(dateStr) : true));
+      .filter((w) => (dateStr ? isMealLoggedOnDate(w.loggedAt, dateStr) : true));
 
   const db = await getDb();
   if (!db) {
@@ -609,17 +618,9 @@ export async function getWorkouts(dateStr?: string): Promise<WorkoutRecord[]> {
   }
 
   try {
-    let rows: any[];
-    if (dateStr) {
-      rows = await db.getAllAsync(
-        `SELECT * FROM workouts WHERE logged_at LIKE ? ORDER BY logged_at DESC`,
-        `${dateStr}%`
-      );
-    } else {
-      rows = await db.getAllAsync(
-        `SELECT * FROM workouts ORDER BY logged_at DESC`
-      );
-    }
+    const rows: any[] = await db.getAllAsync(
+      `SELECT * FROM workouts ORDER BY logged_at DESC`
+    );
     const parsed = rows.map((r) => ({
       id: r.id,
       type: r.type,
@@ -733,6 +734,12 @@ export const getSleepRecords = getSleepSessions;
 export async function getLatestSleep(): Promise<SleepRecord | null> {
   const sessions = await getSleepSessions();
   return sessions.length > 0 ? sessions[0] : null;
+}
+
+export async function getSleepForDate(dateStr: string): Promise<SleepRecord | null> {
+  const sessions = await getSleepSessions();
+  const match = sessions.find((s) => isMealLoggedOnDate(s.loggedAt, dateStr));
+  return match || null;
 }
 
 export async function saveSleepSession(session: SleepRecord): Promise<void> {
@@ -860,22 +867,21 @@ export async function getHydrationEntriesForDate(dateStr: string): Promise<Hydra
   if (!db) {
     const store = getWebStore();
     const entries: HydrationEntryRecord[] = store["hydration_entries"] || [];
-    return entries.filter((e) => (e.loggedAt || "").startsWith(dateStr));
+    return entries.filter((e) => isMealLoggedOnDate(e.loggedAt, dateStr));
   }
 
   try {
     const rows: any[] = await db.getAllAsync(
       `SELECT id, amount_ml as amountMl, beverage_type as beverageType, logged_at as loggedAt
        FROM hydration_entries
-       WHERE logged_at LIKE ?
-       ORDER BY logged_at ASC`,
-      `${dateStr}%`
+       ORDER BY logged_at ASC`
     );
-    return rows || [];
+    const parsed = rows || [];
+    return parsed.filter((e) => isMealLoggedOnDate(e.loggedAt, dateStr));
   } catch {
     const store = getWebStore();
     const entries: HydrationEntryRecord[] = store["hydration_entries"] || [];
-    return entries.filter((e) => (e.loggedAt || "").startsWith(dateStr));
+    return entries.filter((e) => isMealLoggedOnDate(e.loggedAt, dateStr));
   }
 }
 
@@ -1546,18 +1552,23 @@ export async function saveDailyHealthRecord(record: DailyHealthRecord): Promise<
   if (!db) return;
 
   try {
+    const fatBurned = record.fatBurnedGrams !== undefined && record.fatBurnedGrams !== null
+      ? record.fatBurnedGrams
+      : Math.round(((Number(record.activeCalories || 0) * 0.75) / 7.7) * 10) / 10;
+
     await db.runAsync(
       `INSERT INTO daily_health_metrics (
-        date, overall_score, steps, active_calories, distance_km,
+        date, overall_score, steps, active_calories, fat_burned_grams, distance_km,
         nutrition_score, calories_consumed, protein_grams, carbs_grams, fat_grams,
         sleep_score, sleep_hours, sleep_quality,
         hydration_score, hydration_ml, hydration_cups,
         screen_score, screen_minutes, ai_insights_json, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(date) DO UPDATE SET
         overall_score = excluded.overall_score,
         steps = excluded.steps,
         active_calories = excluded.active_calories,
+        fat_burned_grams = excluded.fat_burned_grams,
         distance_km = excluded.distance_km,
         nutrition_score = excluded.nutrition_score,
         calories_consumed = excluded.calories_consumed,
@@ -1578,6 +1589,7 @@ export async function saveDailyHealthRecord(record: DailyHealthRecord): Promise<
       record.overallScore,
       record.steps || 0,
       record.activeCalories || 0,
+      fatBurned,
       record.distanceKm || 0,
       record.nutritionScore || 0,
       record.caloriesConsumed || 0,
@@ -1697,6 +1709,9 @@ function mapDbRowToDailyRecord(r: any): DailyHealthRecord {
     overallScore: Number(r.overall_score || 0),
     steps: Number(r.steps || 0),
     activeCalories: Number(r.active_calories || 0),
+    fatBurnedGrams: r.fat_burned_grams
+      ? Number(r.fat_burned_grams)
+      : Math.round(((Number(r.active_calories || 0) * 0.75) / 7.7) * 10) / 10,
     distanceKm: Number(r.distance_km || 0),
     nutritionScore: Number(r.nutrition_score || 0),
     caloriesConsumed: Number(r.calories_consumed || 0),

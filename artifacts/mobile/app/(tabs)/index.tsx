@@ -1,5 +1,5 @@
 import THEME from "@/constants/theme";
-import React, { useEffect, useState, useMemo, useRef } from "react";
+import React, { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -19,7 +19,7 @@ import {
   TextInput,
   TouchableOpacity,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import {
   useGetTodayDashboard,
   useGetProfile,
@@ -122,6 +122,7 @@ import { evaluateAchievements, GamificationProfile } from "@/services/achievemen
 import { getStoredGoogleUser } from "@/services/googleAuth";
 import { authService } from "@/services/authService";
 import { dailyRolloverService } from "@/services/dailyRolloverService";
+import { getNutritionTotalsForDate, subscribeNutritionChanges } from "@/services/nutritionSync";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -312,6 +313,9 @@ export default function DashboardScreen() {
   // Local storage meals for live nutrition calculation
   const [localMealsCount, setLocalMealsCount] = useState(0);
   const [localCaloriesConsumed, setLocalCaloriesConsumed] = useState(0);
+  const [localProteinGrams, setLocalProteinGrams] = useState(0);
+  const [localCarbsGrams, setLocalCarbsGrams] = useState(0);
+  const [localFatGrams, setLocalFatGrams] = useState(0);
   const [showFreshDayToast, setShowFreshDayToast] = useState(false);
 
   // Sleep Modal & interactive state
@@ -371,117 +375,139 @@ export default function DashboardScreen() {
   const { data: workouts, refetch: refetchWorkouts } = useListWorkouts();
   const { data: streaksData, refetch: refetchStreaks } = useGetStreaks();
 
-  // Load last sync status, local meals, sleep & screen time
-  useEffect(() => {
-    async function loadLocalHealthState() {
-      const status = await getLastSyncStatus();
-      setSyncStatus(status);
-
-      // 1. Read meals from SQLite master DB for today
-      try {
-        const todayStr = formatDateKey(new Date());
-        const dbMeals = await getMeals(todayStr);
-        if (dbMeals && dbMeals.length > 0) {
-          setLocalMealsCount(dbMeals.length);
-          const totalCal = dbMeals.reduce((sum: number, m: any) => sum + (Number(m.calories) || 0), 0);
-          setLocalCaloriesConsumed(totalCal);
-        } else {
-          setLocalMealsCount(0);
-          setLocalCaloriesConsumed(0);
-        }
-      } catch {}
-
-      // 2. Read saved sleep from SQLite master DB for today
-      try {
-        const todayStr = formatDateKey(new Date());
-        const dbSleep = await getLatestSleep();
-        if (dbSleep && (dbSleep.loggedAt || "").startsWith(todayStr)) {
-          setSleepHoursLogged(Number(dbSleep.durationHours));
-          setSleepQuality(dbSleep.quality || "Restorative");
-          setHasLoggedSleepToday(true);
-        } else {
-          setSleepHoursLogged(0);
-          setHasLoggedSleepToday(false);
-        }
-      } catch {}
-
-      // 3. Read digital wellbeing from SQLite master DB
-      try {
-        const dbScreen = await getScreenTimeToday();
-        if (dbScreen) {
-          setScreenMinutesToday(dbScreen.screenMinutes);
-          setScreenLimitMinutes(dbScreen.limitMinutes);
-          setFocusModeActive(dbScreen.focusMode);
-          setWindDownActive(dbScreen.windDown);
-        }
-        const sessions = await getFocusSessionsToday();
-        if (sessions) setTodayFocusSessions(sessions);
-
-        const config = await getWellbeingConfig();
-        if (config) {
-          setScreenLimitMinutes(config.dailyLimitMinutes);
-          setWindDownActive(config.windDownEnabled);
-          setBedtimeHour(config.windDownBedtime);
-          setWakeHour(config.windDownWakeup);
-          setBlockedCategories(config.blockedCategories);
-          setDndAutoToggle(config.dndAutoToggle);
-        }
-      } catch {}
-
-      // 4. Read hydration from SQLite master DB
-      try {
-        const cups = await getHydrationToday();
-        if (cups !== undefined) setWaterCups(cups);
-      } catch {}
-
-      // 5. Arm & synchronize proactive background notification alarms
-      try {
-        await syncNotificationSchedules();
-      } catch (e) {
-        console.warn("Notification schedules sync error:", e);
-      }
-
-      // 6. Evaluate Achievements & Gamification Engine
-      try {
-        const achRes = await evaluateAchievements();
-        setGamification(achRes.gamification);
-      } catch (e) {
-        console.warn("Achievements evaluate error:", e);
-      }
-
-      // 7. Load 7-Day Trend data from daily_health_metrics
-      try {
-        await seedHistoricalHealthMetricsIfEmpty();
-        const past7Start = new Date();
-        past7Start.setDate(past7Start.getDate() - 6);
-        const past7Records = await getDailyHealthRecordsForRange(
-          formatDateKey(past7Start),
-          formatDateKey(new Date())
-        );
-        const recordsMap: Record<string, number> = {};
-        past7Records.forEach((r) => {
-          recordsMap[r.date] = r.overallScore;
-        });
-
-        const last7List: { dayLabel: string; score: number }[] = [];
-        for (let i = 6; i >= 0; i--) {
-          const d = new Date();
-          d.setDate(d.getDate() - i);
-          const key = formatDateKey(d);
-          const dayName = d.toLocaleDateString("en-US", { weekday: "short" });
-          const score = recordsMap[key] || 0;
-          last7List.push({ dayLabel: dayName, score });
-        }
-        setTrend7DaysData(last7List);
-
-        // 8. Trigger Morning Briefing health score alert evaluation
-        checkDailyHealthScoreNotification().catch((e) =>
-          console.warn("Health score alert evaluation error:", e)
-        );
-      } catch (e) {
-        console.warn("Trend 7-day loading error:", e);
-      }
+  // Refresh nutrition state from single source of truth across SQLite & storage fallback
+  const refreshNutritionState = useCallback(async () => {
+    try {
+      const todayStr = formatDateKey(new Date());
+      const totals = await getNutritionTotalsForDate(todayStr);
+      setLocalMealsCount(totals.count);
+      setLocalCaloriesConsumed(totals.calories);
+      setLocalProteinGrams(totals.protein);
+      setLocalCarbsGrams(totals.carbs);
+      setLocalFatGrams(totals.fat);
+    } catch (err) {
+      console.warn("[Dashboard] refreshNutritionState error:", err);
     }
+  }, []);
+
+  // Load last sync status, local meals, sleep & screen time
+  const loadLocalHealthState = useCallback(async () => {
+    const status = await getLastSyncStatus();
+    setSyncStatus(status);
+
+    // 1. Read real nutrition for today
+    await refreshNutritionState();
+
+    // 2. Read saved sleep from SQLite master DB for today
+    try {
+      const todayStr = formatDateKey(new Date());
+      const dbSleep = await getLatestSleep();
+      if (dbSleep && (dbSleep.loggedAt || "").startsWith(todayStr)) {
+        setSleepHoursLogged(Number(dbSleep.durationHours));
+        setSleepQuality(dbSleep.quality || "Restorative");
+        setHasLoggedSleepToday(true);
+      } else {
+        setSleepHoursLogged(0);
+        setHasLoggedSleepToday(false);
+      }
+    } catch {}
+
+    // 3. Read digital wellbeing from SQLite master DB
+    try {
+      const dbScreen = await getScreenTimeToday();
+      if (dbScreen) {
+        setScreenMinutesToday(dbScreen.screenMinutes);
+        setScreenLimitMinutes(dbScreen.limitMinutes);
+        setFocusModeActive(dbScreen.focusMode);
+        setWindDownActive(dbScreen.windDown);
+      }
+      const sessions = await getFocusSessionsToday();
+      if (sessions) setTodayFocusSessions(sessions);
+
+      const config = await getWellbeingConfig();
+      if (config) {
+        setScreenLimitMinutes(config.dailyLimitMinutes);
+        setWindDownActive(config.windDownEnabled);
+        setBedtimeHour(config.windDownBedtime);
+        setWakeHour(config.windDownWakeup);
+        setBlockedCategories(config.blockedCategories);
+        setDndAutoToggle(config.dndAutoToggle);
+      }
+    } catch {}
+
+    // 4. Read hydration from SQLite master DB
+    try {
+      const cups = await getHydrationToday();
+      if (cups !== undefined) setWaterCups(cups);
+    } catch {}
+
+    // 5. Arm & synchronize proactive background notification alarms
+    try {
+      await syncNotificationSchedules();
+    } catch (e) {
+      console.warn("Notification schedules sync error:", e);
+    }
+
+    // 6. Evaluate Achievements & Gamification Engine
+    try {
+      const achRes = await evaluateAchievements();
+      setGamification(achRes.gamification);
+    } catch (e) {
+      console.warn("Achievements evaluate error:", e);
+    }
+
+    // 7. Load 7-Day Trend data from daily_health_metrics
+    try {
+      await seedHistoricalHealthMetricsIfEmpty();
+      const past7Start = new Date();
+      past7Start.setDate(past7Start.getDate() - 6);
+      const past7Records = await getDailyHealthRecordsForRange(
+        formatDateKey(past7Start),
+        formatDateKey(new Date())
+      );
+      const recordsMap: Record<string, number> = {};
+      past7Records.forEach((r) => {
+        recordsMap[r.date] = r.overallScore;
+      });
+
+      const last7List: { dayLabel: string; score: number }[] = [];
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const key = formatDateKey(d);
+        const dayName = d.toLocaleDateString("en-US", { weekday: "short" });
+        const score = recordsMap[key] || 0;
+        last7List.push({ dayLabel: dayName, score });
+      }
+      setTrend7DaysData(last7List);
+
+      // 8. Trigger Morning Briefing health score alert evaluation
+      checkDailyHealthScoreNotification().catch((e) =>
+        console.warn("Health score alert evaluation error:", e)
+      );
+    } catch (e) {
+      console.warn("Trend 7-day loading error:", e);
+    }
+  }, [refreshNutritionState]);
+
+  // Real-time synchronization when switching back to the Dashboard tab (0ms latency)
+  useFocusEffect(
+    useCallback(() => {
+      refreshNutritionState();
+    }, [refreshNutritionState])
+  );
+
+  // Subscribe to real-time meal log/delete events across tabs
+  useEffect(() => {
+    const unsub = subscribeNutritionChanges(() => {
+      refreshNutritionState();
+    });
+    return () => {
+      unsub();
+    };
+  }, [refreshNutritionState]);
+
+  useEffect(() => {
     loadLocalHealthState();
 
     // Check if fresh day toast should be shown on startup
@@ -497,7 +523,7 @@ export default function DashboardScreen() {
       refetchTimeline();
       loadLocalHealthState();
     });
-  }, []);
+  }, [loadLocalHealthState]);
 
   // Auto-dismiss fresh day toast after 6 seconds
   useEffect(() => {
@@ -569,19 +595,13 @@ export default function DashboardScreen() {
   const handleRefresh = async () => {
     triggerHaptic();
     setRefreshing(true);
-    await Promise.all([refetch(), refetchTimeline(), refetchWorkouts(), refetchStreaks()]);
-    // Also re-read local meals
-    try {
-      const storedMeals = await storage.getItem("lumen_local_meals");
-      if (storedMeals) {
-        const parsed = JSON.parse(storedMeals);
-        if (Array.isArray(parsed)) {
-          setLocalMealsCount(parsed.length);
-          const totalCal = parsed.reduce((sum: number, m: any) => sum + (Number(m.calories) || 0), 0);
-          setLocalCaloriesConsumed(totalCal);
-        }
-      }
-    } catch {}
+    await Promise.all([
+      refetch(),
+      refetchTimeline(),
+      refetchWorkouts(),
+      refetchStreaks(),
+      refreshNutritionState(),
+    ]);
     setRefreshing(false);
   };
 
@@ -652,12 +672,12 @@ export default function DashboardScreen() {
   }, [hydration.todayCups]);
 
   // Real Consumed Calories for today
-  const caloriesConsumed = localCaloriesConsumed;
+  const caloriesConsumed = Math.max(localCaloriesConsumed, Number(dashboard?.caloriesConsumed || 0));
   const caloriesPercent = Math.min(100, Math.round((caloriesConsumed / caloriesTarget) * 100));
 
-  const proteinGrams = localMealsCount > 0 ? (dashboard?.proteinGrams || localMealsCount * 28) : 0;
-  const carbsGrams = localMealsCount > 0 ? (dashboard?.carbsGrams || localMealsCount * 42) : 0;
-  const fatGrams = localMealsCount > 0 ? (dashboard?.fatGrams || localMealsCount * 14) : 0;
+  const proteinGrams = localProteinGrams > 0 ? localProteinGrams : Number(dashboard?.proteinGrams || 0);
+  const carbsGrams = localCarbsGrams > 0 ? localCarbsGrams : Number(dashboard?.carbsGrams || 0);
+  const fatGrams = localFatGrams > 0 ? localFatGrams : Number(dashboard?.fatGrams || 0);
 
   // =========================================================================
   // DYNAMIC 5 PILLAR CALCULATIONS (Nutrition, Hydration, Sleep, Activity, Screen Time)

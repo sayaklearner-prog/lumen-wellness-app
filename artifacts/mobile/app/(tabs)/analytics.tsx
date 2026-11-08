@@ -26,6 +26,8 @@ import {
   Info,
   CheckCircle2,
   Zap,
+  Smartphone,
+  TrendingUp,
 } from "lucide-react-native";
 import THEME from "@/constants/theme";
 import {
@@ -107,39 +109,25 @@ export default function AnalyticsScreen() {
         const summary = await getMonthlyHealthSummary(targetYear, targetMonth);
         setMonthlySummary(summary);
 
-        // 2. Fetch selected day record
+        // 2. Fetch or dynamically compile selected day record
         let dayRec = summary.recordsByDate[targetDate];
-        if (!dayRec) {
-          dayRec = (await getDailyHealthRecord(targetDate)) || {
-            date: targetDate,
-            overallScore: 0,
-            steps: 0,
-            activeCalories: 0,
-            distanceKm: 0,
-            nutritionScore: 0,
-            caloriesConsumed: 0,
-            proteinGrams: 0,
-            carbsGrams: 0,
-            fatGrams: 0,
-            sleepScore: 0,
-            sleepHours: 0,
-            sleepQuality: "Normal",
-            hydrationScore: 0,
-            hydrationMl: 0,
-            hydrationCups: 0,
-            screenScore: 0,
-            screenMinutes: 0,
-            updatedAt: new Date().toISOString(),
-          };
+        if (!dayRec || dayRec.overallScore === 0) {
+          dayRec = await computeAndSaveDailySnapshot(targetDate);
+          summary.recordsByDate[targetDate] = dayRec;
         }
         setSelectedRecord(dayRec);
 
-        // 3. Fetch previous day record to compute Day-over-Day delta
+        // 3. Fetch or dynamically compile previous day record to compute Day-over-Day delta
         const [year, month, day] = targetDate.split("-").map(Number);
         const prevDateObj = new Date(year, month - 1, day - 1);
         const prevKey = formatDateKey(prevDateObj);
-        const prevRec = summary.recordsByDate[prevKey] || (await getDailyHealthRecord(prevKey));
+        let prevRec = summary.recordsByDate[prevKey];
+        if (!prevRec || prevRec.overallScore === 0) {
+          prevRec = await computeAndSaveDailySnapshot(prevKey);
+          summary.recordsByDate[prevKey] = prevRec;
+        }
         setPrevDayRecord(prevRec || null);
+        setMonthlySummary({ ...summary });
 
         // 4. Generate baseline 3-Pillar AI Insights immediately for 0ms latency
         const insights = generateThreePillarAiInsights(dayRec, summary);
@@ -189,10 +177,20 @@ export default function AnalyticsScreen() {
     setSelectedDateStr(todayKey);
   };
 
-  // Select a specific day on the calendar grid
-  const handleSelectDay = (dayNum: number) => {
+  // Select a specific day on the calendar grid and store day-on-day data
+  const handleSelectDay = async (dayNum: number) => {
     const dateKey = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}-${String(dayNum).padStart(2, "0")}`;
     setSelectedDateStr(dateKey);
+    try {
+      const snap = await computeAndSaveDailySnapshot(dateKey);
+      setSelectedRecord(snap);
+      if (monthlySummary) {
+        monthlySummary.recordsByDate[dateKey] = snap;
+        setMonthlySummary({ ...monthlySummary });
+      }
+    } catch (e) {
+      console.warn("[Analytics] Error snapshotting on day select:", e);
+    }
   };
 
   // Manual trigger for testing the 8:00 AM Morning Briefing notification
@@ -226,6 +224,33 @@ export default function AnalyticsScreen() {
   const prevDayScore = prevDayRecord?.overallScore ?? 0;
   const dayDelta =
     prevDayScore > 0 && currentDayScore > 0 ? Math.round((currentDayScore - prevDayScore) * 10) / 10 : 0;
+
+  // Day-over-Day granular pillar deltas
+  const currentSteps = selectedRecord?.steps ?? 0;
+  const prevSteps = prevDayRecord?.steps ?? 0;
+  const stepsDelta = prevSteps > 0 && currentSteps > 0 ? currentSteps - prevSteps : 0;
+
+  const currentCals = selectedRecord?.activeCalories ?? 0;
+  const prevCals = prevDayRecord?.activeCalories ?? 0;
+  const calsDelta = prevCals > 0 && currentCals > 0 ? Math.round((currentCals - prevCals) * 10) / 10 : 0;
+
+  const currentFatBurned =
+    selectedRecord?.fatBurnedGrams !== undefined && selectedRecord?.fatBurnedGrams !== null
+      ? selectedRecord.fatBurnedGrams
+      : (currentCals > 0 ? Math.round(((currentCals * 0.75) / 7.7) * 10) / 10 : 0);
+  const prevFatBurned =
+    prevDayRecord?.fatBurnedGrams !== undefined && prevDayRecord?.fatBurnedGrams !== null
+      ? prevDayRecord.fatBurnedGrams
+      : (prevCals > 0 ? Math.round(((prevCals * 0.75) / 7.7) * 10) / 10 : 0);
+  const fatDelta = prevFatBurned > 0 && currentFatBurned > 0 ? Math.round((currentFatBurned - prevFatBurned) * 10) / 10 : 0;
+
+  const currentNutrientCals = selectedRecord?.caloriesConsumed ?? 0;
+  const prevNutrientCals = prevDayRecord?.caloriesConsumed ?? 0;
+  const nutrientCalsDelta = prevNutrientCals > 0 && currentNutrientCals > 0 ? currentNutrientCals - prevNutrientCals : 0;
+
+  const currentHydrationMl = selectedRecord?.hydrationMl ?? 0;
+  const prevHydrationMl = prevDayRecord?.hydrationMl ?? 0;
+  const hydrationDelta = prevHydrationMl > 0 && currentHydrationMl > 0 ? currentHydrationMl - prevHydrationMl : 0;
 
   // Format header date string for Day Inspector
   const [selY, selM, selD] = selectedDateStr.split("-").map(Number);
@@ -603,70 +628,283 @@ export default function AnalyticsScreen() {
             ) : null}
           </View>
 
-          {/* 4 Pillars Individual Metrics Grid */}
-          <View style={styles.pillarsGrid}>
-            {/* Pillar 1: Movement & Steps */}
-            <View style={styles.pillarTile}>
-              <View style={styles.pillarHeaderRow}>
-                <Footprints size={14} color="#047857" />
-                <Text style={styles.pillarName} numberOfLines={1}>
-                  Movement
-                </Text>
+          {/* Day-on-Day Comparative Shift Strip */}
+          {(prevDayScore > 0 || currentDayScore > 0) && (
+            <View style={styles.dodShiftContainer}>
+              <View style={styles.dodShiftHeader}>
+                <TrendingUp size={13} color="#047857" />
+                <Text style={styles.dodShiftTitle}>Day-on-Day Shift (vs Previous Day)</Text>
               </View>
-              <Text style={styles.pillarMainVal} numberOfLines={1}>
-                {selectedRecord?.steps ? selectedRecord.steps.toLocaleString() : "0"}
-              </Text>
-              <Text style={styles.pillarSubVal} numberOfLines={1}>
-                {selectedRecord?.activeCalories ?? 0} kcal • {selectedRecord?.distanceKm ?? 0} km
-              </Text>
+              <View style={styles.dodShiftGrid}>
+                <View style={styles.dodShiftTile}>
+                  <Text style={styles.dodShiftLabel}>Steps</Text>
+                  <Text style={[styles.dodShiftVal, stepsDelta >= 0 ? styles.textPositive : styles.textNegative]}>
+                    {prevSteps > 0 && currentSteps > 0
+                      ? stepsDelta >= 0
+                        ? `+${stepsDelta.toLocaleString()}`
+                        : `${stepsDelta.toLocaleString()}`
+                      : currentSteps > 0
+                      ? `${currentSteps.toLocaleString()}`
+                      : "—"}
+                  </Text>
+                </View>
+                <View style={styles.dodShiftTile}>
+                  <Text style={styles.dodShiftLabel}>Active Burn</Text>
+                  <Text style={[styles.dodShiftVal, calsDelta >= 0 ? styles.textPositive : styles.textNegative]}>
+                    {prevCals > 0 && currentCals > 0
+                      ? calsDelta >= 0
+                        ? `+${calsDelta} kcal`
+                        : `${calsDelta} kcal`
+                      : currentCals > 0
+                      ? `${currentCals} kcal`
+                      : "—"}
+                  </Text>
+                </View>
+                <View style={styles.dodShiftTile}>
+                  <Text style={styles.dodShiftLabel}>Fat Burned</Text>
+                  <Text style={[styles.dodShiftVal, fatDelta >= 0 ? styles.textPositive : styles.textNegative]}>
+                    {prevFatBurned > 0 && currentFatBurned > 0
+                      ? fatDelta >= 0
+                        ? `+${fatDelta}g`
+                        : `${fatDelta}g`
+                      : currentFatBurned > 0
+                      ? `${currentFatBurned}g`
+                      : "—"}
+                  </Text>
+                </View>
+                <View style={styles.dodShiftTile}>
+                  <Text style={styles.dodShiftLabel}>Hydration</Text>
+                  <Text style={[styles.dodShiftVal, hydrationDelta >= 0 ? styles.textPositive : styles.textNegative]}>
+                    {prevHydrationMl > 0 && currentHydrationMl > 0
+                      ? hydrationDelta >= 0
+                        ? `+${hydrationDelta} ml`
+                        : `${hydrationDelta} ml`
+                      : currentHydrationMl > 0
+                      ? `${currentHydrationMl} ml`
+                      : "—"}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* 5 Biometric Pillar Cards: Steps & Fat Burned, Nutrition, Sleep, Hydration, Screen Time */}
+          <View style={styles.pillarsListContainer}>
+            {/* Pillar 1: Movement & Lipid Burn (Steps, Calorie Burn, Fat Burned) */}
+            <View style={styles.biometricDetailedCard}>
+              <View style={styles.biometricCardTop}>
+                <View style={styles.biometricTitleRow}>
+                  <View style={[styles.biometricIconBadge, { backgroundColor: "rgba(16, 185, 129, 0.15)" }]}>
+                    <Footprints size={15} color="#047857" />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={styles.biometricCardTitle} numberOfLines={1}>Movement & Lipid Burn</Text>
+                    <Text style={styles.biometricCardSub} numberOfLines={1}>Daily cadence, energy expenditure & fat oxidation</Text>
+                  </View>
+                  <View style={styles.biometricScorePill}>
+                    <Text style={styles.biometricScorePillText}>
+                      {selectedRecord?.steps ? `${selectedRecord.steps.toLocaleString()} steps` : "0 steps"}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.biometricStatsRow}>
+                <View style={styles.biometricStatItem}>
+                  <Text style={styles.biometricStatLabel}>Total Distance</Text>
+                  <Text style={styles.biometricStatValue}>{selectedRecord?.distanceKm ?? 0} km</Text>
+                </View>
+                <View style={styles.biometricStatItem}>
+                  <Text style={styles.biometricStatLabel}>Active Burn</Text>
+                  <Text style={[styles.biometricStatValue, { color: "#ea580c" }]}>{currentCals} kcal</Text>
+                </View>
+                <View style={[styles.biometricStatItem, styles.fatBurnedHighlight]}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+                    <Flame size={11} color="#b45309" />
+                    <Text style={[styles.biometricStatLabel, { color: "#b45309", fontWeight: "800", marginBottom: 0 }]}>
+                      Fat Burned
+                    </Text>
+                  </View>
+                  <Text style={[styles.biometricStatValue, { color: "#b45309", fontWeight: "900" }]}>
+                    {currentFatBurned} g
+                  </Text>
+                </View>
+              </View>
             </View>
 
-            {/* Pillar 2: Nutrition Points */}
-            <View style={styles.pillarTile}>
-              <View style={styles.pillarHeaderRow}>
-                <Utensils size={14} color="#b45309" />
-                <Text style={styles.pillarName} numberOfLines={1}>
-                  Nutrient Points
-                </Text>
+            {/* Pillar 2: Nutrition & Macronutrient Intake */}
+            <View style={styles.biometricDetailedCard}>
+              <View style={styles.biometricCardTop}>
+                <View style={styles.biometricTitleRow}>
+                  <View style={[styles.biometricIconBadge, { backgroundColor: "rgba(245, 158, 11, 0.15)" }]}>
+                    <Utensils size={15} color="#b45309" />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={styles.biometricCardTitle} numberOfLines={1}>Nutrition & Macronutrients</Text>
+                    <Text style={styles.biometricCardSub} numberOfLines={1}>Caloric balance, protein accretion & macros</Text>
+                  </View>
+                  <View style={[styles.biometricScorePill, { backgroundColor: "rgba(245, 158, 11, 0.15)" }]}>
+                    <Text style={[styles.biometricScorePillText, { color: "#b45309" }]}>
+                      {selectedRecord?.caloriesConsumed ? `${selectedRecord.caloriesConsumed} kcal` : "0 kcal"}
+                    </Text>
+                  </View>
+                </View>
               </View>
-              <Text style={styles.pillarMainVal} numberOfLines={1}>
-                {selectedRecord?.caloriesConsumed ? `${selectedRecord.caloriesConsumed} kcal` : "0 kcal"}
-              </Text>
-              <Text style={styles.pillarSubVal} numberOfLines={1}>
-                {selectedRecord?.proteinGrams ?? 0}g Pro • {selectedRecord?.carbsGrams ?? 0}g Carb
-              </Text>
+
+              {/* Calorie bar */}
+              <View style={styles.calTrack}>
+                <View
+                  style={[
+                    styles.calFill,
+                    {
+                      width: `${Math.min(100, Math.round(((selectedRecord?.caloriesConsumed || 0) / 2100) * 100))}%`,
+                      backgroundColor: "#f59e0b",
+                    },
+                  ]}
+                />
+              </View>
+
+              <View style={styles.biometricStatsRow}>
+                <View style={styles.biometricStatItem}>
+                  <Text style={styles.biometricStatLabel}>Protein</Text>
+                  <Text style={styles.biometricStatValue}>{selectedRecord?.proteinGrams ?? 0}g</Text>
+                </View>
+                <View style={styles.biometricStatItem}>
+                  <Text style={styles.biometricStatLabel}>Carbohydrates</Text>
+                  <Text style={styles.biometricStatValue}>{selectedRecord?.carbsGrams ?? 0}g</Text>
+                </View>
+                <View style={styles.biometricStatItem}>
+                  <Text style={styles.biometricStatLabel}>Dietary Fat</Text>
+                  <Text style={styles.biometricStatValue}>{selectedRecord?.fatGrams ?? 0}g</Text>
+                </View>
+              </View>
             </View>
 
-            {/* Pillar 3: Sleep Restoration */}
-            <View style={styles.pillarTile}>
-              <View style={styles.pillarHeaderRow}>
-                <Moon size={14} color="#4338ca" />
-                <Text style={styles.pillarName} numberOfLines={1}>
-                  Sleep Restoration
-                </Text>
+            {/* Pillar 3: Sleep & Circadian Restoration */}
+            <View style={styles.biometricDetailedCard}>
+              <View style={styles.biometricCardTop}>
+                <View style={styles.biometricTitleRow}>
+                  <View style={[styles.biometricIconBadge, { backgroundColor: "rgba(99, 102, 241, 0.15)" }]}>
+                    <Moon size={15} color="#4338ca" />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={styles.biometricCardTitle} numberOfLines={1}>Sleep & Circadian Restoration</Text>
+                    <Text style={styles.biometricCardSub} numberOfLines={1}>Neuro-muscular recovery & sleep quality</Text>
+                  </View>
+                  <View style={[styles.biometricScorePill, { backgroundColor: "rgba(99, 102, 241, 0.15)" }]}>
+                    <Text style={[styles.biometricScorePillText, { color: "#4338ca" }]}>
+                      {selectedRecord?.sleepHours ? `${selectedRecord.sleepHours} hrs` : "0.0 hrs"}
+                    </Text>
+                  </View>
+                </View>
               </View>
-              <Text style={styles.pillarMainVal} numberOfLines={1}>
-                {selectedRecord?.sleepHours ? `${selectedRecord.sleepHours} hrs` : "0.0 hrs"}
-              </Text>
-              <Text style={styles.pillarSubVal} numberOfLines={1}>
-                Quality: {selectedRecord?.sleepQuality || "Not logged"}
-              </Text>
+
+              <View style={styles.biometricStatsRow}>
+                <View style={styles.biometricStatItem}>
+                  <Text style={styles.biometricStatLabel}>Total Duration</Text>
+                  <Text style={styles.biometricStatValue}>
+                    {selectedRecord?.sleepHours ? `${selectedRecord.sleepHours} hrs` : "Not logged"}
+                  </Text>
+                </View>
+                <View style={styles.biometricStatItem}>
+                  <Text style={styles.biometricStatLabel}>Restoration Quality</Text>
+                  <Text style={[styles.biometricStatValue, { color: "#4338ca" }]}>
+                    {selectedRecord?.sleepQuality || "Normal"}
+                  </Text>
+                </View>
+                <View style={styles.biometricStatItem}>
+                  <Text style={styles.biometricStatLabel}>Target Baseline</Text>
+                  <Text style={styles.biometricStatValue}>8.0 hrs</Text>
+                </View>
+              </View>
             </View>
 
-            {/* Pillar 4: Hydration & Screen */}
-            <View style={styles.pillarTile}>
-              <View style={styles.pillarHeaderRow}>
-                <Droplets size={14} color="#0284c7" />
-                <Text style={styles.pillarName} numberOfLines={1}>
-                  Hydration & Screen
-                </Text>
+            {/* Pillar 4: Dedicated Hydration & Electrolytes */}
+            <View style={styles.biometricDetailedCard}>
+              <View style={styles.biometricCardTop}>
+                <View style={styles.biometricTitleRow}>
+                  <View style={[styles.biometricIconBadge, { backgroundColor: "rgba(2, 132, 199, 0.15)" }]}>
+                    <Droplets size={15} color="#0284c7" />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={styles.biometricCardTitle} numberOfLines={1}>Hydration & Electrolytes</Text>
+                    <Text style={styles.biometricCardSub} numberOfLines={1}>Cellular hydration, water volume & fluid pacing</Text>
+                  </View>
+                  <View style={[styles.biometricScorePill, { backgroundColor: "rgba(2, 132, 199, 0.15)" }]}>
+                    <Text style={[styles.biometricScorePillText, { color: "#0284c7" }]}>
+                      {selectedRecord?.hydrationMl ? `${selectedRecord.hydrationMl} ml` : "0 ml"}
+                    </Text>
+                  </View>
+                </View>
               </View>
-              <Text style={styles.pillarMainVal} numberOfLines={1}>
-                {selectedRecord?.hydrationMl ? `${selectedRecord.hydrationMl} ml` : "0 ml"}
-              </Text>
-              <Text style={styles.pillarSubVal} numberOfLines={1}>
-                {selectedRecord?.hydrationCups ?? 0} cups • {selectedRecord?.screenMinutes ?? 0}m screen
-              </Text>
+
+              <View style={styles.biometricStatsRow}>
+                <View style={styles.biometricStatItem}>
+                  <Text style={styles.biometricStatLabel}>Total Volume</Text>
+                  <Text style={[styles.biometricStatValue, { color: "#0284c7" }]}>
+                    {selectedRecord?.hydrationMl ? `${selectedRecord.hydrationMl} ml` : "0 ml"}
+                  </Text>
+                </View>
+                <View style={styles.biometricStatItem}>
+                  <Text style={styles.biometricStatLabel}>Standard Cups</Text>
+                  <Text style={styles.biometricStatValue}>{selectedRecord?.hydrationCups ?? 0} cups</Text>
+                </View>
+                <View style={styles.biometricStatItem}>
+                  <Text style={styles.biometricStatLabel}>Target Compliance</Text>
+                  <Text style={styles.biometricStatValue}>
+                    {Math.min(100, Math.round(((selectedRecord?.hydrationMl || 0) / 2000) * 100))}% of 2L
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Pillar 5: Dedicated Digital Wellbeing & Screen Focus */}
+            <View style={styles.biometricDetailedCard}>
+              <View style={styles.biometricCardTop}>
+                <View style={styles.biometricTitleRow}>
+                  <View style={[styles.biometricIconBadge, { backgroundColor: "rgba(139, 92, 246, 0.15)" }]}>
+                    <Smartphone size={15} color="#7c3aed" />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={styles.biometricCardTitle} numberOfLines={1}>Digital Wellbeing & Screen Focus</Text>
+                    <Text style={styles.biometricCardSub} numberOfLines={1}>Visual cognitive load, mindful screen exposure & limits</Text>
+                  </View>
+                  <View style={[styles.biometricScorePill, { backgroundColor: "rgba(139, 92, 246, 0.15)" }]}>
+                    <Text style={[styles.biometricScorePillText, { color: "#7c3aed" }]}>
+                      {selectedRecord?.screenMinutes
+                        ? `${Math.floor(selectedRecord.screenMinutes / 60)}h ${selectedRecord.screenMinutes % 60}m`
+                        : "0m"}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.biometricStatsRow}>
+                <View style={styles.biometricStatItem}>
+                  <Text style={styles.biometricStatLabel}>Active Screen</Text>
+                  <Text style={[styles.biometricStatValue, { color: "#7c3aed" }]}>
+                    {selectedRecord?.screenMinutes ?? 0} mins
+                  </Text>
+                </View>
+                <View style={styles.biometricStatItem}>
+                  <Text style={styles.biometricStatLabel}>Daily Target Limit</Text>
+                  <Text style={styles.biometricStatValue}>180 mins</Text>
+                </View>
+                <View style={styles.biometricStatItem}>
+                  <Text style={styles.biometricStatLabel}>Neuro-Load Status</Text>
+                  <Text
+                    style={[
+                      styles.biometricStatValue,
+                      {
+                        fontSize: 11,
+                        color: (selectedRecord?.screenMinutes || 0) <= 180 ? "#047857" : "#dc2626",
+                      },
+                    ]}
+                  >
+                    {(selectedRecord?.screenMinutes || 0) <= 180 ? "Optimal Focus" : "Elevated Exposure"}
+                  </Text>
+                </View>
+              </View>
             </View>
           </View>
         </View>
@@ -1397,6 +1635,147 @@ const styles = StyleSheet.create({
   dayDeltaText: {
     fontSize: 10,
     fontWeight: "800",
+  },
+  /* Day-on-Day Comparative Shift Strip */
+  dodShiftContainer: {
+    backgroundColor: "rgba(240, 246, 243, 0.95)",
+    borderRadius: 14,
+    padding: 10,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "rgba(200, 220, 212, 0.7)",
+  },
+  dodShiftHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginBottom: 6,
+  },
+  dodShiftTitle: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#047857",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  dodShiftGrid: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  dodShiftTile: {
+    flex: 1,
+    alignItems: "center",
+  },
+  dodShiftLabel: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: THEME.colors.cardTextSecondary,
+    marginBottom: 2,
+  },
+  dodShiftVal: {
+    fontSize: 11,
+    fontWeight: "900",
+  },
+  textPositive: {
+    color: "#047857",
+  },
+  textNegative: {
+    color: "#dc2626",
+  },
+
+  /* 5 Dedicated Pillars List Container & Detailed Cards */
+  pillarsListContainer: {
+    gap: 10,
+  },
+  biometricDetailedCard: {
+    backgroundColor: "#ffffff",
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "rgba(200, 218, 210, 0.7)",
+    gap: 8,
+  },
+  biometricCardTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  biometricTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flex: 1,
+  },
+  biometricIconBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  biometricCardTitle: {
+    fontSize: 12,
+    fontWeight: "900",
+    color: THEME.colors.cardTextPrimary,
+  },
+  biometricCardSub: {
+    fontSize: 9,
+    fontWeight: "600",
+    color: THEME.colors.cardTextSecondary,
+    marginTop: 1,
+  },
+  biometricScorePill: {
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  biometricScorePillText: {
+    fontSize: 10,
+    fontWeight: "900",
+    color: "#047857",
+  },
+  biometricStatsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(245, 248, 246, 0.8)",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  biometricStatItem: {
+    flex: 1,
+    alignItems: "center",
+  },
+  biometricStatLabel: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: THEME.colors.cardTextSecondary,
+    marginBottom: 2,
+  },
+  biometricStatValue: {
+    fontSize: 12,
+    fontWeight: "900",
+    color: THEME.colors.cardTextPrimary,
+  },
+  fatBurnedHighlight: {
+    backgroundColor: "rgba(245, 158, 11, 0.12)",
+    borderRadius: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    borderWidth: 1,
+    borderColor: "rgba(245, 158, 11, 0.25)",
+  },
+  calTrack: {
+    height: 6,
+    backgroundColor: "rgba(220, 230, 224, 0.7)",
+    borderRadius: 3,
+    overflow: "hidden",
+  },
+  calFill: {
+    height: "100%",
+    borderRadius: 3,
   },
   pillarsGrid: {
     flexDirection: "row",
