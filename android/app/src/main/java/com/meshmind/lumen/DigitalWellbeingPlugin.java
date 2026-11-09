@@ -263,27 +263,8 @@ public class DigitalWellbeingPlugin extends Plugin {
                 }
 
                 PackageManager pm = ctx.getPackageManager();
-                Intent mainIntent = new Intent(Intent.ACTION_MAIN, null);
-                mainIntent.addCategory(Intent.CATEGORY_LAUNCHER);
-                List<ResolveInfo> launchables = pm.queryIntentActivities(mainIntent, 0);
 
-                Map<String, ResolveInfo> launchableMap = new HashMap<>();
-                Set<String> launchablePackages = new HashSet<>();
-                for (ResolveInfo ri : launchables) {
-                    if (ri.activityInfo != null && ri.activityInfo.packageName != null) {
-                        String pkg = ri.activityInfo.packageName;
-                        launchablePackages.add(pkg);
-                        launchableMap.put(pkg, ri);
-                    }
-                }
-
-                // Add common user packages that may not expose standard launcher intent
-                launchablePackages.add("com.android.chrome");
-                launchablePackages.add("com.google.android.youtube");
-                launchablePackages.add("com.google.android.gm");
-                launchablePackages.add("com.google.android.apps.messaging");
-
-                // Explicitly ignore Android internal background & system UI packages
+                // Explicitly ignore Android internal background, keyboard & system UI daemon packages
                 Set<String> systemIgnored = new HashSet<>();
                 systemIgnored.add("android");
                 systemIgnored.add("com.android.systemui");
@@ -292,106 +273,98 @@ public class DigitalWellbeingPlugin extends Plugin {
                 systemIgnored.add("com.google.android.inputmethod.latin");
                 systemIgnored.add("com.android.keyguard");
 
-                Map<String, Long> usageMap = new HashMap<>();
-                int unlockCount = 0;
-                String currentForegroundPkg = null;
-                long currentForegroundStart = 0;
-                boolean isScreenInteractive = true;
+                // Ignore default home screen launcher so desktop idle time is not counted as active app usage
+                try {
+                    Intent homeIntent = new Intent(Intent.ACTION_MAIN);
+                    homeIntent.addCategory(Intent.CATEGORY_HOME);
+                    ResolveInfo defaultLauncher = pm.resolveActivity(homeIntent, PackageManager.MATCH_DEFAULT_ONLY);
+                    if (defaultLauncher != null && defaultLauncher.activityInfo != null && defaultLauncher.activityInfo.packageName != null) {
+                        systemIgnored.add(defaultLauncher.activityInfo.packageName);
+                    }
+                } catch (Exception ignored) {}
 
-                // 1. Accurate Event Replay Algorithm (Mindful Engine)
+                // Build launchable map for icons and quick name lookup
+                Map<String, ResolveInfo> launchableMap = new HashMap<>();
+                try {
+                    Intent mainIntent = new Intent(Intent.ACTION_MAIN, null);
+                    mainIntent.addCategory(Intent.CATEGORY_LAUNCHER);
+                    List<ResolveInfo> launchables = pm.queryIntentActivities(mainIntent, 0);
+                    if (launchables != null) {
+                        for (ResolveInfo ri : launchables) {
+                            if (ri.activityInfo != null && ri.activityInfo.packageName != null) {
+                                launchableMap.put(ri.activityInfo.packageName, ri);
+                            }
+                        }
+                    }
+                } catch (Exception ignored) {}
+
+                Map<String, Long> usageMap = new HashMap<>();
+
+                // 1. PRIMARY: Query Android OS Authoritative Usage Aggregation (matches Android Digital Wellbeing 1:1)
+                try {
+                    Map<String, UsageStats> aggregate = usm.queryAndAggregateUsageStats(start, end);
+                    if (aggregate != null && !aggregate.isEmpty()) {
+                        for (Map.Entry<String, UsageStats> entry : aggregate.entrySet()) {
+                            String pkg = entry.getKey();
+                            UsageStats us = entry.getValue();
+                            if (us != null && pkg != null && !systemIgnored.contains(pkg)) {
+                                long fg = us.getTotalTimeInForeground();
+                                // Count app if it has active foreground time and was accessed today
+                                if (fg > 0 && us.getLastTimeUsed() >= start) {
+                                    usageMap.put(pkg, fg);
+                                }
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    Log.w(TAG, "Error in queryAndAggregateUsageStats: " + e.getMessage());
+                }
+
+                // 2. SUPPLEMENTARY: Merge with INTERVAL_DAILY stats to ensure all foreground apps are captured
+                try {
+                    List<UsageStats> statsList = usm.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, start, end);
+                    if (statsList != null) {
+                        for (UsageStats us : statsList) {
+                            if (us != null) {
+                                String pkg = us.getPackageName();
+                                if (pkg != null && !systemIgnored.contains(pkg) && us.getLastTimeUsed() >= start) {
+                                    long fg = us.getTotalTimeInForeground();
+                                    if (fg > 0) {
+                                        long current = usageMap.getOrDefault(pkg, 0L);
+                                        if (fg > current) {
+                                            usageMap.put(pkg, fg);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    Log.w(TAG, "Error in queryUsageStats: " + e.getMessage());
+                }
+
+                // 3. Count screen unlocks via UsageEvents (KEYGUARD_HIDDEN)
+                int unlockCount = 0;
                 try {
                     UsageEvents events = usm.queryEvents(start, end);
                     if (events != null) {
                         UsageEvents.Event event = new UsageEvents.Event();
                         while (events.hasNextEvent()) {
                             events.getNextEvent(event);
-                            String pkg = event.getPackageName();
                             long ts = event.getTimeStamp();
-                            int type = event.getEventType();
-
                             if (ts < start || ts > end) continue;
 
+                            int type = event.getEventType();
                             if (type == UsageEvents.Event.KEYGUARD_HIDDEN) {
                                 unlockCount++;
-                            }
-
-                            if (type == UsageEvents.Event.SCREEN_NON_INTERACTIVE) {
-                                // Screen turned off: close active app session
-                                if (currentForegroundPkg != null && currentForegroundStart > 0 && isScreenInteractive) {
-                                    long duration = ts - currentForegroundStart;
-                                    if (duration > 0 && duration < (12 * 3600 * 1000L)) {
-                                        long cur = usageMap.getOrDefault(currentForegroundPkg, 0L);
-                                        usageMap.put(currentForegroundPkg, cur + duration);
-                                    }
-                                }
-                                currentForegroundPkg = null;
-                                currentForegroundStart = 0;
-                                isScreenInteractive = false;
-                            } else if (type == UsageEvents.Event.SCREEN_INTERACTIVE) {
-                                isScreenInteractive = true;
-                                currentForegroundStart = ts;
-                            } else if (type == UsageEvents.Event.ACTIVITY_RESUMED) {
-                                // App came to foreground
-                                if (isScreenInteractive) {
-                                    if (currentForegroundPkg != null && currentForegroundStart > 0) {
-                                        long duration = ts - currentForegroundStart;
-                                        if (duration > 0 && duration < (12 * 3600 * 1000L)) {
-                                            long cur = usageMap.getOrDefault(currentForegroundPkg, 0L);
-                                            usageMap.put(currentForegroundPkg, cur + duration);
-                                        }
-                                    }
-                                    currentForegroundPkg = pkg;
-                                    currentForegroundStart = ts;
-                                }
-                            } else if (type == UsageEvents.Event.ACTIVITY_PAUSED || type == UsageEvents.Event.ACTIVITY_STOPPED) {
-                                if (pkg != null && pkg.equals(currentForegroundPkg) && isScreenInteractive && currentForegroundStart > 0) {
-                                    long duration = ts - currentForegroundStart;
-                                    if (duration > 0 && duration < (12 * 3600 * 1000L)) {
-                                        long cur = usageMap.getOrDefault(currentForegroundPkg, 0L);
-                                        usageMap.put(currentForegroundPkg, cur + duration);
-                                    }
-                                    currentForegroundPkg = null;
-                                    currentForegroundStart = 0;
-                                }
-                            }
-                        }
-
-                        // Close currently running foreground session up to now
-                        if (currentForegroundPkg != null && currentForegroundStart > 0 && isScreenInteractive) {
-                            long duration = end - currentForegroundStart;
-                            if (duration > 0 && duration < (12 * 3600 * 1000L)) {
-                                long cur = usageMap.getOrDefault(currentForegroundPkg, 0L);
-                                usageMap.put(currentForegroundPkg, cur + duration);
                             }
                         }
                     }
                 } catch (Exception e) {
-                    Log.w(TAG, "Error in queryEvents: " + e.getMessage());
+                    Log.w(TAG, "Error counting unlocks in queryEvents: " + e.getMessage());
                 }
 
-                // 2. OEM Fallback: If queryEvents was restricted, use queryUsageStats daily interval
-                if (usageMap.isEmpty()) {
-                    try {
-                        List<UsageStats> statsList = usm.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, start, end);
-                        if (statsList != null) {
-                            for (UsageStats us : statsList) {
-                                String pkg = us.getPackageName();
-                                if (pkg == null || systemIgnored.contains(pkg)) continue;
-                                if (!launchablePackages.contains(pkg)) continue;
-                                if (us.getLastTimeUsed() >= start) {
-                                    long fg = us.getTotalTimeInForeground();
-                                    if (fg > 0 && fg <= (end - start)) {
-                                        usageMap.put(pkg, fg);
-                                    }
-                                }
-                            }
-                        }
-                    } catch (Exception e) {
-                        Log.w(TAG, "Error in queryUsageStats fallback: " + e.getMessage());
-                    }
-                }
-
-                // 3. Build filtered app items list (User-facing applications only)
+                // 4. Build user-facing app items list and aggregate category times
                 List<AppUsageItem> appItems = new ArrayList<>();
                 long totalScreenMs = 0;
                 long socialMs = 0;
@@ -404,27 +377,44 @@ public class DigitalWellbeingPlugin extends Plugin {
                     String pkg = entry.getKey();
                     long timeMs = entry.getValue();
 
-                    // Filter out non-user packages and sub-5 second glitches
-                    if (timeMs < 5000) continue;
+                    // Filter out sub-1 second glitches and internal system daemons
+                    if (timeMs < 1000) continue;
                     if (systemIgnored.contains(pkg)) continue;
-                    if (!launchablePackages.contains(pkg)) continue;
 
                     String appName = pkg;
-                    String category = classifyAppCategory(pkg, pm);
-
                     ResolveInfo ri = launchableMap.get(pkg);
-                    if (ri != null) {
-                        CharSequence label = ri.loadLabel(pm);
-                        if (label != null && label.length() > 0) {
-                            appName = label.toString();
+                    ApplicationInfo ai = null;
+                    try {
+                        ai = pm.getApplicationInfo(pkg, 0);
+                    } catch (Exception ignored) {}
+
+                    // Filter out headless system daemons without user UI
+                    if (ri == null) {
+                        if (ai != null) {
+                            CharSequence label = pm.getApplicationLabel(ai);
+                            if (label != null && label.length() > 0) {
+                                appName = label.toString();
+                            }
+                            if ((ai.flags & ApplicationInfo.FLAG_SYSTEM) != 0 &&
+                                !SOCIAL_PACKAGES.contains(pkg) &&
+                                !ENTERTAINMENT_PACKAGES.contains(pkg) &&
+                                !PRODUCTIVITY_PACKAGES.contains(pkg) &&
+                                (appName == null || appName.equals(pkg) || pkg.startsWith("com.android.providers."))) {
+                                continue;
+                            }
+                        } else {
+                            continue;
                         }
                     } else {
                         try {
-                            ApplicationInfo ai = pm.getApplicationInfo(pkg, 0);
-                            CharSequence label = pm.getApplicationLabel(ai);
-                            if (label != null) appName = label.toString();
+                            CharSequence label = ri.loadLabel(pm);
+                            if (label != null && label.length() > 0) {
+                                appName = label.toString();
+                            }
                         } catch (Exception ignored) {}
                     }
+
+                    String category = classifyAppCategory(pkg, pm);
 
                     totalScreenMs += timeMs;
 
@@ -450,10 +440,15 @@ public class DigitalWellbeingPlugin extends Plugin {
                     appObj.put("screenMinutes", item.timeMs / 60000);
                     appObj.put("category", item.category);
 
-                    // Encode icon for top 15 apps
-                    if (iconCount < 15 && item.resolveInfo != null) {
+                    // Encode icon for top 20 apps
+                    if (iconCount < 20) {
                         try {
-                            Drawable drawable = item.resolveInfo.loadIcon(pm);
+                            Drawable drawable = null;
+                            if (item.resolveInfo != null) {
+                                drawable = item.resolveInfo.loadIcon(pm);
+                            } else {
+                                drawable = pm.getApplicationIcon(item.packageName);
+                            }
                             if (drawable != null) {
                                 String base64Icon = encodeDrawableToBase64(drawable);
                                 appObj.put("icon", "data:image/png;base64," + base64Icon);
