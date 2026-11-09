@@ -185,46 +185,77 @@ export default function CoachScreen() {
 
   const handleSend = async (text: string) => {
     if (!text.trim()) return;
+    const cleanText = text.trim();
     setInputText("");
 
-    // 1. Build and refresh live health context model
+    // 1. Instant Context Access (use in-memory context if present for 0ms delay)
     const currentContext = healthContext || (await buildFullHealthContextModel());
-    setHealthContext(currentContext);
+    if (!healthContext) {
+      setHealthContext(currentContext);
+    }
 
-    // 2. Extract and store any new long-term health memories
-    try {
-      const extracted = await extractAndStoreMemories(text, currentContext);
-      if (extracted) {
-        const updatedCtx = await buildFullHealthContextModel();
-        setHealthContext(updatedCtx);
-      }
-    } catch {}
-
-    // 3. Persist User Message to SQLite Master Database
+    // 2. Prepare user message and assistant placeholder
     const userMsgId = `u-${Date.now()}`;
     const userMsg: CoachMessageRecord = {
       id: userMsgId,
       conversationId: "1",
       role: "user",
-      content: text,
+      content: cleanText,
       timestamp: new Date().toISOString(),
     };
-    await saveCoachMessage(userMsg);
+
+    const assistantMsgId = `a-${Date.now()}`;
+    let hasCreatedAssistantBubble = false;
+
+    // Immediately render user message and activate thinking indicator
     setLocalMessages((prev) => [...prev, userMsg]);
     setIsThinking(true);
 
     setTimeout(() => {
       scrollViewRef.current?.scrollToEnd({ animated: true });
-    }, 100);
+    }, 50);
+
+    // Concurrently persist user message and extract memories in the background without delaying AI request
+    saveCoachMessage(userMsg).catch((e) => console.warn("Save user msg error:", e));
+    extractAndStoreMemories(cleanText, currentContext)
+      .then(async (extracted) => {
+        if (extracted) {
+          const updatedCtx = await buildFullHealthContextModel();
+          setHealthContext(updatedCtx);
+        }
+      })
+      .catch((e) => console.warn("Extract memory error:", e));
 
     let assistantResponseText = "";
 
-    // 4. Primary: Direct High-Intelligence Google Gemini AI Engine
+    // 3. Primary: High-Speed Streaming Google Gemini AI Engine
     try {
       assistantResponseText = await askGeminiCoach(
-        text,
+        cleanText,
         localMessages.map((m) => ({ role: m.role, content: m.content })),
-        currentContext
+        currentContext,
+        (streamedSoFar) => {
+          // As soon as the first token arrives, turn off thinking spinner and start streaming into message bubble!
+          setIsThinking(false);
+          if (!hasCreatedAssistantBubble) {
+            hasCreatedAssistantBubble = true;
+            setLocalMessages((prev) => [
+              ...prev,
+              {
+                id: assistantMsgId,
+                conversationId: "1",
+                role: "assistant",
+                content: streamedSoFar,
+                timestamp: new Date().toISOString(),
+              },
+            ]);
+          } else {
+            setLocalMessages((prev) =>
+              prev.map((m) => (m.id === assistantMsgId ? { ...m, content: streamedSoFar } : m))
+            );
+          }
+          scrollViewRef.current?.scrollToEnd({ animated: false });
+        }
       );
     } catch (geminiErr: any) {
       console.warn("Direct Gemini call returned error, attempting backend/local fallback:", geminiErr);
@@ -232,7 +263,7 @@ export default function CoachScreen() {
       // Secondary: Try backend server if reachable
       try {
         let targetConvoId = activeConvoId || 1;
-        const augmentedPrompt = `${text}\n\n[CURRENT USER BIO-METRICS CONTEXT]:\n${currentContext.compiledTelemetrySnapshot}`;
+        const augmentedPrompt = `${cleanText}\n\n[CURRENT USER BIO-METRICS CONTEXT]:\n${currentContext.compiledTelemetrySnapshot}`;
 
         const res = await sendMessageMutation.mutateAsync({
           conversationId: String(targetConvoId),
@@ -243,7 +274,7 @@ export default function CoachScreen() {
           assistantResponseText = (res as any).content;
         } else {
           assistantResponseText = generateLocalCoachResponse(
-            text,
+            cleanText,
             currentContext,
             localMessages.map((m) => ({ role: m.role, content: m.content }))
           );
@@ -252,28 +283,35 @@ export default function CoachScreen() {
         // Tertiary offline fallback: Local Neural-Heuristic Context Model
         console.log("Using Local Context Memory Model for coach answer:", backendErr);
         assistantResponseText = generateLocalCoachResponse(
-          text,
+          cleanText,
           currentContext,
           localMessages.map((m) => ({ role: m.role, content: m.content }))
         );
       }
     } finally {
-      // 5. Persist Assistant Response to SQLite Master Database
-      const assistantMsgId = `a-${Date.now()}`;
-      const assistantMsg: CoachMessageRecord = {
+      setIsThinking(false);
+      // Persist final Assistant Response to SQLite Master Database
+      const finalMsg: CoachMessageRecord = {
         id: assistantMsgId,
         conversationId: "1",
         role: "assistant",
         content: assistantResponseText,
         timestamp: new Date().toISOString(),
       };
-      await saveCoachMessage(assistantMsg);
-      setLocalMessages((prev) => [...prev, assistantMsg]);
-      setIsThinking(false);
+      await saveCoachMessage(finalMsg);
+
+      setLocalMessages((prev) => {
+        const exists = prev.some((m) => m.id === assistantMsgId);
+        if (exists) {
+          return prev.map((m) => (m.id === assistantMsgId ? finalMsg : m));
+        } else {
+          return [...prev, finalMsg];
+        }
+      });
 
       setTimeout(() => {
         scrollViewRef.current?.scrollToEnd({ animated: true });
-      }, 150);
+      }, 100);
     }
   };
 
