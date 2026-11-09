@@ -371,13 +371,17 @@ class FitnessWatchSensorEngine {
   public syncNativeBackgroundSteps(nativeSteps: number, nativeCals?: number, nativeDist?: number) {
     this.checkDateRollover();
     this.hasNativePedometer = true;
-    if (nativeSteps > this.dailyAmbientSteps) {
+    if (nativeSteps >= 0 && (nativeSteps > this.dailyAmbientSteps || this.dailyAmbientSteps === 0)) {
       this.dailyAmbientSteps = nativeSteps;
-      if (typeof nativeCals === "number" && nativeCals > this.dailyAmbientActiveCalories) {
-        this.dailyAmbientActiveCalories = nativeCals;
+      if (typeof nativeCals === "number" && nativeCals > 0) {
+        this.dailyAmbientActiveCalories = Math.max(nativeCals, Math.round(nativeSteps * 0.043));
+      } else {
+        this.dailyAmbientActiveCalories = Math.round(nativeSteps * 0.043);
       }
-      if (typeof nativeDist === "number" && nativeDist > this.dailyAmbientDistanceKm) {
+      if (typeof nativeDist === "number" && nativeDist > 0) {
         this.dailyAmbientDistanceKm = nativeDist;
+      } else {
+        this.dailyAmbientDistanceKm = parseFloat((nativeSteps * 0.00075).toFixed(2));
       }
       this.persistDailySteps();
       this.notify();

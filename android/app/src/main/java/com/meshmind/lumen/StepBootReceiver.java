@@ -34,6 +34,8 @@ public class StepBootReceiver extends BroadcastReceiver {
                 } else {
                     context.startService(serviceIntent);
                 }
+                // Ensure the background midnight rollover alarm is always armed
+                StepCounterService.scheduleMidnightAlarm(context);
             }
         }
     }

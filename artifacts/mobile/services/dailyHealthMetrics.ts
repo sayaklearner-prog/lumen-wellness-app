@@ -22,6 +22,7 @@ import {
   HydrationEntryRecord,
 } from "./db";
 import { getAggregatedMealsForDate } from "./nutritionSync";
+import { nativeStepCounter } from "./nativeStepCounter";
 import { sendLocalNotification } from "./notifications";
 
 // ============================================================================
@@ -116,8 +117,21 @@ export async function computeAndSaveDailySnapshot(
     getKV(`lumen_daily_cals_${dateStr}`).catch(() => null),
   ]);
 
-  const ambientSteps = Number(ambientStepsStr || 0);
-  const ambientCals = Number(ambientCalsStr || 0);
+  let ambientSteps = Number(ambientStepsStr || 0);
+  let ambientCals = Number(ambientCalsStr || 0);
+
+  // If ambient steps were not cached in KV for this date, query native step counter history
+  if (ambientSteps === 0 && !overrides?.steps) {
+    try {
+      const nativeData = await nativeStepCounter.getStepsForDate(dateStr);
+      if (nativeData && nativeData.steps > 0) {
+        ambientSteps = nativeData.steps;
+        ambientCals = nativeData.caloriesBurned || Math.round(ambientSteps * 0.043);
+        setKV(`lumen_daily_steps_${dateStr}`, String(ambientSteps)).catch(() => {});
+        setKV(`lumen_daily_cals_${dateStr}`, String(ambientCals)).catch(() => {});
+      }
+    } catch {}
+  }
 
   // 1. Nutrition Metrics
   const caloriesConsumed =

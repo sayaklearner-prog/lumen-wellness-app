@@ -1,6 +1,7 @@
 package com.meshmind.lumen;
 
 import android.Manifest;
+import android.app.AlarmManager;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -25,6 +26,7 @@ import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
 
 import java.text.SimpleDateFormat;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.Locale;
 
@@ -57,6 +59,12 @@ public class StepCounterService extends Service implements SensorEventListener {
     }
 
     private static StepUpdateListener sListener = null;
+    private static StepCounterService sInstance = null;
+    private int mLastRawBootSteps = 0;
+
+    public static StepCounterService getInstance() {
+        return sInstance;
+    }
 
     public static void setStepUpdateListener(StepUpdateListener listener) {
         sListener = listener;
@@ -82,6 +90,7 @@ public class StepCounterService extends Service implements SensorEventListener {
     @Override
     public void onCreate() {
         super.onCreate();
+        sInstance = this;
         Log.i(TAG, "Creating StepCounterService (24/7 background pedometer)");
         acquireWakeLock();
         createNotificationChannel();
@@ -91,16 +100,22 @@ public class StepCounterService extends Service implements SensorEventListener {
         if (mSensorManager != null) {
             registerSensors();
         }
+
+        // Arm the exact 00:00:00 local midnight alarm
+        scheduleMidnightAlarm(this);
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        sInstance = this;
         setTrackingEnabled(this, true);
         acquireWakeLock();
         startForegroundWithNotification(getTodaySteps(this));
         if (mSensorManager != null) {
             registerSensors();
         }
+        // Ensure midnight alarm is armed
+        scheduleMidnightAlarm(this);
         return START_STICKY;
     }
 
@@ -276,6 +291,7 @@ public class StepCounterService extends Service implements SensorEventListener {
     }
 
     private void handleHardwareStepCounter(int rawBootSteps) {
+        mLastRawBootSteps = rawBootSteps;
         String today = getTodayDateString();
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
 
@@ -285,7 +301,11 @@ public class StepCounterService extends Service implements SensorEventListener {
         int currentTodaySteps = prefs.getInt(KEY_TODAY_STEPS, 0);
 
         if (!today.equals(savedDate)) {
-            // It is a NEW DAY: cleanly reset daily step counters to 0 and establish fresh baseline
+            // It is a NEW DAY: Archive yesterday's steps before resetting!
+            if (savedDate != null && !savedDate.isEmpty()) {
+                prefs.edit().putInt("pref_steps_" + savedDate, currentTodaySteps).apply();
+                Log.i(TAG, "Hardware sensor date rollover: archived " + currentTodaySteps + " steps for date " + savedDate);
+            }
             currentTodaySteps = 0;
             rebootOffset = 0;
             baseBootSteps = rawBootSteps;
@@ -296,6 +316,7 @@ public class StepCounterService extends Service implements SensorEventListener {
                 .putInt(KEY_REBOOT_OFFSET, 0)
                 .apply();
             notifySteps(0);
+            scheduleMidnightAlarm(this);
             return;
         } else if (baseBootSteps == -1) {
             // First run on today
@@ -335,6 +356,14 @@ public class StepCounterService extends Service implements SensorEventListener {
         int currentSteps = 0;
         if (today.equals(savedDate)) {
             currentSteps = prefs.getInt(KEY_TODAY_STEPS, 0);
+        } else {
+            // Date shift: archive yesterday's steps
+            if (savedDate != null && !savedDate.isEmpty()) {
+                int oldSteps = prefs.getInt(KEY_TODAY_STEPS, 0);
+                prefs.edit().putInt("pref_steps_" + savedDate, oldSteps).apply();
+                Log.i(TAG, "Detector date shift: archived " + oldSteps + " steps for date " + savedDate);
+            }
+            scheduleMidnightAlarm(this);
         }
 
         int newTotal = currentSteps + delta;
@@ -390,6 +419,7 @@ public class StepCounterService extends Service implements SensorEventListener {
 
     @Override
     public void onDestroy() {
+        sInstance = null;
         super.onDestroy();
         Log.i(TAG, "Destroying StepCounterService");
         releaseWakeLock();
@@ -421,6 +451,21 @@ public class StepCounterService extends Service implements SensorEventListener {
         return 0;
     }
 
+    // Static helper to retrieve steps for ANY calendar date (today or past archived)
+    public static int getStepsForDate(Context context, String dateStr) {
+        if (context == null || dateStr == null) return 0;
+        SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        String today = getTodayDateString();
+        if (dateStr.equals(today)) {
+            String savedDate = prefs.getString(KEY_PREF_DATE, "");
+            if (today.equals(savedDate)) {
+                return prefs.getInt(KEY_TODAY_STEPS, 0);
+            }
+            return 0;
+        }
+        return prefs.getInt("pref_steps_" + dateStr, 0);
+    }
+
     // Static helper to baseline or synchronize today's steps from external tracker
     public static void setInitialStepsToday(Context context, int initialSteps) {
         if (context == null || initialSteps <= 0) return;
@@ -436,6 +481,84 @@ public class StepCounterService extends Service implements SensorEventListener {
                 .putString(KEY_PREF_DATE, today)
                 .putInt(KEY_TODAY_STEPS, initialSteps)
                 .apply();
+        }
+    }
+
+    // Exact 00:00:00 midnight rollover routine executed automatically in background
+    public static void performNativeMidnightRollover(Context context) {
+        if (context == null) return;
+        SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        String today = getTodayDateString();
+        String savedDate = prefs.getString(KEY_PREF_DATE, "");
+        int oldSteps = prefs.getInt(KEY_TODAY_STEPS, 0);
+
+        // 1. Archive yesterday's completed steps to date key before resetting
+        if (savedDate != null && !savedDate.isEmpty() && !today.equals(savedDate)) {
+            prefs.edit().putInt("pref_steps_" + savedDate, oldSteps).apply();
+            Log.i(TAG, "⏰ Native Midnight Rollover: successfully archived " + oldSteps + " steps for date " + savedDate);
+        }
+
+        // 2. Establish fresh baseline for today (new day starts at 0 steps)
+        prefs.edit()
+            .putString(KEY_PREF_DATE, today)
+            .putInt(KEY_TODAY_STEPS, 0)
+            .putInt(KEY_REBOOT_OFFSET, 0)
+            .apply();
+
+        // 3. If service instance is active, re-baseline raw boot steps and update foreground notification
+        StepCounterService service = sInstance;
+        if (service != null) {
+            if (service.mLastRawBootSteps > 0) {
+                prefs.edit().putInt(KEY_BASE_BOOT_STEPS, service.mLastRawBootSteps).apply();
+            }
+            service.mLastNotifiedSteps = 0;
+            service.startForegroundWithNotification(0);
+        }
+
+        // 4. Notify live listener
+        if (sListener != null) {
+            try {
+                sListener.onStepUpdate(0, 0.0, 0.0, 0);
+            } catch (Exception ignored) {}
+        }
+    }
+
+    // Schedules an exact AlarmManager wakeup at 00:00:00 local midnight
+    public static void scheduleMidnightAlarm(Context context) {
+        if (context == null) return;
+        try {
+            AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+            if (am == null) return;
+
+            Intent intent = new Intent(context, MidnightRolloverReceiver.class);
+            intent.setAction(MidnightRolloverReceiver.ACTION_MIDNIGHT_ROLLOVER);
+
+            int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                flags |= PendingIntent.FLAG_IMMUTABLE;
+            }
+            PendingIntent pi = PendingIntent.getBroadcast(context, 10099, intent, flags);
+
+            // Compute exact next local midnight (00:00:00)
+            Calendar calendar = Calendar.getInstance();
+            calendar.set(Calendar.HOUR_OF_DAY, 0);
+            calendar.set(Calendar.MINUTE, 0);
+            calendar.set(Calendar.SECOND, 0);
+            calendar.set(Calendar.MILLISECOND, 0);
+            calendar.add(Calendar.DAY_OF_YEAR, 1);
+
+            long triggerAtMillis = calendar.getTimeInMillis();
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pi);
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                am.setExact(AlarmManager.RTC_WAKEUP, triggerAtMillis, pi);
+            } else {
+                am.set(AlarmManager.RTC_WAKEUP, triggerAtMillis, pi);
+            }
+            Log.i(TAG, "Scheduled exact midnight rollover alarm for: " + calendar.getTime());
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to schedule midnight alarm: " + e.getMessage());
         }
     }
 

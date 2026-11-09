@@ -64,6 +64,16 @@
             </intent-filter>
         </receiver>
 
+        <!-- 24/7 Midnight Rollover Receiver (resets data & archives previous day at 00:00:00 without opening app) -->
+        <receiver
+            android:name=".MidnightRolloverReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.meshmind.lumen.ACTION_MIDNIGHT_ROLLOVER" />
+            </intent-filter>
+        </receiver>
+
         <!-- Lumen Proactive Notification Alarm & Boot Receiver -->
         <receiver
             android:name=".NotificationAlarmReceiver"

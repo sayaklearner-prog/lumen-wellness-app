@@ -122,6 +122,7 @@ import { evaluateAchievements, GamificationProfile } from "@/services/achievemen
 import { getStoredGoogleUser } from "@/services/googleAuth";
 import { authService } from "@/services/authService";
 import { dailyRolloverService } from "@/services/dailyRolloverService";
+import { nativeStepCounter } from "@/services/nativeStepCounter";
 import { getNutritionTotalsForDate, subscribeNutritionChanges } from "@/services/nutritionSync";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -494,6 +495,7 @@ export default function DashboardScreen() {
   useFocusEffect(
     useCallback(() => {
       refreshNutritionState();
+      nativeStepCounter.refreshTodaySteps();
     }, [refreshNutritionState])
   );
 
@@ -601,6 +603,7 @@ export default function DashboardScreen() {
       refetchWorkouts(),
       refetchStreaks(),
       refreshNutritionState(),
+      nativeStepCounter.refreshTodaySteps(),
     ]);
     setRefreshing(false);
   };

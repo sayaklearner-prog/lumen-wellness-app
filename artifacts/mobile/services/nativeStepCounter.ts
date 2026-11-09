@@ -208,6 +208,21 @@ class NativeStepCounterService {
     return null;
   }
 
+  public async getStepsForDate(dateStr: string): Promise<NativeStepData | null> {
+    const plugin = getNativePlugin();
+    if (!plugin || typeof plugin.getStepsForDate !== "function") return null;
+
+    try {
+      const data = await plugin.getStepsForDate({ date: dateStr });
+      if (data && typeof data.steps === "number") {
+        return data;
+      }
+    } catch (e) {
+      console.warn(`Could not get steps for date ${dateStr} from native service:`, e);
+    }
+    return null;
+  }
+
   public async startBackgroundTracking(initialSteps?: number): Promise<boolean> {
     const plugin = getNativePlugin();
     if (!plugin || typeof plugin.startBackgroundTracking !== "function") return false;

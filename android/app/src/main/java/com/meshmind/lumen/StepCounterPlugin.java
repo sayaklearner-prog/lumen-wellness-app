@@ -63,8 +63,11 @@ public class StepCounterPlugin extends Plugin {
 
         // Auto-start service if enabled and permission granted
         Context context = getContext();
-        if (context != null && StepCounterService.isTrackingEnabled(context) && hasStepPermission()) {
-            startServiceInternal(context);
+        if (context != null) {
+            StepCounterService.scheduleMidnightAlarm(context);
+            if (StepCounterService.isTrackingEnabled(context) && hasStepPermission()) {
+                startServiceInternal(context);
+            }
         }
     }
 
@@ -220,6 +223,23 @@ public class StepCounterPlugin extends Plugin {
         ret.put("isTracking", isTracking);
         ret.put("hasHardwareSensor", hasHardwareStepSensor());
         ret.put("date", StepCounterService.getTodayDateString());
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void getStepsForDate(PluginCall call) {
+        String dateStr = call.getString("date");
+        if (dateStr == null || dateStr.isEmpty()) {
+            dateStr = StepCounterService.getTodayDateString();
+        }
+        Context context = getContext();
+        int steps = StepCounterService.getStepsForDate(context, dateStr);
+
+        JSObject ret = new JSObject();
+        ret.put("date", dateStr);
+        ret.put("steps", steps);
+        ret.put("distanceKm", Double.parseDouble(String.format(java.util.Locale.US, "%.2f", steps * 0.00075)));
+        ret.put("caloriesBurned", Math.round(steps * 0.043));
         call.resolve(ret);
     }
 

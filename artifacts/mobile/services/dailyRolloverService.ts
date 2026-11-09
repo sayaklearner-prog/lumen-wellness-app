@@ -14,7 +14,7 @@
 import { AppState, AppStateStatus, Platform } from "react-native";
 import * as Haptics from "expo-haptics";
 import { storage } from "./storage";
-import { formatDateKey } from "./db";
+import { formatDateKey, setKV } from "./db";
 import { computeAndSaveDailySnapshot } from "./dailyHealthMetrics";
 import { fitnessWatchSensor } from "./fitnessWatchSensor";
 import { nativeStepCounter } from "./nativeStepCounter";
@@ -142,18 +142,41 @@ class DailyRolloverService {
 
       // 1. Snapshot and archive yesterday's full telemetry for Analytics & Streaks
       try {
+        // Ensure yesterday's steps recorded in native background are written to KV store
+        const yesterdayNative = await nativeStepCounter.getStepsForDate(lastActiveDate);
+        if (yesterdayNative && yesterdayNative.steps > 0) {
+          await setKV(`lumen_daily_steps_${lastActiveDate}`, String(yesterdayNative.steps)).catch(() => {});
+          await setKV(`lumen_daily_cals_${lastActiveDate}`, String(yesterdayNative.caloriesBurned)).catch(() => {});
+          await setKV(`lumen_daily_dist_${lastActiveDate}`, String(yesterdayNative.distanceKm)).catch(() => {});
+        }
         await computeAndSaveDailySnapshot(lastActiveDate);
         console.log(`[DailyRollover] Archived health snapshot for ${lastActiveDate}`);
       } catch (snapshotErr) {
         console.warn(`[DailyRollover] Snapshot archive warning for ${lastActiveDate}:`, snapshotErr);
       }
 
-      // 2. Reset Step Counters (pedometer baseline & hardware service)
+      // 2. Handle Today's Steps (CRITICAL: Do NOT wipe out steps already walked after midnight!)
       try {
-        fitnessWatchSensor.resetDailyCounters(todayKey);
-        await nativeStepCounter.resetDailySteps();
+        const todayNative = await nativeStepCounter.refreshTodaySteps();
+        const todaySteps = todayNative?.steps || 0;
+
+        if (todaySteps > 0) {
+          // User already walked after midnight! Preserve and sync into live sensor engine
+          fitnessWatchSensor.syncNativeBackgroundSteps(
+            todaySteps,
+            todayNative?.caloriesBurned,
+            todayNative?.distanceKm
+          );
+          console.log(`[DailyRollover] Preserved ${todaySteps} steps walked after midnight for today (${todayKey})`);
+        } else {
+          // Zero steps for today: cleanly initialize today's baseline
+          fitnessWatchSensor.resetDailyCounters(todayKey);
+          if (force) {
+            await nativeStepCounter.resetDailySteps();
+          }
+        }
       } catch (stepErr) {
-        console.warn("[DailyRollover] Step reset warning:", stepErr);
+        console.warn("[DailyRollover] Step handling warning:", stepErr);
       }
 
       // 3. Reset Hydration state
