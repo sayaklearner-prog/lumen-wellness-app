@@ -17,6 +17,39 @@ export function formatDateKey(d: Date = new Date()): string {
   return `${year}-${month}-${day}`;
 }
 
+/**
+ * Calculates a safe ±1 day ISO window for a given YYYY-MM-DD date key.
+ * Used for high-speed indexed B-Tree range scans in SQLite, ensuring zero
+ * timezone discrepancies while avoiding full-table scans.
+ */
+export function getDateQueryWindow(dateStr: string): { windowStart: string; windowEnd: string } {
+  try {
+    const parts = dateStr.split("-").map(Number);
+    if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+      const targetDate = new Date(parts[0], parts[1] - 1, parts[2]);
+      const prevDate = new Date(targetDate.getTime() - 86400000);
+      const nextDate = new Date(targetDate.getTime() + 86400000);
+
+      const prevYear = prevDate.getFullYear();
+      const prevMonth = String(prevDate.getMonth() + 1).padStart(2, "0");
+      const prevDay = String(prevDate.getDate()).padStart(2, "0");
+
+      const nextYear = nextDate.getFullYear();
+      const nextMonth = String(nextDate.getMonth() + 1).padStart(2, "0");
+      const nextDay = String(nextDate.getDate()).padStart(2, "0");
+
+      return {
+        windowStart: `${prevYear}-${prevMonth}-${prevDay}`,
+        windowEnd: `${nextYear}-${nextMonth}-${nextDay}~`,
+      };
+    }
+  } catch {}
+  return {
+    windowStart: `${dateStr}`,
+    windowEnd: `${dateStr}~`,
+  };
+}
+
 export interface MealRecord {
   id: string;
   name: string;
@@ -200,6 +233,9 @@ export async function getDb() {
     // Execute schema creation with robust table definitions
     await nativeDbInstance.execAsync(`
       PRAGMA journal_mode = WAL;
+      PRAGMA synchronous = NORMAL;
+      PRAGMA cache_size = -8000;
+      PRAGMA temp_store = MEMORY;
 
       CREATE TABLE IF NOT EXISTS kv_store (
         key TEXT PRIMARY KEY,
@@ -368,6 +404,19 @@ export async function getDb() {
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP
       );
 
+      -- High-Performance Secondary B-Tree Indexes
+      CREATE INDEX IF NOT EXISTS idx_meals_logged_at ON meals(logged_at);
+      CREATE INDEX IF NOT EXISTS idx_workouts_logged_at ON workouts(logged_at);
+      CREATE INDEX IF NOT EXISTS idx_sleep_logged_at ON sleep_sessions(logged_at);
+      CREATE INDEX IF NOT EXISTS idx_hydration_logs_logged_at ON hydration_logs(logged_at);
+      CREATE INDEX IF NOT EXISTS idx_hydration_entries_logged_at ON hydration_entries(logged_at);
+      CREATE INDEX IF NOT EXISTS idx_screentime_logged_at ON screentime_logs(logged_at);
+      CREATE INDEX IF NOT EXISTS idx_focus_started_at ON focus_sessions(started_at);
+      CREATE INDEX IF NOT EXISTS idx_alarms_time ON alarms_reminders(time);
+      CREATE INDEX IF NOT EXISTS idx_coach_conv_time ON coach_messages(conversation_id, timestamp);
+      CREATE INDEX IF NOT EXISTS idx_coach_memories_created ON coach_memories(created_at);
+      CREATE INDEX IF NOT EXISTS idx_offline_queued ON offline_logs(queued_at);
+
       DELETE FROM workouts WHERE id = 'w-001' OR (duration_minutes <= 1 AND calories_burned <= 12);
     `);
 
@@ -503,9 +552,19 @@ export async function getMeals(dateStr?: string): Promise<MealRecord[]> {
   }
 
   try {
-    const rows: any[] = await db.getAllAsync(
-      `SELECT * FROM meals ORDER BY logged_at DESC`
-    );
+    let rows: any[];
+    if (dateStr) {
+      const { windowStart, windowEnd } = getDateQueryWindow(dateStr);
+      rows = await db.getAllAsync(
+        `SELECT * FROM meals WHERE logged_at >= ? AND logged_at <= ? ORDER BY logged_at DESC`,
+        windowStart,
+        windowEnd
+      );
+    } else {
+      rows = await db.getAllAsync(
+        `SELECT * FROM meals ORDER BY logged_at DESC`
+      );
+    }
     const parsed = rows.map((r) => ({
       id: r.id,
       name: r.name,
@@ -618,9 +677,19 @@ export async function getWorkouts(dateStr?: string): Promise<WorkoutRecord[]> {
   }
 
   try {
-    const rows: any[] = await db.getAllAsync(
-      `SELECT * FROM workouts ORDER BY logged_at DESC`
-    );
+    let rows: any[];
+    if (dateStr) {
+      const { windowStart, windowEnd } = getDateQueryWindow(dateStr);
+      rows = await db.getAllAsync(
+        `SELECT * FROM workouts WHERE logged_at >= ? AND logged_at <= ? ORDER BY logged_at DESC`,
+        windowStart,
+        windowEnd
+      );
+    } else {
+      rows = await db.getAllAsync(
+        `SELECT * FROM workouts ORDER BY logged_at DESC`
+      );
+    }
     const parsed = rows.map((r) => ({
       id: r.id,
       type: r.type,
@@ -732,14 +801,69 @@ export async function getSleepSessions(): Promise<SleepRecord[]> {
 export const getSleepRecords = getSleepSessions;
 
 export async function getLatestSleep(): Promise<SleepRecord | null> {
-  const sessions = await getSleepSessions();
-  return sessions.length > 0 ? sessions[0] : null;
+  const db = await getDb();
+  if (!db) {
+    const sessions = await getSleepSessions();
+    return sessions.length > 0 ? sessions[0] : null;
+  }
+
+  try {
+    const row: any = await db.getFirstAsync(
+      `SELECT * FROM sleep_sessions ORDER BY logged_at DESC LIMIT 1`
+    );
+    if (!row) return null;
+    return {
+      id: row.id,
+      durationHours: Number(row.duration_hours),
+      quality: row.quality,
+      deepSleepHours: row.deep_sleep_hours ? Number(row.deep_sleep_hours) : undefined,
+      remSleepHours: row.rem_sleep_hours ? Number(row.rem_sleep_hours) : undefined,
+      bedtime: row.bedtime,
+      wakeTime: row.wake_time,
+      notes: row.notes,
+      loggedAt: row.logged_at,
+    };
+  } catch (err) {
+    console.warn("getLatestSleep error:", err);
+    const sessions = await getSleepSessions();
+    return sessions.length > 0 ? sessions[0] : null;
+  }
 }
 
 export async function getSleepForDate(dateStr: string): Promise<SleepRecord | null> {
-  const sessions = await getSleepSessions();
-  const match = sessions.find((s) => isMealLoggedOnDate(s.loggedAt, dateStr));
-  return match || null;
+  const db = await getDb();
+  if (!db) {
+    const sessions = await getSleepSessions();
+    const match = sessions.find((s) => isMealLoggedOnDate(s.loggedAt, dateStr));
+    return match || null;
+  }
+
+  try {
+    const { windowStart, windowEnd } = getDateQueryWindow(dateStr);
+    const rows: any[] = await db.getAllAsync(
+      `SELECT * FROM sleep_sessions WHERE logged_at >= ? AND logged_at <= ? ORDER BY logged_at DESC`,
+      windowStart,
+      windowEnd
+    );
+    const parsed: SleepRecord[] = rows.map((r) => ({
+      id: r.id,
+      durationHours: Number(r.duration_hours),
+      quality: r.quality,
+      deepSleepHours: r.deep_sleep_hours ? Number(r.deep_sleep_hours) : undefined,
+      remSleepHours: r.rem_sleep_hours ? Number(r.rem_sleep_hours) : undefined,
+      bedtime: r.bedtime,
+      wakeTime: r.wake_time,
+      notes: r.notes,
+      loggedAt: r.logged_at,
+    }));
+    const match = parsed.find((s) => isMealLoggedOnDate(s.loggedAt, dateStr));
+    return match || null;
+  } catch (err) {
+    console.warn("getSleepForDate error:", err);
+    const sessions = await getSleepSessions();
+    const match = sessions.find((s) => isMealLoggedOnDate(s.loggedAt, dateStr));
+    return match || null;
+  }
 }
 
 export async function saveSleepSession(session: SleepRecord): Promise<void> {
@@ -871,10 +995,14 @@ export async function getHydrationEntriesForDate(dateStr: string): Promise<Hydra
   }
 
   try {
+    const { windowStart, windowEnd } = getDateQueryWindow(dateStr);
     const rows: any[] = await db.getAllAsync(
       `SELECT id, amount_ml as amountMl, beverage_type as beverageType, logged_at as loggedAt
        FROM hydration_entries
-       ORDER BY logged_at ASC`
+       WHERE logged_at >= ? AND logged_at <= ?
+       ORDER BY logged_at ASC`,
+      windowStart,
+      windowEnd
     );
     const parsed = rows || [];
     return parsed.filter((e) => isMealLoggedOnDate(e.loggedAt, dateStr));

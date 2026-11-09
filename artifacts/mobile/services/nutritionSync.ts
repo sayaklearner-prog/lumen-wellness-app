@@ -44,9 +44,9 @@ export async function getAggregatedMealsForDate(
 ): Promise<MealRecord[]> {
   const allCandidateMeals: MealRecord[] = [];
 
-  // 1. Fetch from master SQLite database
+  // 1. Fetch from master SQLite database using indexed date window
   try {
-    const dbMeals = await getMeals();
+    const dbMeals = await getMeals(targetDateKey);
     if (Array.isArray(dbMeals)) {
       allCandidateMeals.push(...dbMeals);
     }

@@ -79,6 +79,7 @@ export interface HealthContextModel {
  * by aggregating data from all SQLite master database tables.
  */
 export async function buildFullHealthContextModel(): Promise<HealthContextModel> {
+  const todayStr = new Date().toISOString().slice(0, 10);
   const [
     profileState,
     meals,
@@ -89,8 +90,8 @@ export async function buildFullHealthContextModel(): Promise<HealthContextModel>
     memories,
   ] = await Promise.all([
     getProfileState(),
-    getMeals(),
-    getWorkouts(),
+    getMeals(todayStr),
+    getWorkouts(todayStr),
     getLatestSleep(),
     getScreenTimeToday(),
     getHydrationToday(),
@@ -108,7 +109,6 @@ export async function buildFullHealthContextModel(): Promise<HealthContextModel>
   };
 
   // 2. Nutrition
-  const todayStr = new Date().toISOString().slice(0, 10);
   const todayMeals = meals.filter((m) => m.loggedAt.startsWith(todayStr));
   const totalCalories = todayMeals.reduce((acc, m) => acc + (m.calories || 0), 0);
   const totalProtein = todayMeals.reduce((acc, m) => acc + (m.proteinGrams || 0), 0);
