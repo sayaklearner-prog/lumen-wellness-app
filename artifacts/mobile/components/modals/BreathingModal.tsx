@@ -17,7 +17,7 @@ export const BreathingModal = memo(function BreathingModal({
   const [breathingSeconds, setBreathingSeconds] = useState(initialSeconds);
 
   useEffect(() => {
-    let interval: any;
+    let interval: ReturnType<typeof setInterval> | undefined;
     if (visible) {
       setBreathingSeconds(initialSeconds);
       interval = setInterval(() => {
