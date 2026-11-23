@@ -21,6 +21,15 @@ import { getStoredGoogleUser } from "@/services/googleAuth";
 import { authService } from "@/services/authService";
 import { sheetsTelemetryService } from "@/services/sheetsTelemetryService";
 import {
+  ClinicalProfile,
+  ClinicalConditionId,
+  DiabetesType,
+  PregnancyStage,
+  calculateClinicalTargets,
+  saveStoredClinicalProfile,
+} from "@/services/clinicalProfile";
+import { saveProfileState } from "@/services/db";
+import {
   ChevronLeft,
   ChevronRight,
   ChevronDown,
@@ -59,6 +68,20 @@ const HEALTH_MODES = [
     desc: "Postprandial glycemic load tracking, insulin sensitivity pacing, and low-GI nutritional guidance.",
   },
   {
+    id: "pregnancy",
+    title: "Prenatal & Pregnancy Protocol",
+    badge: "Maternal Care",
+    icon: "🤰",
+    desc: "Gentle mobility pacing, restorative sleep architecture, and prenatal nutrient density.",
+  },
+  {
+    id: "hypertension",
+    title: "Hypertension & Blood Pressure Care",
+    badge: "Cardiovascular Health",
+    icon: "🫀",
+    desc: "DASH nutritional protocol, strict sodium management (<1,800mg), and vascular endothelial pacing.",
+  },
+  {
     id: "heart_health",
     title: "Cardiovascular & Heart Health",
     badge: "Cardio Focus",
@@ -71,13 +94,6 @@ const HEALTH_MODES = [
     badge: "Recomposition",
     icon: "⚖️",
     desc: "Structured caloric deficit, leucine-rich protein synthesis, and metabolic rate elevation.",
-  },
-  {
-    id: "pregnancy",
-    title: "Prenatal & Pregnancy Protocol",
-    badge: "Maternal Care",
-    icon: "🤰",
-    desc: "Gentle mobility pacing, restorative sleep architecture, and prenatal nutrient density.",
   },
 ];
 
@@ -540,7 +556,28 @@ export default function PersonalInformationScreen() {
   const [showHeightModal, setShowHeightModal] = useState<boolean>(false);
 
   // Step 2: Health & Medical Protocol Focus ("Diseases part")
-  const [selectedMode, setSelectedMode] = useState<string>(profile?.mode || "standard");
+  const [selectedConditions, setSelectedConditions] = useState<ClinicalConditionId[]>(["standard"]);
+  const [diabetesType, setDiabetesType] = useState<DiabetesType>("type2");
+  const [diabetesOnMeds, setDiabetesOnMeds] = useState<boolean>(false);
+  const [pregnancyStage, setPregnancyStage] = useState<PregnancyStage>("trimester_1");
+  const [clinicalBadges, setClinicalBadges] = useState<string[]>([]);
+  const [clinicalNotes, setClinicalNotes] = useState<string[]>([]);
+
+  const toggleCondition = (id: ClinicalConditionId) => {
+    triggerHaptic();
+    setSelectedConditions((prev) => {
+      if (id === "standard") {
+        return ["standard"];
+      }
+      const withoutStandard = prev.filter((c) => c !== "standard");
+      if (withoutStandard.includes(id)) {
+        const next = withoutStandard.filter((c) => c !== id);
+        return next.length === 0 ? ["standard"] : next;
+      } else {
+        return [...withoutStandard, id];
+      }
+    });
+  };
 
   // Step 3: Movement & Nutrients Goals ("Step and nutrients Goals")
   const [stepsTarget, setStepsTarget] = useState<number>(profile?.dailyStepsTarget || 10000);
@@ -607,6 +644,44 @@ export default function PersonalInformationScreen() {
       }
       setCurrentStep(2);
     } else if (currentStep === 2) {
+      // Auto-adjust movement and nutrient goals based on clinical protocol
+      const weightInKg = weightUnit === "LBS" ? weightVal * 0.453592 : weightVal;
+      const heightInCm = heightUnit === "Ft" ? heightVal * 30.48 : heightVal;
+      const targets = calculateClinicalTargets(
+        {
+          conditions: selectedConditions,
+          diabetes: selectedConditions.includes("diabetes")
+            ? {
+                type: diabetesType,
+                onInsulinOrMeds: diabetesOnMeds,
+                targetFastingMgDl: 100,
+                targetPostMealMgDl: 140,
+              }
+            : undefined,
+          pregnancy: selectedConditions.includes("pregnancy")
+            ? {
+                stage: pregnancyStage,
+                gestationalWeek: 12,
+              }
+            : undefined,
+          hypertension: selectedConditions.includes("hypertension")
+            ? {
+                sodiumLimitMg: 1800,
+              }
+            : undefined,
+        },
+        {
+          weightKg: weightInKg,
+          heightCm: heightInCm,
+          gender,
+          age: 30,
+        }
+      );
+      setStepsTarget(targets.stepsTarget);
+      setCalorieTarget(targets.calorieTarget);
+      setProteinTarget(targets.proteinTarget);
+      setClinicalBadges(targets.clinicalBadges);
+      setClinicalNotes(targets.clinicalNotes);
       setCurrentStep(3);
     } else {
       handleCompleteSetup();
@@ -618,9 +693,11 @@ export default function PersonalInformationScreen() {
     triggerHaptic(Haptics.ImpactFeedbackStyle.Heavy);
     setIsSubmitting(true);
 
+    const primaryMode = selectedConditions.join(", ");
+
     const profilePayload = {
       name: name.trim() || "User",
-      mode: selectedMode,
+      mode: primaryMode,
       dailyCalorieTarget: calorieTarget,
       dailyProteinTarget: proteinTarget,
       dailyStepsTarget: stepsTarget,
@@ -629,10 +706,52 @@ export default function PersonalInformationScreen() {
       onboardingComplete: true,
     };
 
+    const clinicalProfilePayload: ClinicalProfile = {
+      conditions: selectedConditions,
+      diabetes: selectedConditions.includes("diabetes")
+        ? {
+            type: diabetesType,
+            onInsulinOrMeds: diabetesOnMeds,
+            targetFastingMgDl: 100,
+            targetPostMealMgDl: 140,
+          }
+        : undefined,
+      pregnancy: selectedConditions.includes("pregnancy")
+        ? {
+            stage: pregnancyStage,
+            gestationalWeek: 12,
+          }
+        : undefined,
+      hypertension: selectedConditions.includes("hypertension")
+        ? {
+            sodiumLimitMg: 1800,
+          }
+        : undefined,
+      updatedAt: new Date().toISOString(),
+    };
+
     // Guarantee local persistence
     await storage.setItem("lumen_auth_token", "authenticated");
     await storage.setItem("lumen_onboarding_completed", "true");
     await storage.removeItem("lumen_in_onboarding");
+    await saveStoredClinicalProfile(clinicalProfilePayload);
+
+    // Save to SQLite master database profile_state
+    await saveProfileState({
+      id: "primary",
+      name: name.trim() || "User",
+      mode: primaryMode,
+      dailyCalorieTarget: calorieTarget,
+      dailyProteinTarget: proteinTarget,
+      dailySleepTargetHours: sleepTargetHours,
+      dailyStepsTarget: stepsTarget,
+      updatedAt: new Date().toISOString(),
+      clinicalConditions: JSON.stringify(selectedConditions),
+      diabetesConfig: clinicalProfilePayload.diabetes ? JSON.stringify(clinicalProfilePayload.diabetes) : undefined,
+      pregnancyConfig: clinicalProfilePayload.pregnancy ? JSON.stringify(clinicalProfilePayload.pregnancy) : undefined,
+      hypertensionConfig: clinicalProfilePayload.hypertension ? JSON.stringify(clinicalProfilePayload.hypertension) : undefined,
+    });
+
     await storage.setItem(
       "lumen_personal_details",
       JSON.stringify({
@@ -642,7 +761,8 @@ export default function PersonalInformationScreen() {
         weightUnit,
         height: heightVal,
         heightUnit,
-        mode: selectedMode,
+        mode: primaryMode,
+        conditions: selectedConditions,
       })
     );
 
@@ -695,7 +815,7 @@ export default function PersonalInformationScreen() {
         name: name.trim() || "User",
         email: verifiedEmail || "N/A",
         event: "New Signup",
-        healthMode: selectedMode,
+        healthMode: primaryMode,
         calorieTarget: calorieTarget,
         sleepTarget: sleepTargetHours,
         stepsTarget: stepsTarget,
@@ -866,13 +986,13 @@ export default function PersonalInformationScreen() {
             <View style={styles.titleSection}>
               <Text style={styles.screenTitle}>Health & Medical Protocol</Text>
               <Text style={styles.screenSubtitle}>
-                Select your primary health condition or longevity focus for specialized AI guidance
+                Select your health conditions or longevity focus. You can select multiple protocols (e.g. Pregnancy + Diabetes).
               </Text>
             </View>
 
             <View style={{ gap: 12 }}>
               {HEALTH_MODES.map((hm) => {
-                const isSelected = selectedMode === hm.id;
+                const isSelected = selectedConditions.includes(hm.id as ClinicalConditionId);
                 return (
                   <Pressable
                     key={hm.id}
@@ -881,8 +1001,7 @@ export default function PersonalInformationScreen() {
                       isSelected && styles.healthModeCardSelected,
                     ]}
                     onPress={() => {
-                      triggerHaptic();
-                      setSelectedMode(hm.id);
+                      toggleCondition(hm.id as ClinicalConditionId);
                     }}
                   >
                     <View style={styles.healthModeTopRow}>
@@ -907,6 +1026,78 @@ export default function PersonalInformationScreen() {
                     </View>
 
                     <Text style={styles.healthModeDesc}>{hm.desc}</Text>
+
+                    {/* Sub-selector for Diabetes */}
+                    {isSelected && hm.id === "diabetes" && (
+                      <View style={styles.subOptionsContainer}>
+                        <Text style={styles.subOptionTitle}>DIABETES SUB-TYPE</Text>
+                        <View style={styles.chipRow}>
+                          {(
+                            [
+                              { id: "type2", label: "Type 2" },
+                              { id: "type1", label: "Type 1" },
+                              { id: "gestational", label: "Gestational" },
+                              { id: "prediabetes", label: "Prediabetes" },
+                            ] as const
+                          ).map((sub) => (
+                            <Pressable
+                              key={sub.id}
+                              style={[styles.chip, diabetesType === sub.id && styles.chipActive]}
+                              onPress={() => {
+                                triggerHaptic();
+                                setDiabetesType(sub.id);
+                              }}
+                            >
+                              <Text style={[styles.chipText, diabetesType === sub.id && styles.chipTextActive]}>
+                                {sub.label}
+                              </Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                        <Pressable
+                          style={styles.medsToggleRow}
+                          onPress={() => {
+                            triggerHaptic();
+                            setDiabetesOnMeds(!diabetesOnMeds);
+                          }}
+                        >
+                          <View style={[styles.checkboxBox, diabetesOnMeds && styles.checkboxBoxActive]}>
+                            {diabetesOnMeds && <Check size={12} color="#050b08" strokeWidth={3} />}
+                          </View>
+                          <Text style={styles.medsToggleText}>Taking Insulin or Blood Sugar Medication</Text>
+                        </Pressable>
+                      </View>
+                    )}
+
+                    {/* Sub-selector for Pregnancy */}
+                    {isSelected && hm.id === "pregnancy" && (
+                      <View style={styles.subOptionsContainer}>
+                        <Text style={styles.subOptionTitle}>PREGNANCY STAGE / TRIMESTER</Text>
+                        <View style={styles.chipRow}>
+                          {(
+                            [
+                              { id: "trimester_1", label: "1st Tri (W1–12)" },
+                              { id: "trimester_2", label: "2nd Tri (W13–27)" },
+                              { id: "trimester_3", label: "3rd Tri (W28–40)" },
+                              { id: "postpartum", label: "Postpartum / Nursing" },
+                            ] as const
+                          ).map((sub) => (
+                            <Pressable
+                              key={sub.id}
+                              style={[styles.chip, pregnancyStage === sub.id && styles.chipActive]}
+                              onPress={() => {
+                                triggerHaptic();
+                                setPregnancyStage(sub.id);
+                              }}
+                            >
+                              <Text style={[styles.chipText, pregnancyStage === sub.id && styles.chipTextActive]}>
+                                {sub.label}
+                              </Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                      </View>
+                    )}
                   </Pressable>
                 );
               })}
@@ -925,6 +1116,27 @@ export default function PersonalInformationScreen() {
                 Calibrated to your biological profile. Adjust your daily targets below.
               </Text>
             </View>
+
+            {/* Clinical Auto-Calibration Indicator Banner */}
+            {clinicalBadges.length > 0 && (
+              <View style={styles.clinicalAlertBanner}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                  <Sparkles size={16} color="#d4f933" />
+                  <Text style={styles.clinicalAlertTitle}>Clinically Calibrated Goals</Text>
+                </View>
+                <Text style={styles.clinicalAlertSub}>
+                  Calibrated for: {clinicalBadges.join(" • ")}
+                </Text>
+                {clinicalNotes.map((note, idx) => (
+                  <Text key={idx} style={styles.clinicalAlertNote}>
+                    • {note}
+                  </Text>
+                ))}
+                <Text style={styles.clinicalAlertFootnote}>
+                  Targets automatically customized for your safety. You can fine-tune any target below.
+                </Text>
+              </View>
+            )}
 
             <View style={{ gap: 14 }}>
               {/* 1. Daily Steps */}
@@ -1626,5 +1838,105 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "900",
     letterSpacing: -0.2,
+  },
+
+  // Sub-options & Clinical Customization Styles
+  subOptionsContainer: {
+    marginTop: 8,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255, 255, 255, 0.08)",
+    gap: 8,
+  },
+  subOptionTitle: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#7e978b",
+    letterSpacing: 0.8,
+  },
+  chipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  chip: {
+    backgroundColor: "rgba(255, 255, 255, 0.06)",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+  },
+  chipActive: {
+    backgroundColor: "rgba(212, 249, 51, 0.15)",
+    borderColor: "#d4f933",
+  },
+  chipText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#9cb6ab",
+  },
+  chipTextActive: {
+    color: "#d4f933",
+    fontWeight: "900",
+  },
+  medsToggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 4,
+  },
+  checkboxBox: {
+    width: 18,
+    height: 18,
+    borderRadius: 5,
+    borderWidth: 1.5,
+    borderColor: "rgba(255, 255, 255, 0.3)",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "transparent",
+  },
+  checkboxBoxActive: {
+    backgroundColor: "#d4f933",
+    borderColor: "#d4f933",
+  },
+  medsToggleText: {
+    fontSize: 12,
+    color: "#c2d4cb",
+    fontWeight: "600",
+  },
+
+  // Clinical Alert Banner (Step 3)
+  clinicalAlertBanner: {
+    backgroundColor: "rgba(4, 120, 87, 0.12)",
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: "rgba(16, 185, 129, 0.35)",
+    padding: 14,
+    marginBottom: 16,
+    gap: 4,
+  },
+  clinicalAlertTitle: {
+    fontSize: 14,
+    fontWeight: "900",
+    color: "#d4f933",
+    letterSpacing: -0.2,
+  },
+  clinicalAlertSub: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#34d399",
+    marginBottom: 4,
+  },
+  clinicalAlertNote: {
+    fontSize: 11,
+    lineHeight: 16,
+    color: "#a7f3d0",
+  },
+  clinicalAlertFootnote: {
+    fontSize: 10,
+    color: "#6ee7b7",
+    marginTop: 4,
+    fontStyle: "italic",
   },
 });

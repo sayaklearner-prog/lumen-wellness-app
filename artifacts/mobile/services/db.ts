@@ -162,6 +162,10 @@ export interface ProfileRecord {
   dailySleepTargetHours: number;
   dailyStepsTarget: number;
   updatedAt: string;
+  clinicalConditions?: string;
+  diabetesConfig?: string;
+  pregnancyConfig?: string;
+  hypertensionConfig?: string;
 }
 
 export interface DailyHealthRecord {
@@ -352,7 +356,11 @@ export async function getDb() {
         protein_target INTEGER,
         sleep_target REAL,
         steps_target INTEGER,
-        updated_at TEXT
+        updated_at TEXT,
+        clinical_conditions TEXT,
+        diabetes_config TEXT,
+        pregnancy_config TEXT,
+        hypertension_config TEXT
       );
 
       CREATE TABLE IF NOT EXISTS coach_messages (
@@ -422,6 +430,19 @@ export async function getDb() {
 
     try {
       await nativeDbInstance.execAsync(`ALTER TABLE daily_health_metrics ADD COLUMN fat_burned_grams REAL DEFAULT 0;`);
+    } catch {}
+
+    try {
+      await nativeDbInstance.execAsync(`ALTER TABLE profile_state ADD COLUMN clinical_conditions TEXT;`);
+    } catch {}
+    try {
+      await nativeDbInstance.execAsync(`ALTER TABLE profile_state ADD COLUMN diabetes_config TEXT;`);
+    } catch {}
+    try {
+      await nativeDbInstance.execAsync(`ALTER TABLE profile_state ADD COLUMN pregnancy_config TEXT;`);
+    } catch {}
+    try {
+      await nativeDbInstance.execAsync(`ALTER TABLE profile_state ADD COLUMN hypertension_config TEXT;`);
     } catch {}
 
     isDbInitialized = true;
@@ -1582,6 +1603,10 @@ export async function getProfileState(): Promise<ProfileRecord | null> {
       dailySleepTargetHours: Number(row.sleep_target),
       dailyStepsTarget: Number(row.steps_target),
       updatedAt: row.updated_at,
+      clinicalConditions: row.clinical_conditions || undefined,
+      diabetesConfig: row.diabetes_config || undefined,
+      pregnancyConfig: row.pregnancy_config || undefined,
+      hypertensionConfig: row.hypertension_config || undefined,
     };
   } catch {
     const store = getWebStore();
@@ -1599,8 +1624,11 @@ export async function saveProfileState(p: ProfileRecord): Promise<void> {
 
   try {
     await db.runAsync(
-      `INSERT INTO profile_state (id, name, mode, calorie_target, protein_target, sleep_target, steps_target, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO profile_state (
+         id, name, mode, calorie_target, protein_target, sleep_target, steps_target, updated_at,
+         clinical_conditions, diabetes_config, pregnancy_config, hypertension_config
+       )
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET
          name = excluded.name,
          mode = excluded.mode,
@@ -1608,7 +1636,11 @@ export async function saveProfileState(p: ProfileRecord): Promise<void> {
          protein_target = excluded.protein_target,
          sleep_target = excluded.sleep_target,
          steps_target = excluded.steps_target,
-         updated_at = excluded.updated_at`,
+         updated_at = excluded.updated_at,
+         clinical_conditions = excluded.clinical_conditions,
+         diabetes_config = excluded.diabetes_config,
+         pregnancy_config = excluded.pregnancy_config,
+         hypertension_config = excluded.hypertension_config`,
       "primary",
       p.name,
       p.mode,
@@ -1616,7 +1648,11 @@ export async function saveProfileState(p: ProfileRecord): Promise<void> {
       p.dailyProteinTarget,
       p.dailySleepTargetHours,
       p.dailyStepsTarget,
-      p.updatedAt
+      p.updatedAt,
+      p.clinicalConditions || null,
+      p.diabetesConfig || null,
+      p.pregnancyConfig || null,
+      p.hypertensionConfig || null
     );
   } catch (err) {
     console.warn("saveProfileState error:", err);
