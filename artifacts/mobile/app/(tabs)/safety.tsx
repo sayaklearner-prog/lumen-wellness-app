@@ -37,6 +37,7 @@ import { useGetProfile, useUpdateProfile, getGetProfileQueryKey } from "@workspa
 import { useQueryClient } from "@tanstack/react-query";
 import { storage } from "@/services/storage";
 import { getKV, setKV } from "@/services/db";
+import { getStoredClinicalProfile } from "@/services/clinicalProfile";
 import { useSlideMenu } from "@/context/SlideMenuContext";
 import THEME from "@/constants/theme";
 
@@ -204,6 +205,27 @@ export default function SafetyScreen() {
             loadedMed.medications = p.medications;
           }
         }
+
+        // Sync with clinical health profile if conditions exist
+        try {
+          const storedClinical = await getStoredClinicalProfile();
+          if (storedClinical && Array.isArray(storedClinical.conditions)) {
+            const mapped = storedClinical.conditions
+              .filter((c) => c !== "standard")
+              .map((c) => {
+                if (c === "diabetes") return "Diabetes";
+                if (c === "pregnancy") return "Pregnancy";
+                if (c === "hypertension") return "Hypertension";
+                if (c === "heart_health") return "Cardiovascular";
+                return c;
+              });
+            for (const m of mapped) {
+              if (!loadedMed.conditions.includes(m)) {
+                loadedMed.conditions.push(m);
+              }
+            }
+          }
+        } catch {}
 
         setMedicalData(loadedMed);
         // Scrub legacy mock profile from storage if present

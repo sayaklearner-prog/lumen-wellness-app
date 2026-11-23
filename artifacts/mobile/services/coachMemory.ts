@@ -14,6 +14,7 @@ import {
   ScreenTimeRecord,
   ProfileRecord,
 } from "./db";
+import { ClinicalProfile, getStoredClinicalProfile } from "./clinicalProfile";
 
 export interface HealthContextModel {
   profile: {
@@ -23,6 +24,7 @@ export interface HealthContextModel {
     proteinTarget: number;
     sleepTarget: number;
     stepsTarget: number;
+    clinical?: ClinicalProfile;
   };
   nutrition: {
     totalCalories: number;
@@ -88,6 +90,7 @@ export async function buildFullHealthContextModel(): Promise<HealthContextModel>
     screenTime,
     hydrationCups,
     memories,
+    clinicalProfile,
   ] = await Promise.all([
     getProfileState(),
     getMeals(todayStr),
@@ -96,6 +99,7 @@ export async function buildFullHealthContextModel(): Promise<HealthContextModel>
     getScreenTimeToday(),
     getHydrationToday(),
     getCoachMemories(),
+    getStoredClinicalProfile(),
   ]);
 
   // 1. Profile
@@ -106,6 +110,7 @@ export async function buildFullHealthContextModel(): Promise<HealthContextModel>
     proteinTarget: profileState?.dailyProteinTarget || 110,
     sleepTarget: profileState?.dailySleepTargetHours || 8.0,
     stepsTarget: profileState?.dailyStepsTarget || 9000,
+    clinical: clinicalProfile,
   };
 
   // 2. Nutrition
