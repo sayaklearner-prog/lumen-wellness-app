@@ -9,8 +9,9 @@ import {
   Platform,
   RefreshControl,
   Dimensions,
+  BackHandler,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import {
   Trophy,
   Award,
@@ -152,6 +153,31 @@ export default function AchievementsScreen() {
   const [selectedBadge, setSelectedBadge] = useState<Achievement | null>(null);
   const [celebrationBadge, setCelebrationBadge] = useState<Achievement | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Android hardware/gesture back press handler: return to previous screen or Home tab
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS === "web") return;
+      const onBackPress = () => {
+        if (celebrationBadge) {
+          setCelebrationBadge(null);
+          return true;
+        }
+        if (selectedBadge) {
+          setSelectedBadge(null);
+          return true;
+        }
+        if (router.canGoBack()) {
+          router.back();
+        } else {
+          router.replace("/(tabs)");
+        }
+        return true;
+      };
+      const sub = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+      return () => sub.remove();
+    }, [router, celebrationBadge, selectedBadge])
+  );
 
   // Load and evaluate achievements
   const loadData = useCallback(async () => {
@@ -445,7 +471,7 @@ export default function AchievementsScreen() {
       {/* ========================================================= */}
       {/* 5. MODAL: ACHIEVEMENT DETAIL & SCIENTIFIC LORE            */}
       {/* ========================================================= */}
-      <Modal visible={!!selectedBadge} transparent animationType="fade">
+      <Modal visible={!!selectedBadge} transparent animationType="fade" onRequestClose={() => setSelectedBadge(null)}>
         <View style={styles.modalOverlay}>
           {selectedBadge && (
             <View style={styles.modalContent}>
@@ -564,7 +590,7 @@ export default function AchievementsScreen() {
       {/* ========================================================= */}
       {/* 6. MODAL: INSTANT UNLOCK CELEBRATION MODAL                */}
       {/* ========================================================= */}
-      <Modal visible={!!celebrationBadge} transparent animationType="slide">
+      <Modal visible={!!celebrationBadge} transparent animationType="slide" onRequestClose={() => setCelebrationBadge(null)}>
         <View style={styles.celebrationOverlay}>
           {celebrationBadge && (
             <View style={styles.celebrationCard}>

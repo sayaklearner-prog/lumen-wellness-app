@@ -7,7 +7,9 @@ import {
   Pressable,
   Platform,
   ActivityIndicator,
+  BackHandler,
 } from "react-native";
+import { useRouter, useFocusEffect } from "expo-router";
 import {
   Sparkles,
   Flame,
@@ -48,8 +50,26 @@ import { synthesizeThreePillarBiometricsWithGemini } from "@/services/geminiAi";
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 export default function AnalyticsScreen() {
+  const router = useRouter();
   const today = new Date();
   const todayKey = formatDateKey(today);
+
+  // Android hardware/gesture back press handler: return to previous screen or Home tab
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS === "web") return;
+      const onBackPress = () => {
+        if (router.canGoBack()) {
+          router.back();
+        } else {
+          router.replace("/(tabs)");
+        }
+        return true;
+      };
+      const sub = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+      return () => sub.remove();
+    }, [router])
+  );
 
   // Month navigation state
   const [selectedYear, setSelectedYear] = useState<number>(today.getFullYear());

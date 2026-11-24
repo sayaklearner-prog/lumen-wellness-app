@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { 
   View, 
   Text, 
@@ -12,9 +12,10 @@ import {
   ActivityIndicator, 
   Alert,
   Modal,
-  Linking
+  Linking,
+  BackHandler,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { 
   useGetProfile, 
   useUpdateProfile, 
@@ -317,6 +318,31 @@ export default function SettingsScreen() {
   const [showExportModal, setShowExportModal] = useState(false);
   const [showDisclaimerModal, setShowDisclaimerModal] = useState(false);
   const [exportDataString, setExportDataString] = useState("");
+
+  // Android hardware/gesture back press handler: return to previous screen or Home tab
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS === "web") return;
+      const onBackPress = () => {
+        if (showExportModal) {
+          setShowExportModal(false);
+          return true;
+        }
+        if (showDisclaimerModal) {
+          setShowDisclaimerModal(false);
+          return true;
+        }
+        if (router.canGoBack()) {
+          router.back();
+        } else {
+          router.replace("/(tabs)");
+        }
+        return true;
+      };
+      const sub = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+      return () => sub.remove();
+    }, [router, showExportModal, showDisclaimerModal])
+  );
 
   // Load Initial Settings, Storage & Native Bridges
   useEffect(() => {
@@ -2448,7 +2474,7 @@ export default function SettingsScreen() {
       {/* ========================================================================= */}
       {/* MODAL 1: EXPORT HEALTH DATA VIEWER */}
       {/* ========================================================================= */}
-      <Modal visible={showExportModal} transparent animationType="slide">
+      <Modal visible={showExportModal} transparent animationType="slide" onRequestClose={() => setShowExportModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
@@ -2486,7 +2512,7 @@ export default function SettingsScreen() {
       {/* ========================================================================= */}
       {/* MODAL 2: CLINICAL & WELLNESS DISCLAIMER */}
       {/* ========================================================================= */}
-      <Modal visible={showDisclaimerModal} transparent animationType="fade">
+      <Modal visible={showDisclaimerModal} transparent animationType="fade" onRequestClose={() => setShowDisclaimerModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>

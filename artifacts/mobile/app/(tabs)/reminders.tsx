@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -10,8 +10,9 @@ import {
   TextInput,
   Alert,
   Modal,
+  BackHandler,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { storage } from "@/services/storage";
 import { playAlarmSound, stopAlarm, subscribeToAlarms } from "@/services/alarm";
 import {
@@ -267,6 +268,31 @@ export default function RemindersScreen() {
     setRingingAlarm(null);
     setIsTestRinging(false);
   };
+
+  // Android hardware/gesture back press handler: return to previous screen or Home tab
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS === "web") return;
+      const onBackPress = () => {
+        if (ringingAlarm) {
+          handleDismissAlarm();
+          return true;
+        }
+        if (showAddModal) {
+          setShowAddModal(false);
+          return true;
+        }
+        if (router.canGoBack()) {
+          router.back();
+        } else {
+          router.replace("/(tabs)");
+        }
+        return true;
+      };
+      const sub = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+      return () => sub.remove();
+    }, [router, ringingAlarm, showAddModal])
+  );
 
   // Snooze for 5 minutes
   const handleSnoozeAlarm = () => {
@@ -575,7 +601,7 @@ export default function RemindersScreen() {
       </ScrollView>
 
       {/* Ringing Alarm Modal (Full-Screen Glowing HUD) */}
-      <Modal visible={!!ringingAlarm} transparent animationType="fade">
+      <Modal visible={!!ringingAlarm} transparent animationType="fade" onRequestClose={handleDismissAlarm}>
         <View style={styles.alarmModalOverlay}>
           <View style={styles.ringingAlarmCard}>
             <View style={styles.ringingIconCircle}>
@@ -601,7 +627,7 @@ export default function RemindersScreen() {
       </Modal>
 
       {/* Add Alarm Modal */}
-      <Modal visible={showAddModal} transparent animationType="slide">
+      <Modal visible={showAddModal} transparent animationType="slide" onRequestClose={() => setShowAddModal(false)}>
         <View style={styles.addModalOverlay}>
           <View style={styles.addModalCard}>
             <View style={styles.addModalHeader}>

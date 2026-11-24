@@ -1611,7 +1611,7 @@ export default function ActivityScreen() {
       {/* POST-WORKOUT CELEBRATION & SUMMARY SHEET                                  */}
       {/* ========================================================================= */}
       {completedWorkoutSummary && (
-        <Modal transparent animationType="fade" visible={true}>
+        <Modal transparent animationType="fade" visible={true} onRequestClose={() => setCompletedWorkoutSummary(null)}>
           <View style={styles.modalBackdrop}>
             <View style={styles.summaryModalCard}>
               <View style={styles.celebrateHeader}>

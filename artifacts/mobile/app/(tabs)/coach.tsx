@@ -661,7 +661,7 @@ export default function CoachScreen() {
       {/* ========================================================= */}
       {/* MODAL: GEMINI API KEY & MODEL SETTINGS                   */}
       {/* ========================================================= */}
-      <Modal visible={showGeminiModal} transparent animationType="slide">
+      <Modal visible={showGeminiModal} transparent animationType="slide" onRequestClose={() => setShowGeminiModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.geminiModalContent}>
             <View style={styles.geminiModalHeader}>

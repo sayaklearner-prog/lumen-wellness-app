@@ -12,6 +12,7 @@ import {
   Alert,
   Modal,
   TouchableOpacity,
+  BackHandler,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as Haptics from "expo-haptics";
@@ -167,6 +168,31 @@ export default function NutritionScreen() {
   const { data: meals } = useListMeals();
   const createMealMutation = useCreateMeal();
   const deleteMealMutation = useDeleteMeal();
+
+  // Intercept Android back button when food camera scanner or AI text estimator overlay is open
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    if (!showScanModal && !showAiTextModal && !showTargetModal) return;
+
+    const onBackPress = () => {
+      if (showTargetModal) {
+        setShowTargetModal(false);
+        return true;
+      }
+      if (showScanModal) {
+        setShowScanModal(false);
+        return true;
+      }
+      if (showAiTextModal) {
+        setShowAiTextModal(false);
+        return true;
+      }
+      return false;
+    };
+
+    const sub = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+    return () => sub.remove();
+  }, [showScanModal, showAiTextModal, showTargetModal]);
 
   // Load custom targets from storage / profile
   useEffect(() => {
@@ -1689,7 +1715,7 @@ export default function NutritionScreen() {
       {/* ========================================================================= */}
       {/* TARGET EDITING MODAL */}
       {/* ========================================================================= */}
-      <Modal visible={showTargetModal} transparent animationType="fade">
+      <Modal visible={showTargetModal} transparent animationType="fade" onRequestClose={() => setShowTargetModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>

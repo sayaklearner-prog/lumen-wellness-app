@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -10,7 +10,9 @@ import {
   Modal,
   Alert,
   Linking,
+  BackHandler,
 } from "react-native";
+import { useRouter, useFocusEffect } from "expo-router";
 import {
   ShieldAlert,
   PhoneCall,
@@ -98,6 +100,7 @@ const EMPTY_MEDICAL_PROFILE: MedicalProfileData = {
 };
 
 export default function SafetyScreen() {
+  const router = useRouter();
   const qc = useQueryClient();
   const { openLeftMenu } = useSlideMenu();
   const { data: profile } = useGetProfile();
@@ -128,6 +131,31 @@ export default function SafetyScreen() {
   const [showEmergencyCard, setShowEmergencyCard] = useState(false);
   const [isSavedBanner, setIsSavedBanner] = useState(false);
   const [dialFeedback, setDialFeedback] = useState<string | null>(null);
+
+  // Android hardware/gesture back press handler: return to previous screen or Home tab
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS === "web") return;
+      const onBackPress = () => {
+        if (showContactModal) {
+          setShowContactModal(false);
+          return true;
+        }
+        if (showEmergencyCard) {
+          setShowEmergencyCard(false);
+          return true;
+        }
+        if (router.canGoBack()) {
+          router.back();
+        } else {
+          router.replace("/(tabs)");
+        }
+        return true;
+      };
+      const sub = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+      return () => sub.remove();
+    }, [router, showContactModal, showEmergencyCard])
+  );
 
   // Load Saved Contacts & Medical Profile from Local Persistent Engine & DB
   useEffect(() => {
@@ -934,7 +962,7 @@ export default function SafetyScreen() {
       {/* ========================================================================= */}
       {/* MODAL 1: ADD / EDIT EMERGENCY CONTACT */}
       {/* ========================================================================= */}
-      <Modal visible={showContactModal} transparent animationType="slide">
+      <Modal visible={showContactModal} transparent animationType="slide" onRequestClose={() => setShowContactModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
@@ -1040,7 +1068,7 @@ export default function SafetyScreen() {
       {/* ========================================================================= */}
       {/* MODAL 2: FULL FIRST RESPONDER DIGITAL MEDICAL CARD */}
       {/* ========================================================================= */}
-      <Modal visible={showEmergencyCard} transparent animationType="fade">
+      <Modal visible={showEmergencyCard} transparent animationType="fade" onRequestClose={() => setShowEmergencyCard(false)}>
         <View style={styles.emergencyCardOverlay}>
           <View style={styles.emergencyCardContent}>
             {/* Red Badge Bar */}

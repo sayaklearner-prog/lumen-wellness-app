@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState } from "react";
+import React, { createContext, useContext, useState, useEffect } from "react";
+import { BackHandler, Platform } from "react-native";
 
 interface SlideMenuContextType {
   // Left menu (Primary navigation drawer shifted to top-left)
@@ -57,6 +58,17 @@ export function SlideMenuProvider({ children }: { children: React.ReactNode }) {
     setIsLeftOpen(false);
     setIsRightOpen(false);
   };
+
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    if (!isLeftOpen && !isRightOpen) return;
+    const onBackPress = () => {
+      closeMenu();
+      return true;
+    };
+    const subscription = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+    return () => subscription.remove();
+  }, [isLeftOpen, isRightOpen]);
 
   return (
     <SlideMenuContext.Provider
