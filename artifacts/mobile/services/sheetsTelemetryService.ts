@@ -40,7 +40,7 @@ export interface UserTelemetryPayload {
 }
 
 const DEFAULT_WEBHOOK_URL =
-  "https://script.google.com/macros/s/AKfycbztZswgy51yZvpA21CxtYiGVizELYmfX0U2eIufOgMqKE1vzCCEL14oRIdirscXYVJlxw/exec";
+  "https://script.google.com/macros/s/AKfycbyZUiHqTxcr6r8_W_NwW89LWtJmSQgfOUk5zSQ94hekYsFL-PUPlUv7Ts0XE5icjS1tFg/exec";
 
 const QUEUE_STORAGE_KEY = "lumen_pending_sheets_telemetry";
 
