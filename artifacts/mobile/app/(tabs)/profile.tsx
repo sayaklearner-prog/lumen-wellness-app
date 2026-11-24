@@ -95,6 +95,28 @@ import {
   testGeminiApiKey,
   isValidGeminiApiKey,
 } from "@/services/geminiAi";
+import {
+  ClinicalProfile,
+  ClinicalConditionId,
+  DiabetesType,
+  PregnancyStage,
+  calculateClinicalTargets,
+  getStoredClinicalProfile,
+  saveStoredClinicalProfile,
+} from "@/services/clinicalProfile";
+import { saveProfileState, getProfileState } from "@/services/db";
+
+const triggerHaptic = (style?: string) => {
+  if (Platform.OS === "web") return;
+  try {
+    const Haptics = require("expo-haptics");
+    if (style === "success") {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } else {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+  } catch {}
+};
 
 // Clinical & Lifestyle Bio-Protocol Presets
 const HEALTH_MODES = [
@@ -106,24 +128,24 @@ const HEALTH_MODES = [
     accent: "#10b981"
   },
   { 
-    id: "athletic", 
-    title: "High-Performance / Hypertrophy", 
-    icon: "⚡", 
-    desc: "Maximized muscular exertion, high protein & athletic output",
-    accent: "#f59e0b"
-  },
-  { 
     id: "diabetes", 
-    title: "Glycemic / Insulin Aware", 
+    title: "Diabetes & Glycemic Care", 
     icon: "🩸", 
-    desc: "Strict carbohydrate limits & glycemic stability monitoring",
+    desc: "Carbohydrate control, postprandial walks & glucose stabilization",
     accent: "#06b6d4"
   },
   { 
-    id: "heart_health", 
-    title: "Cardiovascular & Heart", 
+    id: "pregnancy", 
+    title: "Prenatal & Maternal Care", 
+    icon: "🤰", 
+    desc: "Trimester nutrient surplus, gentle mobility & hydration pacing",
+    accent: "#ec4899"
+  },
+  { 
+    id: "hypertension", 
+    title: "Hypertension & Blood Pressure Care", 
     icon: "🫀", 
-    desc: "Zone 2 aerobic endurance, sodium awareness & stress reduction",
+    desc: "DASH nutritional protocol, strict sodium management (<1,800mg)",
     accent: "#ef4444"
   },
   { 
@@ -134,11 +156,11 @@ const HEALTH_MODES = [
     accent: "#8b5cf6"
   },
   { 
-    id: "pregnancy", 
-    title: "Prenatal & Gentle Care", 
-    icon: "🌱", 
-    desc: "Nourishing micro-nutrients & low-strain restorative wellness",
-    accent: "#ec4899"
+    id: "athletic", 
+    title: "High-Performance / Hypertrophy", 
+    icon: "⚡", 
+    desc: "Maximized muscular exertion, high protein & athletic output",
+    accent: "#f59e0b"
   },
 ];
 
@@ -169,11 +191,83 @@ export default function SettingsScreen() {
   // User Profile State
   const [name, setName] = useState("");
   const [mode, setMode] = useState("standard");
+  const [selectedConditions, setSelectedConditions] = useState<ClinicalConditionId[]>(["standard"]);
+  const [diabetesType, setDiabetesType] = useState<DiabetesType>("type2");
+  const [diabetesOnMeds, setDiabetesOnMeds] = useState(false);
+  const [pregnancyStage, setPregnancyStage] = useState<PregnancyStage>("trimester_1");
+  const [clinicalBadges, setClinicalBadges] = useState<string[]>([]);
+  const [clinicalNotes, setClinicalNotes] = useState<string[]>([]);
   const [googleUser, setGoogleUser] = useState<GoogleUser | null>(null);
   const [verifiedEmail, setVerifiedEmail] = useState<string | null>(null);
   const [userHeight, setUserHeight] = useState("178");
   const [userWeight, setUserWeight] = useState("72");
   const [bloodType, setBloodType] = useState("O+");
+
+  const toggleCondition = (id: ClinicalConditionId) => {
+    triggerHaptic();
+    setSelectedConditions((prev) => {
+      if (id === "standard") {
+        return ["standard"];
+      }
+      const withoutStandard = prev.filter((c) => c !== "standard");
+      if (withoutStandard.includes(id)) {
+        const next = withoutStandard.filter((c) => c !== id);
+        return next.length === 0 ? ["standard"] : next;
+      } else {
+        return [...withoutStandard, id];
+      }
+    });
+  };
+
+  const handleAutoAdjustTargets = () => {
+    triggerHaptic("success");
+    const weightNum = parseFloat(userWeight) || 72;
+    const heightNum = parseFloat(userHeight) || 175;
+
+    const targets = calculateClinicalTargets(
+      {
+        conditions: selectedConditions,
+        diabetes: selectedConditions.includes("diabetes")
+          ? {
+              type: diabetesType,
+              onInsulinOrMeds: diabetesOnMeds,
+              targetFastingMgDl: 100,
+              targetPostMealMgDl: 140,
+            }
+          : undefined,
+        pregnancy: selectedConditions.includes("pregnancy")
+          ? {
+              stage: pregnancyStage,
+              gestationalWeek: 12,
+            }
+          : undefined,
+        hypertension: selectedConditions.includes("hypertension")
+          ? {
+              sodiumLimitMg: 1800,
+            }
+          : undefined,
+      },
+      {
+        weightKg: weightNum,
+        heightCm: heightNum,
+        gender: "Male",
+        age: 30,
+      }
+    );
+
+    setCalories(String(targets.calorieTarget));
+    setProtein(String(targets.proteinTarget));
+    setCarbs(String(targets.carbsTarget));
+    setStepsTarget(String(targets.stepsTarget));
+    setWaterTarget(String(targets.waterTargetMl));
+    setClinicalBadges(targets.clinicalBadges);
+    setClinicalNotes(targets.clinicalNotes);
+
+    Alert.alert(
+      "Targets Auto-Adjusted",
+      `Recalculated targets for: ${targets.clinicalBadges.join(" • ")}\n\nSteps: ${targets.stepsTarget.toLocaleString()} | Calories: ${targets.calorieTarget} kcal | Protein: ${targets.proteinTarget}g | Carbs: ${targets.carbsTarget}g`
+    );
+  };
 
   // Biological Target Inputs
   const [calories, setCalories] = useState("2100");
@@ -269,6 +363,17 @@ export default function SettingsScreen() {
         if (customWeight) setUserWeight(customWeight);
         const customBlood = await storage.getItem("lumen_user_blood");
         if (customBlood) setBloodType(customBlood);
+
+        // Load Clinical Health Profile
+        try {
+          const storedClinical = await getStoredClinicalProfile();
+          if (storedClinical && Array.isArray(storedClinical.conditions) && storedClinical.conditions.length > 0) {
+            setSelectedConditions(storedClinical.conditions);
+            if (storedClinical.diabetes?.type) setDiabetesType(storedClinical.diabetes.type);
+            if (storedClinical.diabetes?.onInsulinOrMeds !== undefined) setDiabetesOnMeds(storedClinical.diabetes.onInsulinOrMeds);
+            if (storedClinical.pregnancy?.stage) setPregnancyStage(storedClinical.pregnancy.stage);
+          }
+        } catch {}
         const customWater = await storage.getItem("lumen_custom_water_target");
         if (customWater) setWaterTarget(customWater);
         const customPersona = await storage.getItem("lumen_coach_persona");
@@ -497,11 +602,56 @@ export default function SettingsScreen() {
       const parsedSleep = parseFloat(sleepTarget) || 8.0;
       const parsedScreen = parseInt(screenTimeBudget, 10) || 150;
 
+      const primaryMode = selectedConditions.join(", ");
+      setMode(primaryMode);
+
+      const clinicalProfilePayload: ClinicalProfile = {
+        conditions: selectedConditions,
+        diabetes: selectedConditions.includes("diabetes")
+          ? {
+              type: diabetesType,
+              onInsulinOrMeds: diabetesOnMeds,
+              targetFastingMgDl: 100,
+              targetPostMealMgDl: 140,
+            }
+          : undefined,
+        pregnancy: selectedConditions.includes("pregnancy")
+          ? {
+              stage: pregnancyStage,
+              gestationalWeek: 12,
+            }
+          : undefined,
+        hypertension: selectedConditions.includes("hypertension")
+          ? {
+              sodiumLimitMg: 1800,
+            }
+          : undefined,
+        updatedAt: new Date().toISOString(),
+      };
+
+      await saveStoredClinicalProfile(clinicalProfilePayload);
+
+      // Save to SQLite master database profile_state
+      await saveProfileState({
+        id: "primary",
+        name: name.trim() || "User",
+        mode: primaryMode,
+        dailyCalorieTarget: parsedCalories,
+        dailyProteinTarget: parsedProtein,
+        dailySleepTargetHours: parsedSleep,
+        dailyStepsTarget: parsedSteps,
+        updatedAt: new Date().toISOString(),
+        clinicalConditions: JSON.stringify(selectedConditions),
+        diabetesConfig: clinicalProfilePayload.diabetes ? JSON.stringify(clinicalProfilePayload.diabetes) : undefined,
+        pregnancyConfig: clinicalProfilePayload.pregnancy ? JSON.stringify(clinicalProfilePayload.pregnancy) : undefined,
+        hypertensionConfig: clinicalProfilePayload.hypertension ? JSON.stringify(clinicalProfilePayload.hypertension) : undefined,
+      });
+
       // 1. Persist to Backend API
       await updateProfile.mutateAsync({
         data: {
           name: name.trim() || undefined,
-          mode: mode || "standard",
+          mode: primaryMode,
           dailyCalorieTarget: parsedCalories,
           dailyProteinTarget: parsedProtein,
           dailyCarbLimit: parsedCarbs,
@@ -929,7 +1079,7 @@ export default function SettingsScreen() {
 
               <View style={styles.modeGrid}>
                 {HEALTH_MODES.map((m) => {
-                  const isSelected = mode === m.id;
+                  const isSelected = selectedConditions.includes(m.id as ClinicalConditionId);
                   return (
                     <Pressable
                       key={m.id}
@@ -937,7 +1087,7 @@ export default function SettingsScreen() {
                         styles.modeCard, 
                         isSelected && { borderColor: m.accent, backgroundColor: `${m.accent}12` }
                       ]}
-                      onPress={() => setMode(m.id)}
+                      onPress={() => toggleCondition(m.id as ClinicalConditionId)}
                     >
                       <View style={styles.modeCardTop}>
                         <Text style={{ fontSize: 20 }}>{m.icon}</Text>
@@ -951,10 +1101,112 @@ export default function SettingsScreen() {
                         {m.title}
                       </Text>
                       <Text style={styles.modeDesc}>{m.desc}</Text>
+
+                      {/* Sub-selector for Diabetes inside profile card */}
+                      {isSelected && m.id === "diabetes" && (
+                        <View style={styles.profileSubDrawer}>
+                          <Text style={styles.profileSubDrawerTitle}>TYPE:</Text>
+                          <View style={styles.profileChipRow}>
+                            {(
+                              [
+                                { id: "type2", label: "Type 2" },
+                                { id: "type1", label: "Type 1" },
+                                { id: "gestational", label: "Gestational" },
+                                { id: "prediabetes", label: "Pre-DM" },
+                              ] as const
+                            ).map((sub) => (
+                              <Pressable
+                                key={sub.id}
+                                style={[
+                                  styles.profileChip,
+                                  diabetesType === sub.id && styles.profileChipActive,
+                                ]}
+                                onPress={() => {
+                                  triggerHaptic();
+                                  setDiabetesType(sub.id);
+                                }}
+                              >
+                                <Text
+                                  style={[
+                                    styles.profileChipText,
+                                    diabetesType === sub.id && styles.profileChipTextActive,
+                                  ]}
+                                >
+                                  {sub.label}
+                                </Text>
+                              </Pressable>
+                            ))}
+                          </View>
+                          <Pressable
+                            style={styles.profileMedsRow}
+                            onPress={() => {
+                              triggerHaptic();
+                              setDiabetesOnMeds(!diabetesOnMeds);
+                            }}
+                          >
+                            <View
+                              style={[
+                                styles.profileCheckbox,
+                                diabetesOnMeds && styles.profileCheckboxActive,
+                              ]}
+                            >
+                              {diabetesOnMeds && <Check size={10} color="#050b08" strokeWidth={3} />}
+                            </View>
+                            <Text style={styles.profileMedsText}>Taking Insulin / Meds</Text>
+                          </Pressable>
+                        </View>
+                      )}
+
+                      {/* Sub-selector for Pregnancy inside profile card */}
+                      {isSelected && m.id === "pregnancy" && (
+                        <View style={styles.profileSubDrawer}>
+                          <Text style={styles.profileSubDrawerTitle}>STAGE:</Text>
+                          <View style={styles.profileChipRow}>
+                            {(
+                              [
+                                { id: "trimester_1", label: "1st Tri" },
+                                { id: "trimester_2", label: "2nd Tri" },
+                                { id: "trimester_3", label: "3rd Tri" },
+                                { id: "postpartum", label: "Nursing" },
+                              ] as const
+                            ).map((sub) => (
+                              <Pressable
+                                key={sub.id}
+                                style={[
+                                  styles.profileChip,
+                                  pregnancyStage === sub.id && styles.profileChipActive,
+                                ]}
+                                onPress={() => {
+                                  triggerHaptic();
+                                  setPregnancyStage(sub.id);
+                                }}
+                              >
+                                <Text
+                                  style={[
+                                    styles.profileChipText,
+                                    pregnancyStage === sub.id && styles.profileChipTextActive,
+                                  ]}
+                                >
+                                  {sub.label}
+                                </Text>
+                              </Pressable>
+                            ))}
+                          </View>
+                        </View>
+                      )}
                     </Pressable>
                   );
                 })}
               </View>
+
+              {/* 1-Tap Clinical Auto-Adjust Button */}
+              <Pressable
+                style={styles.autoAdjustProtocolBtn}
+                onPress={handleAutoAdjustTargets}
+              >
+                <Sparkles size={16} color="#050b08" strokeWidth={2.5} />
+                <Text style={styles.autoAdjustProtocolBtnText}>Auto-Adjust Targets from Clinical Protocol</Text>
+              </Pressable>
             </View>
 
             {/* Profile Personal Metrics Card */}
@@ -3415,5 +3667,87 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "600",
     maxWidth: "50%",
+  },
+
+  // Clinical Sub-Drawer & Auto-Adjust Button Styles
+  profileSubDrawer: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255, 255, 255, 0.08)",
+    gap: 6,
+  },
+  profileSubDrawerTitle: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: "#64748b",
+    letterSpacing: 0.5,
+  },
+  profileChipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 4,
+  },
+  profileChip: {
+    backgroundColor: "rgba(255, 255, 255, 0.06)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+  },
+  profileChipActive: {
+    backgroundColor: "rgba(16, 185, 129, 0.2)",
+    borderColor: "#10b981",
+  },
+  profileChipText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#94a3b8",
+  },
+  profileChipTextActive: {
+    color: "#10b981",
+    fontWeight: "900",
+  },
+  profileMedsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 4,
+  },
+  profileCheckbox: {
+    width: 14,
+    height: 14,
+    borderRadius: 3,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.3)",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "transparent",
+  },
+  profileCheckboxActive: {
+    backgroundColor: "#10b981",
+    borderColor: "#10b981",
+  },
+  profileMedsText: {
+    fontSize: 11,
+    color: "#cbd5e1",
+    fontWeight: "600",
+  },
+  autoAdjustProtocolBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#d4f933",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    marginTop: 8,
+  },
+  autoAdjustProtocolBtnText: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#050b08",
   },
 });

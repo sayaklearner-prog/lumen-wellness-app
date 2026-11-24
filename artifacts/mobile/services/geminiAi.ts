@@ -73,6 +73,46 @@ export async function setGeminiApiKey(apiKey: string): Promise<void> {
  */
 export function buildGeminiSystemPrompt(context: HealthContextModel): string {
   const persona = "Elite Performance & Longevity Coach";
+  const clinical = context.profile.clinical;
+  const conditions = clinical?.conditions || [];
+  const modeStr = (context.profile.mode || "").toLowerCase();
+  const isDiabetic = conditions.includes("diabetes") || modeStr.includes("diabet");
+  const isPregnant = conditions.includes("pregnancy") || modeStr.includes("pregnan");
+  const isHypertensive = conditions.includes("hypertension") || modeStr.includes("hypertens");
+
+  let clinicalDirectives = "";
+
+  if (isDiabetic) {
+    const dType = clinical?.diabetes?.type || "type2";
+    const onMeds = clinical?.diabetes?.onInsulinOrMeds;
+    clinicalDirectives += `
+CLINICAL PROTOCOL: DIABETES & GLYCEMIC MANAGEMENT (${dType.toUpperCase()})
+- Target Glycemic Control: Emphasize low-glycemic foods, complex slow-digesting carbohydrates paired with healthy protein and soluble fiber (target 35g+ daily).
+- Postprandial Movement Rule: Actively encourage a 10–15 minute gentle walk 20–30 minutes after meals to stimulate non-insulin GLUT4 glucose uptake in skeletal muscle.
+- Hypoglycemia Safety Shield: If user reports feeling shaky, sweaty, lightheaded, confused, or suddenly weak, immediately advise them to check their blood sugar and consume 15g fast-acting simple carbohydrates (e.g. 4oz fruit juice or 3-4 glucose tablets) if under 70 mg/dL.
+${onMeds ? "- Caution on Meds/Insulin: User takes insulin or glycemic medications. Strictly advise against unsupervised prolonged fasting (>16h) without medical oversight." : ""}
+`;
+  }
+
+  if (isPregnant) {
+    const stage = clinical?.pregnancy?.stage || "trimester_1";
+    clinicalDirectives += `
+CLINICAL PROTOCOL: PRENATAL & MATERNAL CARE (${stage.replace("_", " ").toUpperCase()})
+- Maternal Safety Rules: Strictly prohibit exercises involving heavy abdominal strain, supine positions after 16 weeks, extreme core overheating, hot saunas/baths, or heart rate exhaustion.
+- Nutritional Focus: Prioritize nutrient density over empty calories. In Trimesters 2 & 3, remind about the healthy caloric surplus (+340 to +450 kcal) and elevated protein (+25g/day for fetal tissue growth). High Folate (600mcg), Choline, DHA, and Iron.
+- Hydration Pacing: Advise drinking 2.8L to 3.2L of water daily to support expanding maternal blood volume and amniotic fluid synthesis.
+- Rest & Circulation: Recommend left-lateral sleeping position in Trimesters 2 and 3 to prevent inferior vena cava compression.
+- Medical Escalation: If user mentions severe headaches with vision changes, vaginal spotting/bleeding, severe abdominal cramping, or decreased fetal movements, immediately advise them to contact their OB/GYN or midwife.
+`;
+  }
+
+  if (isHypertensive) {
+    clinicalDirectives += `
+CLINICAL PROTOCOL: HYPERTENSION & CARDIOVASCULAR HEALTH
+- DASH Dietary Guidance: Strict sodium ceiling (<1,800mg/day). Emphasize potassium, magnesium, and calcium-rich whole foods (leafy greens, avocados, seeds).
+- Vascular Pacing: Prioritize Zone 2 aerobic walking and daily vagal tone breathing breaks (box breathing) to regulate sympathetic nervous system tone.
+`;
+  }
 
   return `You are Lumen Bio-Intelligence Coach, an elite, evidence-based AI longevity, fitness, and recovery advisor.
 You are powered by Google Gemini and have direct access to the user's real-time continuous physiological telemetry.
@@ -82,6 +122,7 @@ YOUR CURRENT USER & BIOMETRIC TELEMETRY:
 - Name: ${context.profile.name}
 - Clinical Protocol / Mode: ${context.profile.mode}
 - Persona Style: ${persona}
+${clinicalDirectives ? `\nCLINICAL HEALTH PROTOCOL & SAFETY DIRECTIVES:\n=============================================${clinicalDirectives}` : ""}
 
 LIVE BIOMARKERS TODAY:
 ----------------------
