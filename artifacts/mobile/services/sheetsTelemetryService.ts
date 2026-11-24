@@ -40,7 +40,7 @@ export interface UserTelemetryPayload {
 }
 
 const DEFAULT_WEBHOOK_URL =
-  "https://script.google.com/macros/s/AKfycbztZswgy51yZvpA21CxtYiGVizELYmfX0U2eIufOgMqKE1vzCCEL14oRIdirscXYVJlxw/exec";
+  "https://script.google.com/macros/s/AKfycbyZUiHqTxcr6r8_W_NwW89LWtJmSQgfOUk5zSQ94hekYsFL-PUPlUv7Ts0XE5icjS1tFg/exec";
 
 const QUEUE_STORAGE_KEY = "lumen_pending_sheets_telemetry";
 
@@ -67,12 +67,24 @@ class SheetsTelemetryService {
       } catch {}
     }
 
+    const locationString =
+      payload.location ||
+      locData?.formattedLocation ||
+      (locData?.city ? `${locData.city}, ${locData.country}` : "");
+
+    const basePlatform = payload.platform || Platform.OS;
+    // Guaranteed fallback: If Google Apps Script only writes Column E (Platform/OS),
+    // embedding location here ensures the developer ALWAYS sees user location in the sheet!
+    const enrichedPlatform = locationString && locationString !== "N/A"
+      ? `${basePlatform} [📍 ${locationString}]`
+      : basePlatform;
+
     const fullPayload: UserTelemetryPayload = {
       timestamp: payload.timestamp || formattedDate,
       name: payload.name || "User",
       email: payload.email || "N/A",
       event: payload.event,
-      platform: payload.platform || Platform.OS,
+      platform: enrichedPlatform,
       healthMode: payload.healthMode || "N/A",
       calorieTarget: payload.calorieTarget ? String(payload.calorieTarget) : "N/A",
       sleepTarget: payload.sleepTarget ? String(payload.sleepTarget) : "N/A",
@@ -86,7 +98,7 @@ class SheetsTelemetryService {
         (locData?.latitude && locData?.longitude
           ? `${locData.latitude.toFixed(4)}, ${locData.longitude.toFixed(4)}`
           : "N/A"),
-      location: payload.location || locData?.formattedLocation || "N/A",
+      location: locationString || "N/A",
       locationSource: payload.locationSource || locData?.source || "unknown",
     };
 
