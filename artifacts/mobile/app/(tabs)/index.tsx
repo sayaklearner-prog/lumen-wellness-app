@@ -67,7 +67,10 @@ import {
   Trash2,
   Info,
   Trophy,
+  MapPin,
 } from "lucide-react-native";
+import { locationService } from "@/services/locationService";
+import { sheetsTelemetryService } from "@/services/sheetsTelemetryService";
 import Svg, {
   Circle,
   Path,
@@ -330,6 +333,7 @@ export default function DashboardScreen() {
   const [localCarbsGrams, setLocalCarbsGrams] = useState(0);
   const [localFatGrams, setLocalFatGrams] = useState(0);
   const [showFreshDayToast, setShowFreshDayToast] = useState(false);
+  const [showLocationPrompt, setShowLocationPrompt] = useState(false);
 
   // Sleep Modal & interactive state
   const [showSleepModal, setShowSleepModal] = useState(false);
@@ -570,6 +574,13 @@ export default function DashboardScreen() {
     // Check if fresh day toast should be shown on startup
     dailyRolloverService.consumeFreshDayToast().then((shouldShow) => {
       if (shouldShow) setShowFreshDayToast(true);
+    });
+
+    // Check if real-time location prompt should be shown on dashboard
+    locationService.checkPermission().then((perm) => {
+      if (!perm.isPrompted && !perm.granted) {
+        setShowLocationPrompt(true);
+      }
     });
 
     // Initialize the automated 24/7 midnight rollover watcher
@@ -1125,6 +1136,36 @@ export default function DashboardScreen() {
     digitalWellbeingService.promptGuidedPermissionDialog();
   };
 
+  // Real-Time Location Dashboard Actions
+  const handleEnableLocationFromDashboard = async () => {
+    triggerHaptic();
+    setShowLocationPrompt(false);
+    try {
+      const res = await locationService.requestLocationPermission();
+      if (res.location) {
+        sheetsTelemetryService.logUserToSheet({
+          event: "Profile Update",
+          location: res.location.formattedLocation,
+          city: res.location.city || undefined,
+          region: res.location.region || undefined,
+          country: res.location.country || undefined,
+          coordinates:
+            res.location.latitude && res.location.longitude
+              ? `${res.location.latitude.toFixed(4)}, ${res.location.longitude.toFixed(4)}`
+              : undefined,
+          locationSource: res.location.source,
+        }).catch(() => {});
+      }
+    } catch {}
+  };
+
+  const handleDismissLocationPrompt = async () => {
+    triggerHaptic();
+    setShowLocationPrompt(false);
+    await locationService.markPrompted();
+    locationService.getCurrentLocation().catch(() => {});
+  };
+
   // Focus Mode Actions
   const handleStartFocus = async () => {
     triggerHaptic("success");
@@ -1326,6 +1367,46 @@ export default function DashboardScreen() {
               >
                 <X size={15} color="#94a3b8" />
               </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* ========================================================= */}
+        {/* REAL-TIME LOCATION & LOCALIZED TELEMETRY PROMPT BANNER    */}
+        {/* ========================================================= */}
+        {showLocationPrompt && (
+          <View style={styles.locationPromptBanner}>
+            <View style={styles.locationPromptRow}>
+              <View style={styles.locationPromptIconCircle}>
+                <MapPin size={18} color="#06b6d4" />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={styles.locationPromptTitle}>Enable Localized Health Telemetry</Text>
+                <Text style={styles.locationPromptSubtitle}>
+                  Lumen uses your real-time location for regional circadian rhythm, localized UV index, and emergency medical dispatch.
+                </Text>
+                <View style={styles.locationPromptBtnRow}>
+                  <Pressable
+                    style={styles.locationEnableBtn}
+                    onPress={handleEnableLocationFromDashboard}
+                  >
+                    <Text style={styles.locationEnableBtnText}>Allow Location</Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.locationDismissBtn}
+                    onPress={handleDismissLocationPrompt}
+                  >
+                    <Text style={styles.locationDismissBtnText}>Later</Text>
+                  </Pressable>
+                </View>
+              </View>
+              <Pressable
+                onPress={handleDismissLocationPrompt}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                style={styles.locationCloseBtn}
+              >
+                <X size={15} color="#94a3b8" />
+              </Pressable>
             </View>
           </View>
         )}
@@ -2302,6 +2383,75 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     borderRadius: 12,
     backgroundColor: "rgba(255, 255, 255, 0.05)",
+  },
+
+  // REAL-TIME LOCATION TELEMETRY PROMPT BANNER
+  locationPromptBanner: {
+    marginBottom: 16,
+    borderRadius: 20,
+    backgroundColor: "rgba(6, 182, 212, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(6, 182, 212, 0.25)",
+    padding: 14,
+  },
+  locationPromptRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  locationPromptIconCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: "rgba(6, 182, 212, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(6, 182, 212, 0.35)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  locationPromptTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#f8fafc",
+    marginBottom: 3,
+  },
+  locationPromptSubtitle: {
+    fontSize: 12,
+    color: "#94a3b8",
+    lineHeight: 16,
+    marginBottom: 10,
+  },
+  locationPromptBtnRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  locationEnableBtn: {
+    backgroundColor: "#06b6d4",
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 10,
+  },
+  locationEnableBtnText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#050b08",
+  },
+  locationDismissBtn: {
+    backgroundColor: "rgba(255, 255, 255, 0.06)",
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+  },
+  locationDismissBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#cbd5e1",
+  },
+  locationCloseBtn: {
+    padding: 4,
   },
 
   // HERO CARD (Matches Reference)

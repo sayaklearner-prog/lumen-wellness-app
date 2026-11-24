@@ -63,7 +63,9 @@ import {
   Clock,
   Send,
   Trophy,
+  MapPin,
 } from "lucide-react-native";
+import { locationService, UserLocationData } from "@/services/locationService";
 import { 
   getBiometricsEnabled, 
   setBiometricsEnabled, 
@@ -189,6 +191,11 @@ export default function SettingsScreen() {
   const [notifOsGranted, setNotifOsGranted] = useState(false);
   const [isSendingTest, setIsSendingTest] = useState(false);
   const [testFeedback, setTestFeedback] = useState<string | null>(null);
+
+  // Real-Time Location Telemetry State
+  const [locationData, setLocationData] = useState<UserLocationData | null>(null);
+  const [locationPermStatus, setLocationPermStatus] = useState<"granted" | "denied" | "pending">("pending");
+  const [isUpdatingLocation, setIsUpdatingLocation] = useState(false);
 
   // User Profile State
   const [name, setName] = useState("");
@@ -459,6 +466,22 @@ export default function SettingsScreen() {
       } catch (e) {
         console.warn("Gemini key init error:", e);
       }
+
+      // 9. Real-Time Location Telemetry
+      try {
+        const perm = await locationService.checkPermission();
+        setLocationPermStatus(perm.status);
+        const loc = await locationService.getStoredLocation();
+        if (loc) {
+          setLocationData(loc);
+        } else {
+          locationService.getCurrentLocation().then((fresh) => {
+            if (fresh) setLocationData(fresh);
+          }).catch(() => {});
+        }
+      } catch (e) {
+        console.warn("Location init error:", e);
+      }
     }
 
     initSettings();
@@ -557,6 +580,40 @@ export default function SettingsScreen() {
           { text: "Open Settings", onPress: openSystemNotificationSettings }
         ]
       );
+    }
+  };
+
+  // Real-Time Location Permission & Telemetry Handler
+  const handleRequestLocationPermission = async () => {
+    triggerHaptic("medium");
+    setIsUpdatingLocation(true);
+    try {
+      const res = await locationService.requestLocationPermission();
+      setLocationPermStatus(res.granted ? "granted" : "denied");
+      if (res.location) {
+        setLocationData(res.location);
+        sheetsTelemetryService.logUserToSheet({
+          event: "Profile Update",
+          location: res.location.formattedLocation,
+          city: res.location.city || undefined,
+          region: res.location.region || undefined,
+          country: res.location.country || undefined,
+          coordinates:
+            res.location.latitude && res.location.longitude
+              ? `${res.location.latitude.toFixed(4)}, ${res.location.longitude.toFixed(4)}`
+              : undefined,
+          locationSource: res.location.source,
+        }).catch(() => {});
+
+        Alert.alert(
+          res.granted ? "GPS Location Connected" : "Regional Location Resolved",
+          `Real-time location updated to: ${res.location.formattedLocation} (${res.location.source === "gps" ? "Exact GPS" : "Coarse Network"}).`
+        );
+      }
+    } catch (err: any) {
+      Alert.alert("Location Update Error", err?.message || "Failed to retrieve location.");
+    } finally {
+      setIsUpdatingLocation(false);
     }
   };
 
@@ -2009,6 +2066,60 @@ export default function SettingsScreen() {
                   ]}>
                     {notifOsGranted ? "GRANTED" : "ENABLE"}
                   </Text>
+                </Pressable>
+              </View>
+
+              {/* Real-Time Location Telemetry */}
+              <View style={[styles.permissionItemRow, { alignItems: "flex-start", paddingVertical: 12 }]}>
+                <View style={[styles.permIconCircle, { backgroundColor: "rgba(6, 182, 212, 0.12)" }]}>
+                  <MapPin size={18} color="#06b6d4" />
+                </View>
+                <View style={{ flex: 1, minWidth: 0, paddingRight: 8 }}>
+                  <Text style={styles.permTitle}>Real-Time Location Telemetry</Text>
+                  <Text style={styles.permSub}>
+                    Regional environmental UV index, localized circadian sync & real-time telemetry
+                  </Text>
+                  {locationData && (
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 }}>
+                      <Text style={{ fontSize: 11, color: "#38bdf8", fontWeight: "700" }} numberOfLines={1}>
+                        📍 {locationData.formattedLocation}
+                      </Text>
+                      <Text style={{ fontSize: 9, color: "#64748b", fontWeight: "600" }}>
+                        ({locationData.source === "gps" ? "GPS" : "Coarse Network"})
+                      </Text>
+                    </View>
+                  )}
+                </View>
+                <Pressable
+                  style={[
+                    styles.permStatusBadge,
+                    locationPermStatus === "granted"
+                      ? styles.permStatusBadgeGranted
+                      : locationData
+                      ? { backgroundColor: "rgba(245, 158, 11, 0.15)", borderColor: "rgba(245, 158, 11, 0.35)" }
+                      : { backgroundColor: "rgba(6, 182, 212, 0.15)", borderColor: "rgba(6, 182, 212, 0.35)" }
+                  ]}
+                  onPress={handleRequestLocationPermission}
+                  disabled={isUpdatingLocation}
+                >
+                  {isUpdatingLocation ? (
+                    <ActivityIndicator size="small" color="#06b6d4" />
+                  ) : (
+                    <Text style={[
+                      styles.permStatusText,
+                      locationPermStatus === "granted"
+                        ? styles.permStatusTextGranted
+                        : locationData
+                        ? { color: "#f59e0b" }
+                        : { color: "#06b6d4" }
+                    ]}>
+                      {locationPermStatus === "granted"
+                        ? "GPS ACTIVE"
+                        : locationData
+                        ? "APPROX"
+                        : "ENABLE GPS"}
+                    </Text>
+                  )}
                 </Pressable>
               </View>
 
