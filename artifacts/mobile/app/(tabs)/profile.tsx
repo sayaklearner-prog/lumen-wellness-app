@@ -71,6 +71,7 @@ import {
 } from "@/services/security";
 import { syncHealthData } from "@/services/health";
 import { useSlideMenu } from "@/context/SlideMenuContext";
+import { useControlCenter } from "@/context/ControlCenterContext";
 import { nativeStepCounter } from "@/services/nativeStepCounter";
 import { digitalWellbeingService } from "@/services/digitalWellbeingService";
 import { getStoredGoogleUser, GoogleUser } from "@/services/googleAuth";
@@ -175,7 +176,8 @@ const COACH_PERSONAS = [
 export default function SettingsScreen() {
   const router = useRouter();
   const qc = useQueryClient();
-  const { openLeftMenu, openRightMenu } = useSlideMenu();
+  const { openLeftMenu } = useSlideMenu();
+  const { openControlCenter } = useControlCenter();
   const { data: profile } = useGetProfile();
   const updateProfile = useUpdateProfile();
 
@@ -909,7 +911,7 @@ export default function SettingsScreen() {
             <View style={styles.liveCloudDot} />
             <Text style={styles.liveCloudText}>CLOUD ACTIVE</Text>
           </View>
-          <Pressable onPress={openRightMenu} accessibilityLabel="Open Profile Drawer">
+          <Pressable onPress={openControlCenter} accessibilityLabel="Open Health OS Control Center">
             <View style={styles.avatarCircleSmall}>
               {googleUser?.photoUrl ? (
                 <Image source={{ uri: googleUser.photoUrl }} style={styles.avatarImgSmall} />

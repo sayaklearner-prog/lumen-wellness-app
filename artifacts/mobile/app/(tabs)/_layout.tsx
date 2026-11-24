@@ -10,7 +10,9 @@ import {
   Utensils 
 } from "lucide-react-native";
 import { SlideMenuProvider, useSlideMenu } from "@/context/SlideMenuContext";
+import { ControlCenterProvider, useControlCenter } from "@/context/ControlCenterContext";
 import { SlideMenuDrawer } from "@/components/SlideMenuDrawer";
+import { HealthOsControlCenterModal } from "@/components/controlcenter/HealthOsControlCenterModal";
 import { GlobalStepTracker } from "@/components/GlobalStepTracker";
 import { recordTabVisit } from "@/services/backNavigation";
 import THEME from "@/constants/theme";
@@ -133,7 +135,8 @@ const FloatingCapsuleTabBar = React.memo(function FloatingCapsuleTabBar({
 
 function TabsContent() {
   const router = useRouter();
-  const { isLeftOpen, closeLeftMenu, isRightOpen, closeRightMenu } = useSlideMenu();
+  const { isLeftOpen, closeLeftMenu } = useSlideMenu();
+  const { isControlCenterOpen, closeControlCenter } = useControlCenter();
 
   // Listen to tab pop events triggered by Android hardware back button
   useEffect(() => {
@@ -219,8 +222,8 @@ function TabsContent() {
       {/* Primary Left Slide Drawer */}
       <SlideMenuDrawer side="left" isOpen={isLeftOpen} onClose={closeLeftMenu} />
 
-      {/* Top-Right Slide Drawer */}
-      <SlideMenuDrawer side="right" isOpen={isRightOpen} onClose={closeRightMenu} />
+      {/* Health OS Control Center Modal (HUD) */}
+      <HealthOsControlCenterModal visible={isControlCenterOpen} onClose={closeControlCenter} />
     </>
   );
 }
@@ -228,7 +231,9 @@ function TabsContent() {
 export default function TabsLayout() {
   return (
     <SlideMenuProvider>
-      <TabsContent />
+      <ControlCenterProvider>
+        <TabsContent />
+      </ControlCenterProvider>
     </SlideMenuProvider>
   );
 }

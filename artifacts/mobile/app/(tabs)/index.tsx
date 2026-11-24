@@ -82,6 +82,7 @@ import { speakText, stopSpeaking } from "@/services/voice";
 import { syncHealthData, getLastSyncStatus, HealthSyncStatus } from "@/services/health";
 import { storage } from "@/services/storage";
 import { useSlideMenu } from "@/context/SlideMenuContext";
+import { useControlCenter } from "@/context/ControlCenterContext";
 import { syncNotificationSchedules } from "@/services/notifications";
 import { proactiveAlertEngine } from "@/services/proactiveAlertEngine";
 import {
@@ -302,7 +303,8 @@ function Trend7DayChart({
 export default function DashboardScreen() {
   const router = useRouter();
   const qc = useQueryClient();
-  const { openLeftMenu, openRightMenu } = useSlideMenu();
+  const { openLeftMenu } = useSlideMenu();
+  const { openControlCenter } = useControlCenter();
 
   const [refreshing, setRefreshing] = useState(false);
   const [isSpeakingBriefing, setIsSpeakingBriefing] = useState(false);
@@ -1266,18 +1268,19 @@ export default function DashboardScreen() {
         </View>
 
         <View style={styles.topRightActions}>
-          {/* Top-Right Profile / Avatar Button */}
+          {/* Health OS Live Telemetry & Control Center Beacon */}
           <Pressable 
-            onPress={openRightMenu}
-            accessibilityLabel="Open Profile Drawer"
-            style={styles.avatarPressable}
+            onPress={openControlCenter}
+            accessibilityLabel="Open Health OS Control Center"
+            style={styles.telemetryBeaconPill}
           >
-            <View style={styles.avatarCircle}>
-              <Text style={styles.avatarInitial}>
+            <View style={styles.beaconPulseDot} />
+            <Text style={styles.beaconPillText}>94% • LIVE</Text>
+            <View style={styles.avatarMiniCircle}>
+              <Text style={styles.avatarMiniInitial}>
                 {userName ? userName[0].toUpperCase() : "A"}
               </Text>
             </View>
-            <View style={styles.avatarActiveDot} />
           </Pressable>
         </View>
       </View>
@@ -2140,6 +2143,50 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     flexShrink: 0,
+  },
+  telemetryBeaconPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(16, 185, 129, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.3)",
+    borderRadius: 20,
+    paddingVertical: 4,
+    paddingLeft: 10,
+    paddingRight: 4,
+    gap: 7,
+  },
+  beaconPulseDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: "#10b981",
+    shadowColor: "#10b981",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.9,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  beaconPillText: {
+    color: "#10b981",
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
+  avatarMiniCircle: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: "rgba(16, 185, 129, 0.2)",
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarMiniInitial: {
+    color: "#10b981",
+    fontSize: 12,
+    fontWeight: "800",
   },
   avatarPressable: {
     position: "relative",
