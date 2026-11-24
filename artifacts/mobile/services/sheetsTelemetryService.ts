@@ -12,6 +12,7 @@
 
 import { Platform } from "react-native";
 import { storage } from "./storage";
+import { locationService } from "./locationService";
 
 export interface UserTelemetryPayload {
   name?: string;
@@ -29,6 +30,13 @@ export interface UserTelemetryPayload {
   sleepTarget?: string | number;
   stepsTarget?: string | number;
   appVersion?: string;
+  // Real-Time Location Telemetry
+  city?: string;
+  region?: string;
+  country?: string;
+  coordinates?: string;
+  location?: string;
+  locationSource?: string;
 }
 
 const DEFAULT_WEBHOOK_URL =
@@ -41,7 +49,7 @@ class SheetsTelemetryService {
   private isFlushingQueue: boolean = false;
 
   /**
-   * Log user event to Google Sheet
+   * Log user event to Google Sheet with real-time location telemetry
    */
   public async logUserToSheet(
     payload: Partial<UserTelemetryPayload> & { event: UserTelemetryPayload["event"] }
@@ -50,6 +58,14 @@ class SheetsTelemetryService {
       dateStyle: "medium",
       timeStyle: "short",
     });
+
+    // Enrich with location telemetry without blocking execution
+    let locData = null;
+    if (!payload.location) {
+      try {
+        locData = await locationService.getCurrentLocation();
+      } catch {}
+    }
 
     const fullPayload: UserTelemetryPayload = {
       timestamp: payload.timestamp || formattedDate,
@@ -62,6 +78,16 @@ class SheetsTelemetryService {
       sleepTarget: payload.sleepTarget ? String(payload.sleepTarget) : "N/A",
       stepsTarget: payload.stepsTarget ? String(payload.stepsTarget) : "N/A",
       appVersion: payload.appVersion || "1.0.0",
+      city: payload.city || locData?.city || "N/A",
+      region: payload.region || locData?.region || "N/A",
+      country: payload.country || locData?.country || "N/A",
+      coordinates:
+        payload.coordinates ||
+        (locData?.latitude && locData?.longitude
+          ? `${locData.latitude.toFixed(4)}, ${locData.longitude.toFixed(4)}`
+          : "N/A"),
+      location: payload.location || locData?.formattedLocation || "N/A",
+      locationSource: payload.locationSource || locData?.source || "unknown",
     };
 
     try {

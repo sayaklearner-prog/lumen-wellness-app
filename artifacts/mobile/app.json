@@ -20,7 +20,8 @@
       "infoPlist": {
         "NSCameraUsageDescription": "Lumen OS requires access to the camera to scan food nutrition and photograph meals.",
         "NSMicrophoneUsageDescription": "Lumen OS requires access to the microphone for AI voice coach interactions.",
-        "NSPhotoLibraryUsageDescription": "Lumen OS requires access to the gallery to import nutrition records."
+        "NSPhotoLibraryUsageDescription": "Lumen OS requires access to the gallery to import nutrition records.",
+        "NSLocationWhenInUseUsageDescription": "Lumen OS uses your location for regional circadian rhythm, localized UV index, and real-time health telemetry."
       }
     },
     "android": {
@@ -38,7 +39,9 @@
         "android.permission.PACKAGE_USAGE_STATS",
         "android.permission.SYSTEM_ALERT_WINDOW",
         "android.permission.ACCESS_NOTIFICATION_POLICY",
-        "android.permission.POST_NOTIFICATIONS"
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION"
       ]
     },
     "web": {
