@@ -28,6 +28,7 @@ import {
   getGetTodayDashboardQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { registerBackHandler } from "@/services/backNavigation";
 import {
   Plus,
   Trash2,
@@ -169,12 +170,11 @@ export default function NutritionScreen() {
   const createMealMutation = useCreateMeal();
   const deleteMealMutation = useDeleteMeal();
 
-  // Intercept Android back button when food camera scanner or AI text estimator overlay is open
+  // Intercept back button when food camera scanner, AI text estimator, or target editor is open
   useEffect(() => {
-    if (Platform.OS === "web") return;
     if (!showScanModal && !showAiTextModal && !showTargetModal) return;
 
-    const onBackPress = () => {
+    return registerBackHandler("nutrition-sheets", 90, () => {
       if (showTargetModal) {
         setShowTargetModal(false);
         return true;
@@ -188,10 +188,7 @@ export default function NutritionScreen() {
         return true;
       }
       return false;
-    };
-
-    const sub = BackHandler.addEventListener("hardwareBackPress", onBackPress);
-    return () => sub.remove();
+    });
   }, [showScanModal, showAiTextModal, showTargetModal]);
 
   // Load custom targets from storage / profile

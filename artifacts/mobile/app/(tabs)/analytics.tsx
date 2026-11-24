@@ -46,6 +46,7 @@ import {
 import { DailyHealthRecord, getDailyHealthRecord } from "@/services/db";
 import { storage } from "@/services/storage";
 import { synthesizeThreePillarBiometricsWithGemini } from "@/services/geminiAi";
+import { registerBackHandler } from "@/services/backNavigation";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -54,20 +55,17 @@ export default function AnalyticsScreen() {
   const today = new Date();
   const todayKey = formatDateKey(today);
 
-  // Android hardware/gesture back press handler: return to previous screen or Home tab
+  // Back press handler: return to Home tab (Capacitor Android & native)
   useFocusEffect(
     useCallback(() => {
-      if (Platform.OS === "web") return;
-      const onBackPress = () => {
+      return registerBackHandler("screen-analytics", 40, () => {
         if (router.canGoBack()) {
           router.back();
         } else {
           router.replace("/(tabs)");
         }
         return true;
-      };
-      const sub = BackHandler.addEventListener("hardwareBackPress", onBackPress);
-      return () => sub.remove();
+      });
     }, [router])
   );
 

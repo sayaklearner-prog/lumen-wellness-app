@@ -21,6 +21,7 @@ import { storage } from "@/services/storage";
 import { getStoredGoogleUser } from "@/services/googleAuth";
 import { authService } from "@/services/authService";
 import { sheetsTelemetryService } from "@/services/sheetsTelemetryService";
+import { registerBackHandler } from "@/services/backNavigation";
 import {
   ClinicalProfile,
   ClinicalConditionId,
@@ -636,10 +637,9 @@ export default function PersonalInformationScreen() {
     }
   };
 
-  // Wire Android hardware/gesture back press to multi-step navigation & modals
+  // Wire back press to multi-step navigation & modals (Capacitor Android & native)
   useEffect(() => {
-    if (Platform.OS === "web") return;
-    const onBackPress = () => {
+    return registerBackHandler("onboarding-flow", 50, () => {
       if (showWeightModal) {
         setShowWeightModal(false);
         return true;
@@ -658,9 +658,7 @@ export default function PersonalInformationScreen() {
       }
       router.replace("/(auth)/welcome");
       return true;
-    };
-    const sub = BackHandler.addEventListener("hardwareBackPress", onBackPress);
-    return () => sub.remove();
+    });
   }, [showWeightModal, showHeightModal, currentStep, router]);
 
   const handleNextStep = () => {

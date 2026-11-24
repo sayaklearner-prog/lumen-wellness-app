@@ -32,6 +32,7 @@ import {
   Menu,
 } from "lucide-react-native";
 import { useSlideMenu } from "@/context/SlideMenuContext";
+import { registerBackHandler } from "@/services/backNavigation";
 
 import { getAlarms, saveAlarm, deleteAlarm as deleteAlarmDb } from "@/services/db";
 import {
@@ -269,11 +270,10 @@ export default function RemindersScreen() {
     setIsTestRinging(false);
   };
 
-  // Android hardware/gesture back press handler: return to previous screen or Home tab
+  // Back press handler: dismiss modals or return to Home tab (Capacitor Android & native)
   useFocusEffect(
     useCallback(() => {
-      if (Platform.OS === "web") return;
-      const onBackPress = () => {
+      return registerBackHandler("screen-reminders", 40, () => {
         if (ringingAlarm) {
           handleDismissAlarm();
           return true;
@@ -288,9 +288,7 @@ export default function RemindersScreen() {
           router.replace("/(tabs)");
         }
         return true;
-      };
-      const sub = BackHandler.addEventListener("hardwareBackPress", onBackPress);
-      return () => sub.remove();
+      });
     }, [router, ringingAlarm, showAddModal])
   );
 

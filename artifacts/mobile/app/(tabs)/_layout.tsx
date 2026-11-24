@@ -1,5 +1,5 @@
-import React from "react";
-import { Tabs } from "expo-router";
+import React, { useEffect } from "react";
+import { Tabs, useRouter } from "expo-router";
 import { Platform, View, Text, StyleSheet, Pressable } from "react-native";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -12,6 +12,7 @@ import {
 import { SlideMenuProvider, useSlideMenu } from "@/context/SlideMenuContext";
 import { SlideMenuDrawer } from "@/components/SlideMenuDrawer";
 import { GlobalStepTracker } from "@/components/GlobalStepTracker";
+import { recordTabVisit } from "@/services/backNavigation";
 import THEME from "@/constants/theme";
 
 /**
@@ -94,6 +95,7 @@ const FloatingCapsuleTabBar = React.memo(function FloatingCapsuleTabBar({
             });
 
             if (!isFocused && !event.defaultPrevented) {
+              recordTabVisit(route.name);
               navigation.navigate(route.name);
             }
           };
@@ -130,7 +132,21 @@ const FloatingCapsuleTabBar = React.memo(function FloatingCapsuleTabBar({
 });
 
 function TabsContent() {
+  const router = useRouter();
   const { isLeftOpen, closeLeftMenu, isRightOpen, closeRightMenu } = useSlideMenu();
+
+  // Listen to tab pop events triggered by Android hardware back button
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleNav = (e: any) => {
+      const targetTab = e?.detail;
+      if (targetTab) {
+        router.replace(`/(tabs)/${targetTab === "index" ? "" : targetTab}` as any);
+      }
+    };
+    window.addEventListener("lumenNavigateTab", handleNav);
+    return () => window.removeEventListener("lumenNavigateTab", handleNav);
+  }, [router]);
 
   return (
     <>

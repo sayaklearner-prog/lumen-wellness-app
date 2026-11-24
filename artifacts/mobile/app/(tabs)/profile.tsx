@@ -24,6 +24,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { storage } from "@/services/storage";
 import THEME from "@/constants/theme";
+import { registerBackHandler } from "@/services/backNavigation";
 import { 
   Sliders, 
   ShieldCheck, 
@@ -319,11 +320,10 @@ export default function SettingsScreen() {
   const [showDisclaimerModal, setShowDisclaimerModal] = useState(false);
   const [exportDataString, setExportDataString] = useState("");
 
-  // Android hardware/gesture back press handler: return to previous screen or Home tab
+  // Back press handler: dismiss modals or return to Home tab (Capacitor Android & native)
   useFocusEffect(
     useCallback(() => {
-      if (Platform.OS === "web") return;
-      const onBackPress = () => {
+      return registerBackHandler("screen-profile", 40, () => {
         if (showExportModal) {
           setShowExportModal(false);
           return true;
@@ -338,9 +338,7 @@ export default function SettingsScreen() {
           router.replace("/(tabs)");
         }
         return true;
-      };
-      const sub = BackHandler.addEventListener("hardwareBackPress", onBackPress);
-      return () => sub.remove();
+      });
     }, [router, showExportModal, showDisclaimerModal])
   );
 

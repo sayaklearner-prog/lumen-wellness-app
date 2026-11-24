@@ -3,6 +3,7 @@ package com.meshmind.lumen;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.webkit.ValueCallback;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
@@ -23,6 +24,31 @@ public class MainActivity extends BridgeActivity {
         setIntent(intent);
         handleOAuthIntent(intent);
         handleAlarmIntent(intent);
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (getBridge() != null && getBridge().getWebView() != null) {
+            getBridge().getWebView().post(new Runnable() {
+                @Override
+                public void run() {
+                    getBridge().getWebView().evaluateJavascript(
+                        "(function() { return (typeof window.__lumenHandleBack === 'function') ? window.__lumenHandleBack() : false; })();",
+                        new ValueCallback<String>() {
+                            @Override
+                            public void onReceiveValue(String handled) {
+                                // If JavaScript did not handle the back event (returned false), let Android finish/exit the activity
+                                if (!"true".equals(handled)) {
+                                    MainActivity.super.onBackPressed();
+                                }
+                            }
+                        }
+                    );
+                }
+            });
+            return;
+        }
+        super.onBackPressed();
     }
 
     private void handleAlarmIntent(Intent intent) {

@@ -42,6 +42,7 @@ import { getKV, setKV } from "@/services/db";
 import { getStoredClinicalProfile } from "@/services/clinicalProfile";
 import { useSlideMenu } from "@/context/SlideMenuContext";
 import THEME from "@/constants/theme";
+import { registerBackHandler } from "@/services/backNavigation";
 
 // ============================================================================
 // EMERGENCY CONTACT & MEDICAL ID INTERFACES
@@ -132,11 +133,10 @@ export default function SafetyScreen() {
   const [isSavedBanner, setIsSavedBanner] = useState(false);
   const [dialFeedback, setDialFeedback] = useState<string | null>(null);
 
-  // Android hardware/gesture back press handler: return to previous screen or Home tab
+  // Back press handler: dismiss modals or return to Home tab (Capacitor Android & native)
   useFocusEffect(
     useCallback(() => {
-      if (Platform.OS === "web") return;
-      const onBackPress = () => {
+      return registerBackHandler("screen-safety", 40, () => {
         if (showContactModal) {
           setShowContactModal(false);
           return true;
@@ -151,9 +151,7 @@ export default function SafetyScreen() {
           router.replace("/(tabs)");
         }
         return true;
-      };
-      const sub = BackHandler.addEventListener("hardwareBackPress", onBackPress);
-      return () => sub.remove();
+      });
     }, [router, showContactModal, showEmergencyCard])
   );
 

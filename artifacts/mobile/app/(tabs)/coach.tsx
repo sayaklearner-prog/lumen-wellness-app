@@ -48,6 +48,7 @@ import {
 import { speakText, stopSpeaking, parseVoiceCommand } from "@/services/voice";
 import { useSlideMenu } from "@/context/SlideMenuContext";
 import THEME from "@/constants/theme";
+import { registerBackHandler } from "@/services/backNavigation";
 import { AmbientAtmosphere } from "@/components/AmbientAtmosphere";
 import {
   getCoachMessages,
@@ -142,6 +143,14 @@ export default function CoachScreen() {
   const [geminiKeyInput, setGeminiKeyInput] = useState("");
   const [isTestingGemini, setIsTestingGemini] = useState(false);
   const [geminiTestFeedback, setGeminiTestFeedback] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!showGeminiModal) return;
+    return registerBackHandler("coach-gemini-modal", 80, () => {
+      setShowGeminiModal(false);
+      return true;
+    });
+  }, [showGeminiModal]);
 
   // Initialize master SQLite chat history & telemetry context
   useEffect(() => {
