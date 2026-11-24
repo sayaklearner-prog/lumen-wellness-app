@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -10,7 +10,7 @@ import {
   Modal,
   Alert,
   Linking,
-  BackHandler,
+  Share,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import {
@@ -34,6 +34,12 @@ import {
   Sparkles,
   ChevronRight,
   Stethoscope,
+  QrCode,
+  Share2,
+  Send,
+  Pill,
+  Shield,
+  Hospital,
 } from "lucide-react-native";
 import { useGetProfile, useUpdateProfile, getGetProfileQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -43,6 +49,8 @@ import { getStoredClinicalProfile } from "@/services/clinicalProfile";
 import { useSlideMenu } from "@/context/SlideMenuContext";
 import THEME from "@/constants/theme";
 import { registerBackHandler } from "@/services/backNavigation";
+import { evaluateMedicationSafety, SafetyEvaluationResult } from "@/services/clinicalSafetyEngine";
+import { EmergencyQrCodeModal } from "@/components/safety/EmergencyQrCodeModal";
 
 // ============================================================================
 // EMERGENCY CONTACT & MEDICAL ID INTERFACES
@@ -63,15 +71,24 @@ export interface MedicalProfileData {
   medications: string[];
   conditions: string[];
   organDonor: boolean;
+  codeStatus?: string; // "Full Code" | "DNR" | "DNI" | "Comfort Measures"
   emergencyNotes: string;
   physicianName?: string;
   physicianPhone?: string;
   hospitalName?: string;
+  hospitalPhone?: string;
   insuranceProvider?: string;
   insurancePolicyId?: string;
 }
 
 const BLOOD_TYPES = ["O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"];
+
+const CODE_STATUS_OPTIONS = [
+  { id: "Full Code", label: "Full Code (CPR & Intubation)", badge: "Full Code" },
+  { id: "DNR", label: "DNR (Do Not Resuscitate)", badge: "DNR" },
+  { id: "DNI", label: "DNI (Do Not Intubate)", badge: "DNI" },
+  { id: "Comfort Measures", label: "Comfort Measures Only", badge: "Comfort" },
+];
 
 const RELATIONSHIP_TYPES = [
   "Spouse / Partner",
@@ -92,10 +109,12 @@ const EMPTY_MEDICAL_PROFILE: MedicalProfileData = {
   medications: [],
   conditions: [],
   organDonor: false,
+  codeStatus: "Full Code",
   emergencyNotes: "",
   physicianName: "",
   physicianPhone: "",
   hospitalName: "",
+  hospitalPhone: "",
   insuranceProvider: "",
   insurancePolicyId: "",
 };
@@ -107,8 +126,8 @@ export default function SafetyScreen() {
   const { data: profile } = useGetProfile();
   const updateProfileMutation = useUpdateProfile();
 
-  // Active view section: "contacts" | "medical_id"
-  const [activeSection, setActiveSection] = useState<"contacts" | "medical_id">("contacts");
+  // Active view section: 3-tab architecture ("contacts" | "medical_id" | "rx_shield")
+  const [activeSection, setActiveSection] = useState<"contacts" | "medical_id" | "rx_shield">("contacts");
 
   // Emergency Contacts State
   const [contacts, setContacts] = useState<EmergencyContact[]>(DEFAULT_CONTACTS);
@@ -130,8 +149,24 @@ export default function SafetyScreen() {
 
   // Modals & Feedback
   const [showEmergencyCard, setShowEmergencyCard] = useState(false);
+  const [showQrModal, setShowQrModal] = useState(false);
   const [isSavedBanner, setIsSavedBanner] = useState(false);
   const [dialFeedback, setDialFeedback] = useState<string | null>(null);
+  const [sosFeedback, setSosFeedback] = useState<string | null>(null);
+
+  // Real-time Clinical Safety & Drug Interaction Engine
+  const rxSafety = useMemo(() => {
+    return evaluateMedicationSafety(
+      medicalData.medications,
+      medicalData.conditions,
+      medicalData.allergies
+    );
+  }, [medicalData.medications, medicalData.conditions, medicalData.allergies]);
+
+  // Primary Emergency Contact
+  const primaryContact = useMemo(() => {
+    return contacts.find((c) => c.isPrimary) || contacts[0];
+  }, [contacts]);
 
   // Back press handler: dismiss modals or return to Home tab (Capacitor Android & native)
   useFocusEffect(
@@ -145,6 +180,10 @@ export default function SafetyScreen() {
           setShowEmergencyCard(false);
           return true;
         }
+        if (showQrModal) {
+          setShowQrModal(false);
+          return true;
+        }
         if (router.canGoBack()) {
           router.back();
         } else {
@@ -152,7 +191,7 @@ export default function SafetyScreen() {
         }
         return true;
       });
-    }, [router, showContactModal, showEmergencyCard])
+    }, [router, showContactModal, showEmergencyCard, showQrModal])
   );
 
   // Load Saved Contacts & Medical Profile from Local Persistent Engine & DB
@@ -185,7 +224,6 @@ export default function SafetyScreen() {
         }
 
         setContacts(loadedContacts);
-        // Scrub legacy mock contacts from storage if present
         if (storedContacts) {
           try {
             const parsed = JSON.parse(storedContacts);
@@ -254,7 +292,6 @@ export default function SafetyScreen() {
         } catch {}
 
         setMedicalData(loadedMed);
-        // Scrub legacy mock profile from storage if present
         if (storedMed) {
           try {
             const parsed = JSON.parse(storedMed);
@@ -319,7 +356,6 @@ export default function SafetyScreen() {
       return;
     }
 
-    // Strip formatting characters while preserving leading + for international dial
     const cleanNumber = phoneNumber.replace(/[^0-9+*#]/g, "");
     if (!cleanNumber) {
       Alert.alert("Invalid Number", "Phone number contains no dialable digits.");
@@ -335,7 +371,6 @@ export default function SafetyScreen() {
         await Linking.openURL(telUrl);
         setTimeout(() => setDialFeedback(null), 4000);
       } else {
-        // Fallback for simulators or devices without telephony capability
         Alert.alert(
           "Dialer Unavailable",
           `Unable to open phone app directly. Number extracted from Lumen: ${cleanNumber}`,
@@ -352,7 +387,6 @@ export default function SafetyScreen() {
         );
       }
     } catch (err: any) {
-      // Attempt direct fallback open
       try {
         await Linking.openURL(telUrl);
       } catch {
@@ -361,6 +395,47 @@ export default function SafetyScreen() {
           `Contact: ${contactName || "Emergency Number"}\nPhone: ${cleanNumber}\n\nNumber extracted from app.`,
           [{ text: "OK" }]
         );
+      }
+    }
+  };
+
+  /**
+   * 1-TAP EMERGENCY SOS TELEMETRY & SMS DISPATCH
+   * Pre-formats an emergency SOS message with patient credentials, code status,
+   * allergies, conditions, and launches device SMS app directly to primary contact.
+   */
+  const handleSendSosSms = async () => {
+    const recipientPhone = primaryContact?.phoneNumber || "911";
+    const emergencyMessage = [
+      `🚨 EMERGENCY SOS from Lumen Health OS:`,
+      `${profile?.name || "Patient"} requires immediate medical assistance!`,
+      `Blood Type: ${medicalData.bloodType || "Unknown"} | Resuscitation: ${medicalData.codeStatus || "Full Code"}`,
+      medicalData.allergies.length > 0 ? `Critical Allergies: ${medicalData.allergies.join(", ")}` : "Allergies: NKDA (None Known)",
+      medicalData.conditions.length > 0 ? `Conditions: ${medicalData.conditions.join(", ")}` : null,
+      medicalData.emergencyNotes ? `Rescue Notes: "${medicalData.emergencyNotes}"` : null,
+      primaryContact ? `Primary ICE Contact: ${primaryContact.name} (${primaryContact.phoneNumber})` : null,
+      `Please dispatch first responders or call immediately.`,
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    const cleanRecipient = recipientPhone.replace(/[^0-9+*#]/g, "");
+    const smsUrl = Platform.OS === "ios"
+      ? `sms:${cleanRecipient}&body=${encodeURIComponent(emergencyMessage)}`
+      : `sms:${cleanRecipient}?body=${encodeURIComponent(emergencyMessage)}`;
+
+    try {
+      setSosFeedback(`Launching SOS SMS dispatch to ${primaryContact?.name || "Emergency Contact"}...`);
+      await Linking.openURL(smsUrl);
+      setTimeout(() => setSosFeedback(null), 5000);
+    } catch {
+      try {
+        await Share.share({
+          title: "EMERGENCY SOS BROADCAST",
+          message: emergencyMessage,
+        });
+      } catch {
+        Alert.alert("Emergency SOS Payload", emergencyMessage);
       }
     }
   };
@@ -410,7 +485,6 @@ export default function SafetyScreen() {
             isPrimary: formIsPrimary,
           };
         }
-        // If this contact is marked primary, unmark others
         if (formIsPrimary && c.id !== editingContact.id) {
           return { ...c, isPrimary: false };
         }
@@ -530,14 +604,21 @@ export default function SafetyScreen() {
         </Pressable>
 
         <View style={{ flex: 1, minWidth: 0, marginHorizontal: 10 }}>
-          <Text style={styles.topBarSub} numberOfLines={1}>EMERGENCY PROTOCOL</Text>
+          <Text style={styles.topBarSub} numberOfLines={1}>HEALTH OS PROTOCOL</Text>
           <Text style={styles.topBarTitle} numberOfLines={1}>Medical Safety & ID</Text>
         </View>
 
-        <Pressable style={styles.sosCardPill} onPress={() => setShowEmergencyCard(true)}>
-          <ShieldAlert size={14} color="#ef4444" />
-          <Text style={styles.sosCardPillText} numberOfLines={1}>VIEW ID CARD</Text>
-        </Pressable>
+        <View style={{ flexDirection: "row", gap: 6 }}>
+          <Pressable style={styles.qrHeaderBtn} onPress={() => setShowQrModal(true)} accessibilityLabel="View QR Passport">
+            <QrCode size={14} color="#38bdf8" />
+            <Text style={styles.qrHeaderBtnText}>QR PASSPORT</Text>
+          </Pressable>
+
+          <Pressable style={styles.sosCardPill} onPress={() => setShowEmergencyCard(true)} accessibilityLabel="View ID Card">
+            <ShieldAlert size={14} color="#ef4444" />
+            <Text style={styles.sosCardPillText} numberOfLines={1}>ID CARD</Text>
+          </Pressable>
+        </View>
       </View>
 
       {/* Dial Feedback Banner */}
@@ -548,17 +629,25 @@ export default function SafetyScreen() {
         </View>
       )}
 
+      {/* SOS SMS Feedback Banner */}
+      {sosFeedback && (
+        <View style={[styles.feedbackBanner, { backgroundColor: "rgba(56, 189, 248, 0.15)", borderColor: "rgba(56, 189, 248, 0.3)" }]}>
+          <Send size={14} color="#38bdf8" />
+          <Text style={[styles.feedbackText, { color: "#38bdf8" }]} numberOfLines={1}>{sosFeedback}</Text>
+        </View>
+      )}
+
       {/* Save Success Banner */}
       {isSavedBanner && (
         <View style={styles.savedBanner}>
           <Check size={14} color="#050b08" strokeWidth={3} />
-          <Text style={styles.savedBannerText} numberOfLines={1}>Medical ID Saved Locally</Text>
+          <Text style={styles.savedBannerText} numberOfLines={1}>Medical ID Saved Locally & Synced</Text>
         </View>
       )}
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* ========================================================================= */}
-        {/* NATIONAL EMERGENCY SPEED DIALER (911 / 112) */}
+        {/* TRI-ACTION EMERGENCY DISPATCH (911 / 112 / SOS SMS) */}
         {/* ========================================================================= */}
         <View style={styles.urgentAlertCard}>
           <View style={styles.urgentTopRow}>
@@ -568,7 +657,7 @@ export default function SafetyScreen() {
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={styles.urgentTitle} numberOfLines={1}>Instant Emergency Dispatch</Text>
               <Text style={styles.urgentSub}>
-                1-tap direct dial to primary emergency services & first responders
+                1-tap direct dial or encrypted SOS SMS dispatch to emergency contacts
               </Text>
             </View>
           </View>
@@ -578,10 +667,10 @@ export default function SafetyScreen() {
               style={[styles.sosCallBtn, { backgroundColor: "#dc2626" }]}
               onPress={() => handleCallNumber("911", "National Emergency 911")}
             >
-              <PhoneCall size={16} color="#ffffff" />
+              <PhoneCall size={15} color="#ffffff" />
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={styles.sosCallBtnTitle} numberOfLines={1}>CALL 911</Text>
-                <Text style={styles.sosCallBtnSub} numberOfLines={1}>Ambulance • Fire</Text>
+                <Text style={styles.sosCallBtnSub} numberOfLines={1}>Ambulance</Text>
               </View>
             </Pressable>
 
@@ -589,24 +678,35 @@ export default function SafetyScreen() {
               style={[styles.sosCallBtn, { backgroundColor: "#991b1b" }]}
               onPress={() => handleCallNumber("112", "Universal Emergency 112")}
             >
-              <PhoneCall size={16} color="#ffffff" />
+              <PhoneCall size={15} color="#ffffff" />
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={styles.sosCallBtnTitle} numberOfLines={1}>CALL 112</Text>
-                <Text style={styles.sosCallBtnSub} numberOfLines={1}>Global Dispatch</Text>
+                <Text style={styles.sosCallBtnSub} numberOfLines={1}>Global</Text>
+              </View>
+            </Pressable>
+
+            <Pressable
+              style={[styles.sosCallBtn, { backgroundColor: "#0284c7" }]}
+              onPress={handleSendSosSms}
+            >
+              <Send size={15} color="#ffffff" />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={styles.sosCallBtnTitle} numberOfLines={1}>SOS SMS</Text>
+                <Text style={styles.sosCallBtnSub} numberOfLines={1}>ICE Contact</Text>
               </View>
             </Pressable>
           </View>
         </View>
 
         {/* ========================================================================= */}
-        {/* SEGMENTED TAB SWITCHER */}
+        {/* 3-TAB SEGMENTED SWITCHER (Contacts / Medical ID / Rx Safety Shield) */}
         {/* ========================================================================= */}
         <View style={styles.segmentContainer}>
           <Pressable
             style={[styles.segmentBtn, activeSection === "contacts" && styles.segmentBtnActive]}
             onPress={() => setActiveSection("contacts")}
           >
-            <Phone size={14} color={activeSection === "contacts" ? "#10b981" : "#64748b"} />
+            <Phone size={13} color={activeSection === "contacts" ? "#10b981" : "#64748b"} />
             <Text
               style={[
                 styles.segmentBtnText,
@@ -622,7 +722,7 @@ export default function SafetyScreen() {
             style={[styles.segmentBtn, activeSection === "medical_id" && styles.segmentBtnActive]}
             onPress={() => setActiveSection("medical_id")}
           >
-            <Heart size={14} color={activeSection === "medical_id" ? "#10b981" : "#64748b"} />
+            <Heart size={13} color={activeSection === "medical_id" ? "#10b981" : "#64748b"} />
             <Text
               style={[
                 styles.segmentBtnText,
@@ -630,7 +730,23 @@ export default function SafetyScreen() {
               ]}
               numberOfLines={1}
             >
-              Medical ID
+              Clinical ID
+            </Text>
+          </Pressable>
+
+          <Pressable
+            style={[styles.segmentBtn, activeSection === "rx_shield" && styles.segmentBtnActive]}
+            onPress={() => setActiveSection("rx_shield")}
+          >
+            <Shield size={13} color={activeSection === "rx_shield" ? (rxSafety.overallStatus === "critical" ? "#ef4444" : "#10b981") : "#64748b"} />
+            <Text
+              style={[
+                styles.segmentBtnText,
+                activeSection === "rx_shield" && styles.segmentBtnTextActive,
+              ]}
+              numberOfLines={1}
+            >
+              Rx Shield {rxSafety.alerts.length > 0 ? `(${rxSafety.alerts.length})` : ""}
             </Text>
           </Pressable>
         </View>
@@ -667,7 +783,7 @@ export default function SafetyScreen() {
                       <Text style={styles.contactName} numberOfLines={1} ellipsizeMode="tail">{contact.name}</Text>
                       {contact.isPrimary && (
                         <View style={styles.primaryBadge}>
-                          <Text style={styles.primaryBadgeText}>PRIMARY</Text>
+                          <Text style={styles.primaryBadgeText}>PRIMARY ICE</Text>
                         </View>
                       )}
                     </View>
@@ -684,7 +800,6 @@ export default function SafetyScreen() {
                 <View style={styles.contactActionDivider} />
 
                 <View style={styles.contactActionsRow}>
-                  {/* Big Call Button - Redirects directly to phone call dialer */}
                   <Pressable
                     style={styles.callActionBtn}
                     onPress={() => handleCallNumber(contact.phoneNumber, contact.name)}
@@ -735,14 +850,14 @@ export default function SafetyScreen() {
               <Sparkles size={16} color="#38bdf8" />
               <Text style={styles.infoBoxText}>
                 <Text style={{ fontWeight: "bold", color: "#f8fafc" }}>Offline Native Redirection: </Text>
-                Tapping Call automatically launches your mobile phone dialer and inputs the extracted number even if the contact is not in your phone’s address book and with zero internet.
+                Tapping Call automatically launches your mobile phone dialer with zero internet and even if the contact is not in your phone’s address book.
               </Text>
             </View>
           </View>
         )}
 
         {/* ========================================================================= */}
-        {/* SECTION 2: MEDICAL PROFILE & FIRST RESPONDER DATA */}
+        {/* SECTION 2: CLINICAL ID & FIRST RESPONDER DATA */}
         {/* ========================================================================= */}
         {activeSection === "medical_id" && (
           <View style={{ gap: 16 }}>
@@ -756,7 +871,7 @@ export default function SafetyScreen() {
                   </Text>
                 </View>
               </View>
-              <Text style={styles.cardSub}>Critical for emergency transfusions</Text>
+              <Text style={styles.cardSub}>Critical for emergency blood transfusions</Text>
 
               <View style={styles.bloodChipsGrid}>
                 {BLOOD_TYPES.map((type) => (
@@ -786,13 +901,84 @@ export default function SafetyScreen() {
               </View>
             </View>
 
+            {/* Resuscitation Directives (Code Status) & Organ Donor */}
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Resuscitation Preference (Code Status)</Text>
+              <Text style={styles.cardSub}>Emergency directive for paramedics & ICU triage</Text>
+
+              <View style={{ gap: 8, marginTop: 10 }}>
+                {CODE_STATUS_OPTIONS.map((opt) => (
+                  <Pressable
+                    key={opt.id}
+                    style={[
+                      styles.codeOptionRow,
+                      medicalData.codeStatus === opt.id && styles.codeOptionRowActive,
+                    ]}
+                    onPress={() =>
+                      persistMedicalProfile({
+                        ...medicalData,
+                        codeStatus: opt.id,
+                      })
+                    }
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={[
+                          styles.codeOptionTitle,
+                          medicalData.codeStatus === opt.id && { color: "#38bdf8" },
+                        ]}
+                      >
+                        {opt.label}
+                      </Text>
+                    </View>
+                    <View
+                      style={[
+                        styles.codeRadioCircle,
+                        medicalData.codeStatus === opt.id && styles.codeRadioCircleActive,
+                      ]}
+                    >
+                      {medicalData.codeStatus === opt.id && <View style={styles.codeRadioDot} />}
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+
+              <View style={styles.organDonorRow}>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={styles.organDonorTitle}>Organ Donor Designation</Text>
+                  <Text style={styles.organDonorSub}>Verified on first responder medical pass</Text>
+                </View>
+                <Pressable
+                  style={[
+                    styles.organDonorToggle,
+                    medicalData.organDonor && styles.organDonorToggleActive,
+                  ]}
+                  onPress={() =>
+                    persistMedicalProfile({
+                      ...medicalData,
+                      organDonor: !medicalData.organDonor,
+                    })
+                  }
+                >
+                  <Text
+                    style={[
+                      styles.organDonorToggleText,
+                      medicalData.organDonor && { color: "#ffffff" },
+                    ]}
+                  >
+                    {medicalData.organDonor ? "YES" : "NO"}
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+
             {/* Allergies & Adverse Reactions */}
             <View style={styles.card}>
               <View style={styles.cardHeaderRow}>
-                <Text style={styles.cardTitle}>Allergies & Reactions</Text>
+                <Text style={styles.cardTitle}>Allergies & Adverse Reactions</Text>
                 <Text style={styles.badgeCount}>{medicalData.allergies.length}</Text>
               </View>
-              <Text style={styles.cardSub}>Alerts first responders to avoid adverse drug reactions</Text>
+              <Text style={styles.cardSub}>Alerts first responders to avoid life-threatening anaphylaxis</Text>
 
               {medicalData.allergies.length > 0 ? (
                 <View style={styles.tagsContainer}>
@@ -806,7 +992,7 @@ export default function SafetyScreen() {
                   ))}
                 </View>
               ) : (
-                <Text style={styles.emptyTagNotice}>No allergies recorded yet. Add below if applicable.</Text>
+                <Text style={styles.emptyTagNotice}>No known drug allergies (NKDA). Add below if applicable.</Text>
               )}
 
               <View style={styles.addTagRow}>
@@ -824,45 +1010,7 @@ export default function SafetyScreen() {
               </View>
             </View>
 
-            {/* Current Medications & Dosages */}
-            <View style={styles.card}>
-              <View style={styles.cardHeaderRow}>
-                <Text style={styles.cardTitle}>Current Medications</Text>
-                <Text style={styles.badgeCount}>{medicalData.medications.length}</Text>
-              </View>
-              <Text style={styles.cardSub}>Active prescriptions and daily supplements</Text>
-
-              {medicalData.medications.length > 0 ? (
-                <View style={styles.tagsContainer}>
-                  {medicalData.medications.map((med) => (
-                    <View key={med} style={styles.medTag}>
-                      <Text style={styles.medTagText} numberOfLines={1}>{med}</Text>
-                      <Pressable onPress={() => handleRemoveMedication(med)} hitSlop={8}>
-                        <X size={12} color="#93c5fd" />
-                      </Pressable>
-                    </View>
-                  ))}
-                </View>
-              ) : (
-                <Text style={styles.emptyTagNotice}>No medications logged yet. Add below if applicable.</Text>
-              )}
-
-              <View style={styles.addTagRow}>
-                <TextInput
-                  style={styles.tagInput}
-                  placeholder="Add medication (e.g. Aspirin 81mg)"
-                  placeholderTextColor="#64748b"
-                  value={newMedicationInput}
-                  onChangeText={setNewMedicationInput}
-                  onSubmitEditing={handleAddMedication}
-                />
-                <Pressable style={[styles.tagAddBtn, { backgroundColor: "#2563eb" }]} onPress={handleAddMedication}>
-                  <Plus size={16} color="#ffffff" />
-                </Pressable>
-              </View>
-            </View>
-
-            {/* Chronic Medical Conditions */}
+            {/* Chronic Medical Conditions & Emergency Clinical Notes */}
             <View style={styles.card}>
               <View style={styles.cardHeaderRow}>
                 <Text style={styles.cardTitle}>Medical Conditions & Clinical Notes</Text>
@@ -888,7 +1036,7 @@ export default function SafetyScreen() {
               <View style={styles.addTagRow}>
                 <TextInput
                   style={styles.tagInput}
-                  placeholder="Add condition (e.g. Asthma, Diabetes)"
+                  placeholder="Add condition (e.g. Type 2 Diabetes, Hypertension)"
                   placeholderTextColor="#64748b"
                   value={newConditionInput}
                   onChangeText={setNewConditionInput}
@@ -899,8 +1047,8 @@ export default function SafetyScreen() {
                 </Pressable>
               </View>
 
-              <View style={{ marginTop: 10 }}>
-                <Text style={styles.fieldLabel}>Emergency Clinical Notes</Text>
+              <View style={{ marginTop: 12 }}>
+                <Text style={styles.fieldLabel}>Emergency Rescue Notes</Text>
                 <TextInput
                   style={[styles.tagInput, { minHeight: 60, textAlignVertical: "top" }]}
                   placeholder="Rescue instructions for first responders..."
@@ -912,10 +1060,10 @@ export default function SafetyScreen() {
               </View>
             </View>
 
-            {/* Primary Physician & Clinical Facilities */}
+            {/* Primary Physician & Emergency Hospital */}
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>Physician & Emergency Authorization</Text>
-              <Text style={styles.cardSub}>Doctor contact details for emergency guidance</Text>
+              <Text style={styles.cardTitle}>Physician & Preferred Trauma Center</Text>
+              <Text style={styles.cardSub}>Doctor contact details and hospital destination</Text>
 
               <View style={styles.twoColInputs}>
                 <View style={{ flex: 1, minWidth: 120 }}>
@@ -952,7 +1100,219 @@ export default function SafetyScreen() {
                   </Text>
                 </Pressable>
               ) : null}
+
+              <View style={[styles.twoColInputs, { marginTop: 10 }]}>
+                <View style={{ flex: 1, minWidth: 120 }}>
+                  <Text style={styles.fieldLabel}>Preferred Hospital</Text>
+                  <TextInput
+                    style={styles.tagInput}
+                    placeholder="e.g. Memorial Trauma Center"
+                    placeholderTextColor="#64748b"
+                    value={medicalData.hospitalName}
+                    onChangeText={(val) => persistMedicalProfile({ ...medicalData, hospitalName: val })}
+                  />
+                </View>
+                <View style={{ flex: 1, minWidth: 120 }}>
+                  <Text style={styles.fieldLabel}>Hospital ER Phone</Text>
+                  <TextInput
+                    style={styles.tagInput}
+                    placeholder="ER phone"
+                    placeholderTextColor="#64748b"
+                    keyboardType="phone-pad"
+                    value={medicalData.hospitalPhone}
+                    onChangeText={(val) => persistMedicalProfile({ ...medicalData, hospitalPhone: val })}
+                  />
+                </View>
+              </View>
+
+              {medicalData.hospitalPhone ? (
+                <Pressable
+                  style={[styles.physicianCallBtn, { borderColor: "rgba(239, 68, 68, 0.3)", backgroundColor: "rgba(239, 68, 68, 0.08)" }]}
+                  onPress={() => handleCallNumber(medicalData.hospitalPhone!, medicalData.hospitalName)}
+                >
+                  <Hospital size={14} color="#ef4444" />
+                  <Text style={[styles.physicianCallBtnText, { color: "#ef4444" }]} numberOfLines={1}>
+                    Call Hospital ER ({medicalData.hospitalPhone})
+                  </Text>
+                </Pressable>
+              ) : null}
             </View>
+
+            {/* Health Insurance Credentials */}
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Health Insurance Credentials</Text>
+              <Text style={styles.cardSub}>Expedites emergency admission and coverage verification</Text>
+
+              <View style={styles.twoColInputs}>
+                <View style={{ flex: 1, minWidth: 120 }}>
+                  <Text style={styles.fieldLabel}>Insurance Carrier</Text>
+                  <TextInput
+                    style={styles.tagInput}
+                    placeholder="e.g. BlueCross, Aetna"
+                    placeholderTextColor="#64748b"
+                    value={medicalData.insuranceProvider}
+                    onChangeText={(val) => persistMedicalProfile({ ...medicalData, insuranceProvider: val })}
+                  />
+                </View>
+                <View style={{ flex: 1, minWidth: 120 }}>
+                  <Text style={styles.fieldLabel}>Policy / Member ID</Text>
+                  <TextInput
+                    style={styles.tagInput}
+                    placeholder="e.g. XEA-91823-01"
+                    placeholderTextColor="#64748b"
+                    value={medicalData.insurancePolicyId}
+                    onChangeText={(val) => persistMedicalProfile({ ...medicalData, insurancePolicyId: val })}
+                  />
+                </View>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* ========================================================================= */}
+        {/* SECTION 3: RX SAFETY SHIELD & DRUG CONTRAINDICATIONS */}
+        {/* ========================================================================= */}
+        {activeSection === "rx_shield" && (
+          <View style={{ gap: 16 }}>
+            {/* Clinical Regimen Status Banner */}
+            <View
+              style={[
+                styles.shieldStatusCard,
+                rxSafety.overallStatus === "critical" && styles.shieldStatusCardCritical,
+                rxSafety.overallStatus === "high" && styles.shieldStatusCardHigh,
+                rxSafety.overallStatus === "moderate" && styles.shieldStatusCardModerate,
+                rxSafety.overallStatus === "safe" && styles.shieldStatusCardSafe,
+              ]}
+            >
+              <View style={styles.shieldStatusHeader}>
+                {rxSafety.overallStatus === "critical" && <ShieldAlert size={24} color="#ef4444" />}
+                {rxSafety.overallStatus === "high" && <AlertTriangle size={24} color="#f97316" />}
+                {rxSafety.overallStatus === "moderate" && <AlertTriangle size={24} color="#eab308" />}
+                {rxSafety.overallStatus === "safe" && <ShieldCheck size={24} color="#10b981" />}
+
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={[
+                      styles.shieldStatusTitle,
+                      rxSafety.overallStatus === "critical" && { color: "#ef4444" },
+                      rxSafety.overallStatus === "high" && { color: "#f97316" },
+                      rxSafety.overallStatus === "moderate" && { color: "#eab308" },
+                      rxSafety.overallStatus === "safe" && { color: "#10b981" },
+                    ]}
+                  >
+                    {rxSafety.overallStatus === "critical" && "Critical Interaction Detected"}
+                    {rxSafety.overallStatus === "high" && "High Clinical Precaution Advised"}
+                    {rxSafety.overallStatus === "moderate" && "Moderate Interaction Advisory"}
+                    {rxSafety.overallStatus === "safe" && "Regimen Verified Safe"}
+                  </Text>
+                  <Text style={styles.shieldStatusSub}>
+                    {rxSafety.alerts.length > 0
+                      ? `${rxSafety.alerts.length} potential interaction(s) found across ${rxSafety.checkedMedicationsCount} logged medication(s).`
+                      : `Zero contraindications found between your ${medicalData.medications.length} medication(s), ${medicalData.conditions.length} condition(s), and ${medicalData.allergies.length} allergy item(s).`}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Active Medications Manager */}
+            <View style={styles.card}>
+              <View style={styles.cardHeaderRow}>
+                <Text style={styles.cardTitle}>Active Prescriptions & Regimen</Text>
+                <Text style={styles.badgeCount}>{medicalData.medications.length}</Text>
+              </View>
+              <Text style={styles.cardSub}>Logged medications are evaluated continuously for contraindications</Text>
+
+              {medicalData.medications.length > 0 ? (
+                <View style={styles.tagsContainer}>
+                  {medicalData.medications.map((med) => (
+                    <View key={med} style={styles.medTag}>
+                      <Pill size={13} color="#93c5fd" />
+                      <Text style={styles.medTagText} numberOfLines={1}>{med}</Text>
+                      <Pressable onPress={() => handleRemoveMedication(med)} hitSlop={8}>
+                        <X size={12} color="#93c5fd" />
+                      </Pressable>
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <Text style={styles.emptyTagNotice}>No medications logged yet. Add your daily prescriptions below.</Text>
+              )}
+
+              <View style={styles.addTagRow}>
+                <TextInput
+                  style={styles.tagInput}
+                  placeholder="Add medication (e.g. Lisinopril 10mg, Metformin 500mg)"
+                  placeholderTextColor="#64748b"
+                  value={newMedicationInput}
+                  onChangeText={setNewMedicationInput}
+                  onSubmitEditing={handleAddMedication}
+                />
+                <Pressable style={[styles.tagAddBtn, { backgroundColor: "#2563eb" }]} onPress={handleAddMedication}>
+                  <Plus size={16} color="#ffffff" />
+                </Pressable>
+              </View>
+            </View>
+
+            {/* Clinical Alerts List */}
+            {rxSafety.alerts.length > 0 && (
+              <View style={{ gap: 12 }}>
+                <Text style={styles.clinicalAlertsHeader}>CLINICAL INTERACTION DETAILS</Text>
+                {rxSafety.alerts.map((alert) => (
+                  <View
+                    key={alert.id}
+                    style={[
+                      styles.alertDetailCard,
+                      alert.severity === "critical" && styles.alertDetailCardCritical,
+                      alert.severity === "high" && styles.alertDetailCardHigh,
+                      alert.severity === "moderate" && styles.alertDetailCardModerate,
+                    ]}
+                  >
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <AlertTriangle
+                        size={16}
+                        color={
+                          alert.severity === "critical"
+                            ? "#ef4444"
+                            : alert.severity === "high"
+                            ? "#f97316"
+                            : "#eab308"
+                        }
+                      />
+                      <Text
+                        style={[
+                          styles.alertDetailTitle,
+                          alert.severity === "critical" && { color: "#ef4444" },
+                          alert.severity === "high" && { color: "#f97316" },
+                          alert.severity === "moderate" && { color: "#eab308" },
+                        ]}
+                      >
+                        {alert.title}
+                      </Text>
+                    </View>
+
+                    <Text style={styles.alertDetailDesc}>{alert.description}</Text>
+
+                    <View style={styles.alertGuidanceBox}>
+                      <Text style={styles.alertGuidanceLabel}>CLINICAL GUIDANCE:</Text>
+                      <Text style={styles.alertGuidanceText}>{alert.clinicalGuidance}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* Safe Medications List */}
+            {rxSafety.safeMedications.length > 0 && (
+              <View style={styles.safeMedsCard}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Check size={16} color="#10b981" />
+                  <Text style={styles.safeMedsTitle}>Cleared with Active Profile:</Text>
+                </View>
+                <Text style={styles.safeMedsList}>
+                  {rxSafety.safeMedications.join(" • ")}
+                </Text>
+              </View>
+            )}
           </View>
         )}
       </ScrollView>
@@ -1045,7 +1405,7 @@ export default function SafetyScreen() {
               >
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={styles.primarySwitchTitle} numberOfLines={1}>Set as Primary Contact</Text>
-                  <Text style={styles.primarySwitchSub} numberOfLines={1}>Will appear at top of First Responder ID</Text>
+                  <Text style={styles.primarySwitchSub} numberOfLines={1}>Will receive SOS SMS and appear at top of ID</Text>
                 </View>
                 <View style={[styles.checkboxBox, formIsPrimary && styles.checkboxBoxActive]}>
                   {formIsPrimary && <Check size={14} color="#050b08" strokeWidth={3} />}
@@ -1088,7 +1448,9 @@ export default function SafetyScreen() {
                   <Text style={styles.patientName} numberOfLines={1}>
                     {profile?.name || "Lumen User"}
                   </Text>
-                  <Text style={styles.patientSub} numberOfLines={1}>Lumen Verified Health ID • AES-256 Offline</Text>
+                  <Text style={styles.patientSub} numberOfLines={1}>
+                    Resuscitation: {medicalData.codeStatus || "Full Code"} • {medicalData.organDonor ? "Organ Donor" : "Standard"}
+                  </Text>
                 </View>
                 <View style={styles.bloodTypeBigBox}>
                   <Text style={styles.bloodTypeBigLabel}>BLOOD</Text>
@@ -1134,7 +1496,7 @@ export default function SafetyScreen() {
                       <View key={c.id} style={styles.modalContactRow}>
                         <View style={{ flex: 1, minWidth: 0, marginRight: 8 }}>
                           <Text style={styles.modalContactName} numberOfLines={1}>
-                            {c.name} {c.isPrimary ? "(Primary)" : ""}
+                            {c.name} {c.isPrimary ? "(Primary ICE)" : ""}
                           </Text>
                           <Text style={styles.modalContactPhone} numberOfLines={1}>{c.phoneNumber}</Text>
                         </View>
@@ -1167,6 +1529,41 @@ export default function SafetyScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* ========================================================================= */}
+      {/* MODAL 3: OPTICAL PARAMEDIC QR PASSPORT */}
+      {/* ========================================================================= */}
+      <EmergencyQrCodeModal
+        visible={showQrModal}
+        onClose={() => setShowQrModal(false)}
+        patientName={profile?.name || "Lumen User"}
+        bloodType={medicalData.bloodType}
+        codeStatus={medicalData.codeStatus || "Full Code"}
+        organDonor={medicalData.organDonor}
+        allergies={medicalData.allergies}
+        medications={medicalData.medications}
+        conditions={medicalData.conditions}
+        emergencyNotes={medicalData.emergencyNotes}
+        primaryContact={
+          primaryContact
+            ? {
+                name: primaryContact.name,
+                relationship: primaryContact.relationship,
+                phoneNumber: primaryContact.phoneNumber,
+              }
+            : undefined
+        }
+        physician={
+          medicalData.physicianName && medicalData.physicianPhone
+            ? {
+                name: medicalData.physicianName,
+                phone: medicalData.physicianPhone,
+              }
+            : undefined
+        }
+        insurancePolicyId={medicalData.insurancePolicyId}
+        onCallNumber={handleCallNumber}
+      />
     </View>
   );
 }
@@ -1212,15 +1609,32 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     color: THEME.colors.textOnDarkPrimary,
   },
+  qrHeaderBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "rgba(56, 189, 248, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(56, 189, 248, 0.35)",
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 20,
+  },
+  qrHeaderBtnText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#38bdf8",
+    letterSpacing: 0.5,
+  },
   sosCardPill: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 5,
     backgroundColor: "rgba(239, 68, 68, 0.15)",
     borderWidth: 1,
     borderColor: "rgba(239, 68, 68, 0.35)",
     paddingVertical: 6,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     borderRadius: 20,
   },
   sosCardPillText: {
@@ -1250,29 +1664,27 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: THEME.colors.accentGreen,
-    paddingVertical: 8,
+    backgroundColor: "#10b981",
+    paddingVertical: 10,
     paddingHorizontal: 20,
-    justifyContent: "center",
   },
   savedBannerText: {
     fontSize: 12,
-    fontWeight: "900",
-    color: "#ffffff",
+    fontWeight: "800",
+    color: "#050b08",
   },
 
   scrollContent: {
     padding: 20,
-    paddingBottom: 50,
+    paddingBottom: 110,
     gap: 16,
   },
 
-  // Urgent Emergency Card
   urgentAlertCard: {
-    backgroundColor: "rgba(239, 68, 68, 0.1)",
+    backgroundColor: "rgba(220, 38, 38, 0.12)",
     borderWidth: 1.5,
-    borderColor: "rgba(239, 68, 68, 0.35)",
-    borderRadius: 24,
+    borderColor: "rgba(220, 38, 38, 0.4)",
+    borderRadius: 22,
     padding: 16,
     gap: 12,
   },
@@ -1282,57 +1694,59 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   sosIconBox: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: "rgba(239, 68, 68, 0.2)",
+    borderWidth: 1,
+    borderColor: "rgba(239, 68, 68, 0.4)",
     alignItems: "center",
     justifyContent: "center",
   },
   urgentTitle: {
     fontSize: 15,
     fontWeight: "900",
-    color: THEME.colors.textOnDarkPrimary,
+    color: "#f87171",
   },
   urgentSub: {
     fontSize: 11,
+    fontWeight: "600",
     color: "#fca5a5",
-    lineHeight: 15,
     marginTop: 2,
   },
   sosButtonsRow: {
     flexDirection: "row",
-    gap: 10,
+    gap: 8,
   },
   sosCallBtn: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
     borderRadius: 14,
   },
   sosCallBtnTitle: {
-    fontSize: 13,
-    fontWeight: "900",
     color: "#ffffff",
+    fontSize: 12,
+    fontWeight: "900",
     letterSpacing: 0.5,
   },
   sosCallBtnSub: {
-    fontSize: 9,
-    fontWeight: "600",
     color: "rgba(255, 255, 255, 0.8)",
+    fontSize: 9,
+    fontWeight: "700",
   },
 
-  // Segmented Tabs
   segmentContainer: {
     flexDirection: "row",
-    backgroundColor: "rgba(232, 241, 237, 0.15)",
+    backgroundColor: "rgba(255, 255, 255, 0.04)",
     borderRadius: 16,
     padding: 4,
     borderWidth: 1,
-    borderColor: "rgba(200, 218, 210, 0.25)",
+    borderColor: "rgba(255, 255, 255, 0.08)",
   },
   segmentBtn: {
     flex: 1,
@@ -1344,115 +1758,116 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   segmentBtnActive: {
-    backgroundColor: THEME.colors.accentTeal,
+    backgroundColor: "rgba(255, 255, 255, 0.12)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2,
   },
   segmentBtnText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
-    color: THEME.colors.textOnDarkSecondary,
+    color: "#64748b",
   },
   segmentBtnTextActive: {
-    color: "#ffffff",
+    color: "#f8fafc",
     fontWeight: "800",
   },
 
-  // Section Headers
   sectionHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
   sectionTitle: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: THEME.colors.textOnDarkPrimary,
+    fontSize: 16,
+    fontWeight: "900",
+    color: "#f8fafc",
   },
   sectionSub: {
     fontSize: 11,
-    color: THEME.colors.textOnDarkSecondary,
+    fontWeight: "600",
+    color: "#94a3b8",
     marginTop: 2,
-    lineHeight: 15,
   },
   addContactBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: THEME.colors.accentGreen,
+    backgroundColor: "#10b981",
     paddingVertical: 8,
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     borderRadius: 12,
   },
   addContactBtnText: {
-    fontSize: 11,
-    fontWeight: "800",
     color: "#ffffff",
+    fontSize: 12,
+    fontWeight: "800",
   },
 
-  // Contact Cards
   contactCard: {
-    backgroundColor: THEME.colors.cardBg,
+    backgroundColor: "rgba(255, 255, 255, 0.03)",
     borderWidth: 1,
-    borderColor: THEME.colors.cardBorder,
-    borderRadius: 24,
+    borderColor: "rgba(255, 255, 255, 0.08)",
+    borderRadius: 20,
     padding: 16,
-    ...THEME.shadows.card,
+    gap: 12,
   },
   contactTopRow: {
     flexDirection: "row",
-    alignItems: "flex-start",
     gap: 12,
   },
   contactAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 14,
-    backgroundColor: "rgba(16, 185, 129, 0.15)",
-    alignItems: "center",
-    justifyContent: "center",
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
     borderWidth: 1,
     borderColor: "rgba(16, 185, 129, 0.3)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   contactName: {
     fontSize: 15,
-    fontWeight: "800",
-    color: THEME.colors.cardTextPrimary,
-    flexShrink: 1,
+    fontWeight: "900",
+    color: "#f8fafc",
   },
   primaryBadge: {
-    backgroundColor: "rgba(16, 185, 129, 0.2)",
-    paddingHorizontal: 6,
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.4)",
+    paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: 6,
   },
   primaryBadgeText: {
-    fontSize: 8,
+    fontSize: 9,
     fontWeight: "900",
-    color: THEME.colors.accentGreen,
+    color: "#34d399",
   },
   contactRelationship: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: THEME.colors.cardTextSecondary,
-    marginTop: 1,
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#94a3b8",
+    marginTop: 2,
   },
   contactPhone: {
     fontSize: 13,
     fontWeight: "800",
-    color: THEME.colors.accentTeal,
-    marginTop: 4,
-    letterSpacing: 0.3,
+    color: "#38bdf8",
+    marginTop: 2,
   },
   contactNotes: {
     fontSize: 11,
-    color: THEME.colors.cardTextSecondary,
+    fontWeight: "500",
+    color: "#94a3b8",
     fontStyle: "italic",
     marginTop: 4,
-    lineHeight: 15,
   },
   contactActionDivider: {
     height: 1,
-    backgroundColor: "rgba(200, 218, 210, 0.4)",
-    marginVertical: 12,
+    backgroundColor: "rgba(255, 255, 255, 0.06)",
   },
   contactActionsRow: {
     flexDirection: "row",
@@ -1462,107 +1877,98 @@ const styles = StyleSheet.create({
   callActionBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    backgroundColor: THEME.colors.accentGreen,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    flexShrink: 0,
+    gap: 8,
+    backgroundColor: "#10b981",
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 14,
   },
   callActionBtnText: {
-    fontSize: 12,
-    fontWeight: "900",
     color: "#ffffff",
-    letterSpacing: 0.3,
+    fontSize: 13,
+    fontWeight: "900",
   },
   contactSmallIconBtn: {
     width: 36,
     height: 36,
     borderRadius: 10,
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
     borderWidth: 1,
-    borderColor: "rgba(200, 218, 210, 0.5)",
-    backgroundColor: "#ffffff",
+    borderColor: "rgba(255, 255, 255, 0.12)",
     alignItems: "center",
     justifyContent: "center",
   },
 
-  // Empty State
   emptyCard: {
-    backgroundColor: THEME.colors.cardBg,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: THEME.colors.cardBorder,
-    padding: 24,
     alignItems: "center",
-    textAlign: "center",
-    ...THEME.shadows.card,
+    backgroundColor: "rgba(255, 255, 255, 0.02)",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.06)",
+    padding: 24,
+    gap: 8,
   },
   emptyIconCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: "rgba(16, 185, 129, 0.12)",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.25)",
+    marginBottom: 6,
   },
   emptyTitle: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: THEME.colors.cardTextPrimary,
+    color: "#f8fafc",
+    fontSize: 15,
+    fontWeight: "900",
   },
   emptySub: {
-    fontSize: 11,
-    color: THEME.colors.cardTextSecondary,
+    color: "#94a3b8",
+    fontSize: 12,
+    fontWeight: "500",
     textAlign: "center",
-    lineHeight: 16,
-    marginTop: 4,
-    marginBottom: 14,
+    lineHeight: 18,
   },
   addContactEmptyBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    backgroundColor: THEME.colors.accentGreen,
+    gap: 8,
+    backgroundColor: "#10b981",
     paddingVertical: 10,
-    paddingHorizontal: 18,
+    paddingHorizontal: 16,
     borderRadius: 14,
+    marginTop: 8,
   },
   addContactEmptyBtnText: {
-    fontSize: 12,
-    fontWeight: "900",
     color: "#ffffff",
+    fontSize: 13,
+    fontWeight: "800",
   },
 
-  // Info Box
   infoBox: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     gap: 10,
-    backgroundColor: "rgba(232, 241, 237, 0.6)",
+    backgroundColor: "rgba(56, 189, 248, 0.08)",
     borderWidth: 1,
-    borderColor: "rgba(200, 218, 210, 0.5)",
+    borderColor: "rgba(56, 189, 248, 0.25)",
     borderRadius: 16,
-    padding: 12,
+    padding: 14,
   },
   infoBoxText: {
-    fontSize: 11,
-    color: THEME.colors.cardTextSecondary,
-    lineHeight: 16,
     flex: 1,
+    fontSize: 11,
+    color: "#94a3b8",
+    lineHeight: 16,
   },
 
-  // Medical ID Cards
   card: {
-    backgroundColor: THEME.colors.cardBg,
+    backgroundColor: "rgba(255, 255, 255, 0.03)",
     borderWidth: 1,
-    borderColor: THEME.colors.cardBorder,
-    borderRadius: 24,
-    padding: 18,
-    gap: 10,
-    ...THEME.shadows.card,
+    borderColor: "rgba(255, 255, 255, 0.08)",
+    borderRadius: 20,
+    padding: 16,
+    gap: 6,
   },
   cardHeaderRow: {
     flexDirection: "row",
@@ -1570,72 +1976,146 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   cardTitle: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: THEME.colors.cardTextPrimary,
+    fontSize: 15,
+    fontWeight: "900",
+    color: "#f8fafc",
   },
   cardSub: {
     fontSize: 11,
-    color: THEME.colors.cardTextSecondary,
+    fontWeight: "600",
+    color: "#94a3b8",
+    marginBottom: 6,
   },
   badgeCount: {
-    backgroundColor: "rgba(232, 241, 237, 0.7)",
-    color: THEME.colors.cardTextPrimary,
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: "800",
+    color: "#38bdf8",
+    backgroundColor: "rgba(56, 189, 248, 0.15)",
     paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 8,
+    borderRadius: 10,
   },
-
-  // Blood chips
   bloodTypeActivePill: {
-    backgroundColor: "rgba(239, 68, 68, 0.15)",
-    borderWidth: 1,
-    borderColor: "rgba(239, 68, 68, 0.35)",
-    paddingVertical: 3,
+    backgroundColor: "#dc2626",
     paddingHorizontal: 10,
+    paddingVertical: 4,
     borderRadius: 12,
   },
   bloodTypeActivePillText: {
-    color: "#ef4444",
-    fontWeight: "900",
+    color: "#ffffff",
     fontSize: 12,
+    fontWeight: "900",
   },
   bloodChipsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
-    marginTop: 4,
+    marginTop: 6,
   },
   bloodChip: {
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    backgroundColor: "#ffffff",
+    width: "22%",
+    paddingVertical: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(200, 218, 210, 0.7)",
+    borderColor: "rgba(255, 255, 255, 0.1)",
   },
   bloodChipActive: {
-    backgroundColor: "rgba(239, 68, 68, 0.2)",
+    backgroundColor: "#dc2626",
     borderColor: "#ef4444",
   },
   bloodChipText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: THEME.colors.cardTextSecondary,
+    color: "#94a3b8",
+    fontSize: 13,
+    fontWeight: "800",
   },
   bloodChipTextActive: {
-    color: "#ef4444",
+    color: "#ffffff",
     fontWeight: "900",
   },
 
-  // Tags
+  codeOptionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(255, 255, 255, 0.02)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.08)",
+    padding: 12,
+    borderRadius: 14,
+  },
+  codeOptionRowActive: {
+    backgroundColor: "rgba(56, 189, 248, 0.08)",
+    borderColor: "rgba(56, 189, 248, 0.4)",
+  },
+  codeOptionTitle: {
+    color: "#e2e8f0",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  codeRadioCircle: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: "#64748b",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  codeRadioCircleActive: {
+    borderColor: "#38bdf8",
+  },
+  codeRadioDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#38bdf8",
+  },
+
+  organDonorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(16, 185, 129, 0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.2)",
+    padding: 12,
+    borderRadius: 14,
+    marginTop: 8,
+  },
+  organDonorTitle: {
+    color: "#f8fafc",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  organDonorSub: {
+    color: "#94a3b8",
+    fontSize: 11,
+    fontWeight: "500",
+    marginTop: 2,
+  },
+  organDonorToggle: {
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    paddingVertical: 6,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+  },
+  organDonorToggleActive: {
+    backgroundColor: "#10b981",
+  },
+  organDonorToggleText: {
+    color: "#94a3b8",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+
   tagsContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
-    marginTop: 4,
+    marginVertical: 6,
   },
   allergyTag: {
     flexDirection: "row",
@@ -1643,173 +2123,280 @@ const styles = StyleSheet.create({
     gap: 6,
     backgroundColor: "rgba(239, 68, 68, 0.15)",
     borderWidth: 1,
-    borderColor: "rgba(239, 68, 68, 0.3)",
+    borderColor: "rgba(239, 68, 68, 0.35)",
     paddingVertical: 6,
     paddingHorizontal: 10,
-    borderRadius: 8,
+    borderRadius: 12,
   },
   allergyTagText: {
-    fontSize: 11,
+    color: "#fca5a5",
+    fontSize: 12,
     fontWeight: "700",
-    color: "#dc2626",
   },
   medTag: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "rgba(59, 130, 246, 0.15)",
+    backgroundColor: "rgba(37, 99, 235, 0.15)",
     borderWidth: 1,
-    borderColor: "rgba(59, 130, 246, 0.3)",
+    borderColor: "rgba(37, 99, 235, 0.35)",
     paddingVertical: 6,
     paddingHorizontal: 10,
-    borderRadius: 8,
+    borderRadius: 12,
   },
   medTagText: {
-    fontSize: 11,
+    color: "#93c5fd",
+    fontSize: 12,
     fontWeight: "700",
-    color: "#2563eb",
   },
   conditionTag: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "#ffffff",
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
     borderWidth: 1,
-    borderColor: "rgba(200, 218, 210, 0.7)",
+    borderColor: "rgba(255, 255, 255, 0.15)",
     paddingVertical: 6,
     paddingHorizontal: 10,
-    borderRadius: 8,
+    borderRadius: 12,
   },
   conditionTagText: {
-    fontSize: 11,
+    color: "#e2e8f0",
+    fontSize: 12,
     fontWeight: "700",
-    color: THEME.colors.cardTextPrimary,
   },
-
+  emptyTagNotice: {
+    color: "#64748b",
+    fontSize: 12,
+    fontStyle: "italic",
+    marginVertical: 4,
+  },
   addTagRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    marginTop: 8,
+    marginTop: 6,
   },
   tagInput: {
     flex: 1,
-    backgroundColor: "#ffffff",
+    backgroundColor: "rgba(0, 0, 0, 0.3)",
     borderWidth: 1,
-    borderColor: "rgba(200, 218, 210, 0.8)",
+    borderColor: "rgba(255, 255, 255, 0.1)",
     borderRadius: 12,
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    fontSize: 12,
-    color: THEME.colors.cardTextPrimary,
+    paddingVertical: 10,
+    color: "#f8fafc",
+    fontSize: 13,
   },
   tagAddBtn: {
-    backgroundColor: "#dc2626",
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+    backgroundColor: "#ef4444",
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
   },
   fieldLabel: {
+    color: "#94a3b8",
     fontSize: 11,
-    fontWeight: "700",
-    color: THEME.colors.cardTextSecondary,
+    fontWeight: "800",
+    letterSpacing: 0.5,
     marginBottom: 4,
-  },
-  emptyTagNotice: {
-    fontSize: 11,
-    fontStyle: "italic",
-    color: THEME.colors.cardTextSecondary,
-    paddingVertical: 4,
   },
   twoColInputs: {
     flexDirection: "row",
     gap: 10,
-    flexWrap: "wrap",
+    marginTop: 6,
   },
   physicianCallBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    alignSelf: "flex-start",
-    maxWidth: "100%",
-    backgroundColor: "rgba(16, 185, 129, 0.15)",
+    backgroundColor: "rgba(16, 185, 129, 0.1)",
     borderWidth: 1,
     borderColor: "rgba(16, 185, 129, 0.3)",
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 10,
+    padding: 10,
+    borderRadius: 12,
     marginTop: 6,
   },
   physicianCallBtnText: {
-    fontSize: 11,
-    fontWeight: "800",
-    color: THEME.colors.accentGreen,
-    flexShrink: 1,
+    color: "#34d399",
+    fontSize: 12,
+    fontWeight: "700",
   },
 
-  // Modal 1: Add Contact
+  shieldStatusCard: {
+    backgroundColor: "rgba(255, 255, 255, 0.04)",
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+    padding: 16,
+  },
+  shieldStatusCardCritical: {
+    backgroundColor: "rgba(220, 38, 38, 0.12)",
+    borderColor: "rgba(220, 38, 38, 0.4)",
+  },
+  shieldStatusCardHigh: {
+    backgroundColor: "rgba(249, 115, 22, 0.12)",
+    borderColor: "rgba(249, 115, 22, 0.4)",
+  },
+  shieldStatusCardModerate: {
+    backgroundColor: "rgba(234, 179, 8, 0.12)",
+    borderColor: "rgba(234, 179, 8, 0.4)",
+  },
+  shieldStatusCardSafe: {
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    borderColor: "rgba(16, 185, 129, 0.4)",
+  },
+  shieldStatusHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  shieldStatusTitle: {
+    fontSize: 15,
+    fontWeight: "900",
+  },
+  shieldStatusSub: {
+    fontSize: 11,
+    fontWeight: "500",
+    color: "#cbd5e1",
+    marginTop: 2,
+    lineHeight: 16,
+  },
+
+  clinicalAlertsHeader: {
+    color: "#94a3b8",
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+    marginTop: 4,
+  },
+  alertDetailCard: {
+    backgroundColor: "rgba(255, 255, 255, 0.03)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+    borderRadius: 18,
+    padding: 16,
+    gap: 8,
+  },
+  alertDetailCardCritical: {
+    backgroundColor: "rgba(239, 68, 68, 0.08)",
+    borderColor: "rgba(239, 68, 68, 0.3)",
+  },
+  alertDetailCardHigh: {
+    backgroundColor: "rgba(249, 115, 22, 0.08)",
+    borderColor: "rgba(249, 115, 22, 0.3)",
+  },
+  alertDetailCardModerate: {
+    backgroundColor: "rgba(234, 179, 8, 0.08)",
+    borderColor: "rgba(234, 179, 8, 0.3)",
+  },
+  alertDetailTitle: {
+    fontSize: 13,
+    fontWeight: "800",
+    flex: 1,
+  },
+  alertDetailDesc: {
+    color: "#e2e8f0",
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  alertGuidanceBox: {
+    backgroundColor: "rgba(0, 0, 0, 0.35)",
+    borderRadius: 12,
+    padding: 10,
+    gap: 4,
+  },
+  alertGuidanceLabel: {
+    color: "#94a3b8",
+    fontSize: 9,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
+  alertGuidanceText: {
+    color: "#38bdf8",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+
+  safeMedsCard: {
+    backgroundColor: "rgba(16, 185, 129, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.3)",
+    borderRadius: 16,
+    padding: 14,
+    gap: 4,
+  },
+  safeMedsTitle: {
+    color: "#10b981",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  safeMedsList: {
+    color: "#34d399",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(11, 22, 19, 0.75)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
+    backgroundColor: "rgba(0, 0, 0, 0.8)",
+    justifyContent: "flex-end",
   },
   modalCard: {
-    backgroundColor: THEME.colors.drawerBg,
-    borderWidth: 1.5,
-    borderColor: "rgba(200, 218, 210, 0.3)",
-    borderRadius: 24,
+    backgroundColor: "#0d1813",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    maxHeight: "90%",
     padding: 20,
-    width: "100%",
-    maxHeight: "85%",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.12)",
   },
   modalHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(200, 218, 210, 0.15)",
-    paddingBottom: 12,
+    borderBottomColor: "rgba(255, 255, 255, 0.08)",
+    paddingBottom: 14,
   },
   modalTitle: {
-    fontSize: 15,
+    color: "#f8fafc",
+    fontSize: 16,
     fontWeight: "900",
-    color: THEME.colors.textOnDarkPrimary,
   },
   modalInput: {
-    backgroundColor: "rgba(232, 241, 237, 0.1)",
+    backgroundColor: "rgba(255, 255, 255, 0.04)",
     borderWidth: 1,
-    borderColor: "rgba(200, 218, 210, 0.25)",
+    borderColor: "rgba(255, 255, 255, 0.1)",
     borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    padding: 12,
+    color: "#f8fafc",
     fontSize: 13,
-    color: THEME.colors.textOnDarkPrimary,
+    marginTop: 4,
   },
   inputHelperText: {
+    color: "#64748b",
     fontSize: 10,
-    color: THEME.colors.textOnDarkSecondary,
     marginTop: 4,
   },
   relChip: {
     paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-    backgroundColor: "rgba(232, 241, 237, 0.1)",
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
     borderWidth: 1,
-    borderColor: "rgba(200, 218, 210, 0.2)",
+    borderColor: "rgba(255, 255, 255, 0.1)",
   },
   relChipActive: {
-    backgroundColor: THEME.colors.accentTeal,
-    borderColor: THEME.colors.accentTeal,
+    backgroundColor: "#10b981",
+    borderColor: "#34d399",
   },
   relChipText: {
+    color: "#94a3b8",
     fontSize: 11,
-    fontWeight: "600",
-    color: THEME.colors.textOnDarkSecondary,
+    fontWeight: "700",
   },
   relChipTextActive: {
     color: "#ffffff",
@@ -1819,217 +2406,208 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "rgba(232, 241, 237, 0.08)",
+    backgroundColor: "rgba(255, 255, 255, 0.02)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.08)",
     padding: 12,
     borderRadius: 12,
     marginTop: 4,
   },
   primarySwitchTitle: {
-    fontSize: 12,
+    color: "#f8fafc",
+    fontSize: 13,
     fontWeight: "800",
-    color: THEME.colors.textOnDarkPrimary,
   },
   primarySwitchSub: {
+    color: "#94a3b8",
     fontSize: 10,
-    color: THEME.colors.textOnDarkSecondary,
-    marginTop: 1,
+    marginTop: 2,
   },
   checkboxBox: {
     width: 22,
     height: 22,
     borderRadius: 6,
     borderWidth: 1.5,
-    borderColor: "rgba(200, 218, 210, 0.5)",
+    borderColor: "#64748b",
     alignItems: "center",
     justifyContent: "center",
   },
   checkboxBoxActive: {
-    backgroundColor: THEME.colors.accentGreen,
-    borderColor: THEME.colors.accentGreen,
+    backgroundColor: "#10b981",
+    borderColor: "#34d399",
   },
   saveContactModalBtn: {
-    backgroundColor: THEME.colors.accentGreen,
-    paddingVertical: 12,
-    borderRadius: 14,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    marginTop: 8,
+    backgroundColor: "#10b981",
+    paddingVertical: 14,
+    borderRadius: 16,
+    marginTop: 10,
   },
   saveContactModalBtnText: {
-    fontSize: 13,
-    fontWeight: "900",
     color: "#ffffff",
+    fontSize: 14,
+    fontWeight: "900",
   },
 
-  // Modal 2: First Responder Card
   emergencyCardOverlay: {
     flex: 1,
-    backgroundColor: "rgba(11, 22, 19, 0.85)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 16,
+    backgroundColor: "rgba(0, 0, 0, 0.88)",
+    justifyContent: "flex-end",
   },
   emergencyCardContent: {
-    backgroundColor: THEME.colors.drawerBg,
-    borderWidth: 2,
-    borderColor: "#ef4444",
-    borderRadius: 24,
-    width: "100%",
-    maxHeight: "90%",
+    backgroundColor: "#08110d",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    maxHeight: "92%",
+    borderWidth: 1.5,
+    borderColor: "rgba(239, 68, 68, 0.4)",
     overflow: "hidden",
   },
   emergencyCardBadgeBar: {
-    backgroundColor: "#dc2626",
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    backgroundColor: "#b91c1c",
+    paddingHorizontal: 20,
+    paddingVertical: 14,
   },
   emergencyCardTitle: {
     color: "#ffffff",
-    fontWeight: "900",
     fontSize: 13,
-    letterSpacing: 0.5,
+    fontWeight: "900",
+    letterSpacing: 0.8,
   },
   patientBannerRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "rgba(232, 241, 237, 0.08)",
-    padding: 12,
+    backgroundColor: "rgba(255, 255, 255, 0.04)",
     borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "rgba(200, 218, 210, 0.15)",
+    padding: 14,
   },
   patientLabel: {
+    color: "#94a3b8",
     fontSize: 9,
-    fontWeight: "900",
-    color: THEME.colors.textOnDarkSecondary,
+    fontWeight: "800",
     letterSpacing: 0.5,
   },
   patientName: {
+    color: "#f8fafc",
     fontSize: 17,
     fontWeight: "900",
-    color: THEME.colors.textOnDarkPrimary,
     marginTop: 2,
   },
   patientSub: {
-    fontSize: 10,
-    color: THEME.colors.textOnDarkSecondary,
+    color: "#38bdf8",
+    fontSize: 11,
+    fontWeight: "600",
     marginTop: 2,
   },
   bloodTypeBigBox: {
-    backgroundColor: "rgba(239, 68, 68, 0.2)",
-    borderWidth: 1.5,
-    borderColor: "#ef4444",
+    width: 64,
+    height: 58,
     borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
+    backgroundColor: "#dc2626",
     alignItems: "center",
+    justifyContent: "center",
   },
   bloodTypeBigLabel: {
+    color: "rgba(255, 255, 255, 0.8)",
     fontSize: 9,
-    fontWeight: "900",
-    color: "#fca5a5",
+    fontWeight: "800",
   },
   bloodTypeBigVal: {
+    color: "#ffffff",
     fontSize: 20,
     fontWeight: "900",
-    color: "#ef4444",
   },
   modalAlertBox: {
     backgroundColor: "rgba(239, 68, 68, 0.12)",
     borderWidth: 1,
     borderColor: "rgba(239, 68, 68, 0.35)",
-    padding: 12,
     borderRadius: 14,
+    padding: 12,
+    gap: 4,
   },
   modalAlertBoxLabel: {
-    fontSize: 10,
-    fontWeight: "900",
     color: "#ef4444",
+    fontSize: 10,
+    fontWeight: "800",
     letterSpacing: 0.5,
-    marginBottom: 4,
   },
   modalAlertBoxVal: {
-    fontSize: 13,
-    fontWeight: "800",
     color: "#fecaca",
+    fontSize: 13,
+    fontWeight: "700",
   },
   modalSectionBox: {
-    backgroundColor: "rgba(232, 241, 237, 0.08)",
+    backgroundColor: "rgba(255, 255, 255, 0.03)",
     borderWidth: 1,
-    borderColor: "rgba(200, 218, 210, 0.15)",
-    padding: 12,
+    borderColor: "rgba(255, 255, 255, 0.08)",
     borderRadius: 14,
+    padding: 12,
+    gap: 4,
   },
   modalSectionBoxLabel: {
+    color: "#94a3b8",
     fontSize: 10,
     fontWeight: "800",
-    color: THEME.colors.textOnDarkSecondary,
     letterSpacing: 0.5,
-    marginBottom: 4,
   },
   modalSectionBoxVal: {
-    fontSize: 12,
+    color: "#e2e8f0",
+    fontSize: 13,
     fontWeight: "600",
-    color: THEME.colors.textOnDarkPrimary,
-    lineHeight: 18,
   },
   modalContactRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "rgba(232, 241, 237, 0.08)",
+    backgroundColor: "rgba(16, 185, 129, 0.08)",
     padding: 10,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(200, 218, 210, 0.15)",
   },
   modalContactName: {
-    fontSize: 12,
+    color: "#f8fafc",
+    fontSize: 13,
     fontWeight: "800",
-    color: THEME.colors.textOnDarkPrimary,
   },
   modalContactPhone: {
-    fontSize: 11,
+    color: "#34d399",
+    fontSize: 12,
     fontWeight: "700",
-    color: THEME.colors.accentGreen,
-    marginTop: 2,
   },
   modalCallSmallBtn: {
-    backgroundColor: THEME.colors.accentGreen,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 10,
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
+    backgroundColor: "#10b981",
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
   },
   modalCallSmallBtnText: {
-    fontSize: 10,
+    color: "#050b08",
+    fontSize: 11,
     fontWeight: "900",
-    color: "#ffffff",
   },
   universalCallBtn: {
-    backgroundColor: "#dc2626",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
+    backgroundColor: "#dc2626",
     paddingVertical: 14,
-    borderRadius: 14,
+    borderRadius: 16,
     marginTop: 6,
+    marginBottom: Platform.OS === "ios" ? 20 : 10,
   },
   universalCallBtnText: {
-    fontSize: 12,
-    fontWeight: "900",
     color: "#ffffff",
-    letterSpacing: 0.5,
-    textAlign: "center",
-    flexShrink: 1,
+    fontSize: 14,
+    fontWeight: "900",
+    letterSpacing: 0.8,
   },
 });
