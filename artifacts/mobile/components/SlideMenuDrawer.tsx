@@ -20,6 +20,7 @@ import { syncHealthData } from "@/services/health";
 import { getStoredGoogleUser, GoogleUser } from "@/services/googleAuth";
 import { GoogleIcon } from "@/components/GoogleIcon";
 import THEME from "@/constants/theme";
+import { registerBackHandler } from "@/services/backNavigation";
 import {
   LayoutGrid,
   Sparkles,
@@ -90,16 +91,14 @@ export function SlideMenuDrawer({ isOpen, onClose, side = "left" }: SlideMenuDra
     }
   }, [isOpen, hiddenOffset]);
 
-  // Intercept Android hardware/gesture back press to close the drawer instead of killing the app
+  // Intercept back press (both Android native & Capacitor WebView) to close drawer
   useEffect(() => {
-    if (Platform.OS === "web" || !isOpen) return;
-    const onBackPress = () => {
+    if (!isOpen) return;
+    return registerBackHandler(`drawer-${side}`, 100, () => {
       onClose();
       return true;
-    };
-    const subscription = BackHandler.addEventListener("hardwareBackPress", onBackPress);
-    return () => subscription.remove();
-  }, [isOpen, onClose]);
+    });
+  }, [isOpen, onClose, side]);
 
   const handleNavigate = (route: string) => {
     onClose();

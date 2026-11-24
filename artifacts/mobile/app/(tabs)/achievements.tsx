@@ -48,6 +48,7 @@ import {
   evaluateAchievements,
   popPendingCelebration,
 } from "@/services/achievements";
+import { registerBackHandler } from "@/services/backNavigation";
 import THEME from "@/constants/theme";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -154,11 +155,10 @@ export default function AchievementsScreen() {
   const [celebrationBadge, setCelebrationBadge] = useState<Achievement | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Android hardware/gesture back press handler: return to previous screen or Home tab
+  // Back press handler: dismiss modals or return to Home tab (Capacitor Android & native)
   useFocusEffect(
     useCallback(() => {
-      if (Platform.OS === "web") return;
-      const onBackPress = () => {
+      return registerBackHandler("screen-achievements", 40, () => {
         if (celebrationBadge) {
           setCelebrationBadge(null);
           return true;
@@ -173,9 +173,7 @@ export default function AchievementsScreen() {
           router.replace("/(tabs)");
         }
         return true;
-      };
-      const sub = BackHandler.addEventListener("hardwareBackPress", onBackPress);
-      return () => sub.remove();
+      });
     }, [router, celebrationBadge, selectedBadge])
   );
 

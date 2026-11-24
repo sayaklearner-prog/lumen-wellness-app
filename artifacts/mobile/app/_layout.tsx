@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useGetMyProfile, getGetMyProfileQueryKey, setBaseUrl } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { storage } from "@/services/storage";
+import "@/services/backNavigation";
 
 // Resolve backend API URL
 function getBaseApiUrl() {
