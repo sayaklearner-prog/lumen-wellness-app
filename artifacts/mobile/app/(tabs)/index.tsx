@@ -1268,19 +1268,18 @@ export default function DashboardScreen() {
         </View>
 
         <View style={styles.topRightActions}>
-          {/* Health OS Live Telemetry & Control Center Beacon */}
+          {/* Health OS Control Center Beacon Avatar */}
           <Pressable 
             onPress={openControlCenter}
             accessibilityLabel="Open Health OS Control Center"
-            style={styles.telemetryBeaconPill}
+            style={styles.avatarPressable}
           >
-            <View style={styles.beaconPulseDot} />
-            <Text style={styles.beaconPillText}>94% • LIVE</Text>
-            <View style={styles.avatarMiniCircle}>
-              <Text style={styles.avatarMiniInitial}>
-                {userName ? userName[0].toUpperCase() : "A"}
+            <View style={styles.avatarCircle}>
+              <Text style={styles.avatarInitial}>
+                {userName ? userName[0].toUpperCase() : "S"}
               </Text>
             </View>
+            <View style={styles.avatarActiveDot} />
           </Pressable>
         </View>
       </View>

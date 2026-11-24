@@ -32,9 +32,13 @@ import {
   Zap,
   PhoneCall,
   ExternalLink,
+  Smartphone,
+  Watch,
+  AlertCircle,
 } from "lucide-react-native";
 import { registerBackHandler } from "@/services/backNavigation";
-import { syncHealthData } from "@/services/health";
+import { syncHealthData, getLastSyncStatus, HealthSyncStatus } from "@/services/health";
+import { wearableSyncService, WearableDevice } from "@/services/wearableSyncService";
 import { getStoredClinicalProfile, ClinicalProfile, DEFAULT_CLINICAL_PROFILE } from "@/services/clinicalProfile";
 import { storage } from "@/services/storage";
 import THEME from "@/constants/theme";
@@ -52,6 +56,8 @@ export function HealthOsControlCenterModal({
 
   // Clinical Profile & Telemetry States
   const [clinicalProfile, setClinicalProfile] = useState<ClinicalProfile>(DEFAULT_CLINICAL_PROFILE);
+  const [connectedWearable, setConnectedWearable] = useState<WearableDevice | null>(null);
+  const [syncStatus, setSyncStatus] = useState<HealthSyncStatus | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
 
@@ -84,13 +90,26 @@ export function HealthOsControlCenterModal({
     });
   }, [visible, onClose]);
 
-  // Load clinical profile on open
+  // Load clinical profile & genuine wearable status on open
   useEffect(() => {
     if (visible) {
       getStoredClinicalProfile().then((cp) => setClinicalProfile(cp));
       storage.getItem("lumen_voice_coach_enabled").then((val) => {
         if (val !== null) setVoiceEnabled(val === "true");
       });
+
+      // Honest wearable connection lookup
+      const dev = wearableSyncService.getConnectedDevice();
+      setConnectedWearable(dev);
+      getLastSyncStatus().then((st) => setSyncStatus(st));
+
+      const unsubDev = wearableSyncService.subscribeDevice((newDev) => {
+        setConnectedWearable(newDev);
+      });
+
+      return () => {
+        unsubDev();
+      };
     }
   }, [visible]);
 
@@ -101,10 +120,17 @@ export function HealthOsControlCenterModal({
     setSyncFeedback(null);
     try {
       await syncHealthData();
-      setSyncFeedback("Telemetry synchronized successfully.");
+      const updatedStatus = await getLastSyncStatus();
+      setSyncStatus(updatedStatus);
+      const isConnected = !!(connectedWearable && connectedWearable.isConnected);
+      setSyncFeedback(
+        isConnected
+          ? `Synced with ${connectedWearable.name}`
+          : "Local phone sensors & SQLite synced"
+      );
       setTimeout(() => setSyncFeedback(null), 3000);
     } catch {
-      setSyncFeedback("Wearable data synchronized.");
+      setSyncFeedback("Sync offline - local SQLite active");
       setTimeout(() => setSyncFeedback(null), 3000);
     } finally {
       setIsSyncing(false);
@@ -234,48 +260,103 @@ export function HealthOsControlCenterModal({
                   <Zap size={16} color="#38bdf8" />
                   <Text style={styles.cardTitle}>Live Sensor Telemetry</Text>
                 </View>
-                <View style={styles.activePill}>
-                  <View style={styles.greenDot} />
-                  <Text style={styles.activePillText}>CONNECTED</Text>
-                </View>
+                {connectedWearable && connectedWearable.isConnected ? (
+                  <View style={styles.activePill}>
+                    <View style={styles.greenDot} />
+                    <Text style={styles.activePillText}>CONNECTED</Text>
+                  </View>
+                ) : (
+                  <View style={styles.standalonePill}>
+                    <View style={styles.amberDot} />
+                    <Text style={styles.standalonePillText}>STANDALONE</Text>
+                  </View>
+                )}
               </View>
 
               <View style={styles.telemetryGrid}>
                 <View style={styles.telemetryCell}>
                   <Text style={styles.telemetryLabel}>Wearable Bridge</Text>
-                  <Text style={styles.telemetryValue}>Apple Watch / BLE</Text>
+                  <Text style={styles.telemetryValue} numberOfLines={1}>
+                    {connectedWearable && connectedWearable.isConnected
+                      ? `${connectedWearable.brandName} ${connectedWearable.name}`
+                      : "No Wearable Paired"}
+                  </Text>
                 </View>
                 <View style={styles.telemetryCell}>
-                  <Text style={styles.telemetryLabel}>Battery Health</Text>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                    <Battery size={14} color="#10b981" />
-                    <Text style={[styles.telemetryValue, { color: "#10b981" }]}>94% (Good)</Text>
-                  </View>
+                  <Text style={styles.telemetryLabel}>Active Motion Engine</Text>
+                  <Text style={styles.telemetryValue} numberOfLines={1}>
+                    {connectedWearable && connectedWearable.isConnected
+                      ? "Wearable BLE Stream"
+                      : "Phone Sensor Active"}
+                  </Text>
                 </View>
                 <View style={styles.telemetryCell}>
-                  <Text style={styles.telemetryLabel}>Sample Frequency</Text>
-                  <Text style={styles.telemetryValue}>Real-Time (0.2s)</Text>
+                  <Text style={styles.telemetryLabel}>Battery / Hardware</Text>
+                  {connectedWearable && connectedWearable.isConnected ? (
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                      <Battery size={14} color="#10b981" />
+                      <Text style={[styles.telemetryValue, { color: "#10b981" }]}>
+                        {connectedWearable.batteryLevel}%
+                      </Text>
+                    </View>
+                  ) : (
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                      <Smartphone size={13} color="#94a3b8" />
+                      <Text style={[styles.telemetryValue, { color: "#94a3b8" }]}>Internal Device</Text>
+                    </View>
+                  )}
                 </View>
                 <View style={styles.telemetryCell}>
-                  <Text style={styles.telemetryLabel}>Local Database</Text>
-                  <Text style={styles.telemetryValue}>SQLite B-Tree PRAGMA</Text>
+                  <Text style={styles.telemetryLabel}>Local Health Engine</Text>
+                  <Text style={styles.telemetryValue}>SQLite Active</Text>
                 </View>
               </View>
 
-              <Pressable
-                style={[styles.syncActionBtn, isSyncing && { opacity: 0.7 }]}
-                onPress={handleForceSync}
-                disabled={isSyncing}
-              >
-                {isSyncing ? (
-                  <ActivityIndicator size="small" color="#050b08" />
-                ) : (
-                  <>
-                    <RefreshCw size={14} color="#050b08" strokeWidth={2.5} />
-                    <Text style={styles.syncActionBtnText}>Force Instant Clinical Sync</Text>
-                  </>
+              {/* Honest Standalone Hardware Notice if no wearable is connected */}
+              {(!connectedWearable || !connectedWearable.isConnected) && (
+                <View style={styles.honestNoticeBox}>
+                  <AlertCircle size={15} color="#eab308" />
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={styles.honestNoticeTitle}>Standalone Mode Active</Text>
+                    <Text style={styles.honestNoticeDesc}>
+                      No Apple Watch or external wearable connected. Lumen is operating honestly via your device's native pedometer and motion sensors.
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              {/* Action Buttons: Force Sync & Pair Wearable */}
+              <View style={{ gap: 8 }}>
+                <Pressable
+                  style={[styles.syncActionBtn, isSyncing && { opacity: 0.7 }]}
+                  onPress={handleForceSync}
+                  disabled={isSyncing}
+                >
+                  {isSyncing ? (
+                    <ActivityIndicator size="small" color="#050b08" />
+                  ) : (
+                    <>
+                      <RefreshCw size={14} color="#050b08" strokeWidth={2.5} />
+                      <Text style={styles.syncActionBtnText}>
+                        {connectedWearable && connectedWearable.isConnected
+                          ? "Force Instant Wearable Sync"
+                          : "Force Instant Phone & SQLite Sync"}
+                      </Text>
+                    </>
+                  )}
+                </Pressable>
+
+                {(!connectedWearable || !connectedWearable.isConnected) && (
+                  <Pressable
+                    style={styles.pairDeviceOutlineBtn}
+                    onPress={() => handleNavigateScreen("/(tabs)/activity")}
+                  >
+                    <Watch size={14} color="#38bdf8" />
+                    <Text style={styles.pairDeviceOutlineBtnText}>Pair BLE Wearable in Activity</Text>
+                    <ChevronRight size={14} color="#38bdf8" />
+                  </Pressable>
                 )}
-              </Pressable>
+              </View>
             </View>
 
             {/* ========================================================= */}
@@ -649,6 +730,68 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#10b981",
     letterSpacing: 0.5,
+  },
+  standalonePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "rgba(234, 179, 8, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(234, 179, 8, 0.3)",
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+  },
+  amberDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#eab308",
+  },
+  standalonePillText: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: "#eab308",
+    letterSpacing: 0.5,
+  },
+  honestNoticeBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    backgroundColor: "rgba(234, 179, 8, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(234, 179, 8, 0.25)",
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 10,
+  },
+  honestNoticeTitle: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#eab308",
+    marginBottom: 2,
+  },
+  honestNoticeDesc: {
+    fontSize: 11,
+    color: "#cbd5e1",
+    lineHeight: 15,
+  },
+  pairDeviceOutlineBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "rgba(56, 189, 248, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(56, 189, 248, 0.3)",
+    borderRadius: 10,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+  },
+  pairDeviceOutlineBtnText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#38bdf8",
   },
   telemetryGrid: {
     flexDirection: "row",

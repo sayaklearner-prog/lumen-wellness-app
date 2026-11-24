@@ -603,21 +603,9 @@ export default function SafetyScreen() {
           <Menu size={22} color="#f8fafc" />
         </Pressable>
 
-        <View style={{ flex: 1, minWidth: 0, marginHorizontal: 10 }}>
+        <View style={{ flex: 1, minWidth: 0, marginLeft: 12 }}>
           <Text style={styles.topBarSub} numberOfLines={1}>HEALTH OS PROTOCOL</Text>
           <Text style={styles.topBarTitle} numberOfLines={1}>Medical Safety & ID</Text>
-        </View>
-
-        <View style={{ flexDirection: "row", gap: 6 }}>
-          <Pressable style={styles.qrHeaderBtn} onPress={() => setShowQrModal(true)} accessibilityLabel="View QR Passport">
-            <QrCode size={14} color="#38bdf8" />
-            <Text style={styles.qrHeaderBtnText}>QR PASSPORT</Text>
-          </Pressable>
-
-          <Pressable style={styles.sosCardPill} onPress={() => setShowEmergencyCard(true)} accessibilityLabel="View ID Card">
-            <ShieldAlert size={14} color="#ef4444" />
-            <Text style={styles.sosCardPillText} numberOfLines={1}>ID CARD</Text>
-          </Pressable>
         </View>
       </View>
 
@@ -1315,6 +1303,64 @@ export default function SafetyScreen() {
             )}
           </View>
         )}
+
+        {/* ========================================================================= */}
+        {/* FIRST RESPONDER CREDENTIALS & PHYSICAL PASSPORT CARDS                      */}
+        {/* ========================================================================= */}
+        <View style={styles.bottomCredentialsSection}>
+          <Text style={styles.bottomCredentialsHeader}>FIRST RESPONDER CREDENTIALS</Text>
+          <Text style={styles.bottomCredentialsSub}>
+            Physical credentials for EMTs, paramedics, and emergency clinical triage
+          </Text>
+
+          <View style={styles.bottomCredentialsGrid}>
+            {/* Optical QR Passport */}
+            <Pressable
+              style={styles.bottomCredentialCard}
+              onPress={() => setShowQrModal(true)}
+              accessibilityLabel="View Paramedic Optical QR Passport"
+            >
+              <View style={[styles.bottomCardIconBox, { backgroundColor: "rgba(56, 189, 248, 0.15)", borderColor: "rgba(56, 189, 248, 0.3)" }]}>
+                <QrCode size={22} color="#38bdf8" />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <Text style={styles.bottomCardTitle} numberOfLines={1}>Optical QR Passport</Text>
+                  <View style={styles.bottomBadgeSky}>
+                    <Text style={styles.bottomBadgeTextSky}>OFFLINE</Text>
+                  </View>
+                </View>
+                <Text style={styles.bottomCardSub} numberOfLines={2}>
+                  Instant paramedic camera scan for blood type, allergies & active vitals
+                </Text>
+              </View>
+              <ChevronRight size={18} color="#38bdf8" />
+            </Pressable>
+
+            {/* First Responder Medical ID Card */}
+            <Pressable
+              style={styles.bottomCredentialCard}
+              onPress={() => setShowEmergencyCard(true)}
+              accessibilityLabel="View First Responder Medical ID Card"
+            >
+              <View style={[styles.bottomCardIconBox, { backgroundColor: "rgba(239, 68, 68, 0.15)", borderColor: "rgba(239, 68, 68, 0.3)" }]}>
+                <ShieldAlert size={22} color="#ef4444" />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <Text style={styles.bottomCardTitle} numberOfLines={1}>First Responder ID Card</Text>
+                  <View style={styles.bottomBadgeRed}>
+                    <Text style={styles.bottomBadgeTextRed}>ICE PROTOCOL</Text>
+                  </View>
+                </View>
+                <Text style={styles.bottomCardSub} numberOfLines={2}>
+                  Emergency wallet badge with clinical conditions, donor status & contacts
+                </Text>
+              </View>
+              <ChevronRight size={18} color="#ef4444" />
+            </Pressable>
+          </View>
+        </View>
       </ScrollView>
 
       {/* ========================================================================= */}
@@ -2337,6 +2383,80 @@ const styles = StyleSheet.create({
     color: "#34d399",
     fontSize: 12,
     fontWeight: "600",
+  },
+
+  bottomCredentialsSection: {
+    marginTop: 10,
+    gap: 8,
+  },
+  bottomCredentialsHeader: {
+    fontSize: 11,
+    fontWeight: "900",
+    color: "#94a3b8",
+    letterSpacing: 1.2,
+  },
+  bottomCredentialsSub: {
+    fontSize: 12,
+    color: "#64748b",
+    lineHeight: 16,
+    marginTop: -2,
+    marginBottom: 4,
+  },
+  bottomCredentialsGrid: {
+    gap: 10,
+  },
+  bottomCredentialCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    backgroundColor: "rgba(255, 255, 255, 0.04)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+    borderRadius: 18,
+    padding: 14,
+  },
+  bottomCardIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  bottomCardTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: THEME.colors.textOnDarkPrimary,
+  },
+  bottomBadgeSky: {
+    backgroundColor: "rgba(56, 189, 248, 0.15)",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  bottomBadgeTextSky: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: "#38bdf8",
+    letterSpacing: 0.5,
+  },
+  bottomBadgeRed: {
+    backgroundColor: "rgba(239, 68, 68, 0.15)",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  bottomBadgeTextRed: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: "#ef4444",
+    letterSpacing: 0.5,
+  },
+  bottomCardSub: {
+    fontSize: 11,
+    color: "#94a3b8",
+    lineHeight: 15,
+    marginTop: 2,
   },
 
   modalOverlay: {
