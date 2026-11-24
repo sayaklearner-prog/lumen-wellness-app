@@ -138,6 +138,7 @@ function TabsContent() {
       <GlobalStepTracker />
 
       <Tabs
+        backBehavior="history"
         tabBar={(props) => <FloatingCapsuleTabBar {...props} />}
         screenOptions={{
           headerShown: false,

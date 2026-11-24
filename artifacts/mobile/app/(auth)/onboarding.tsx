@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   Alert,
   PanResponder,
+  BackHandler,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useGetProfile, useUpdateProfile, getGetProfileQueryKey } from "@workspace/api-client-react";
@@ -597,6 +598,33 @@ export default function PersonalInformationScreen() {
       setCurrentStep(2);
     }
   };
+
+  // Wire Android hardware/gesture back press to multi-step navigation & modals
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    const onBackPress = () => {
+      if (showWeightModal) {
+        setShowWeightModal(false);
+        return true;
+      }
+      if (showHeightModal) {
+        setShowHeightModal(false);
+        return true;
+      }
+      if (currentStep > 1) {
+        handleBack();
+        return true;
+      }
+      if (router.canGoBack()) {
+        router.back();
+        return true;
+      }
+      router.replace("/(auth)/welcome");
+      return true;
+    };
+    const sub = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+    return () => sub.remove();
+  }, [showWeightModal, showHeightModal, currentStep, router]);
 
   const handleNextStep = () => {
     triggerHaptic(Haptics.ImpactFeedbackStyle.Medium);

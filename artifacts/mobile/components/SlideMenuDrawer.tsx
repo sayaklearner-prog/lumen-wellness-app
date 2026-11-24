@@ -10,6 +10,7 @@ import {
   Dimensions,
   Platform,
   Alert,
+  BackHandler,
 } from "react-native";
 import { useRouter, usePathname } from "expo-router";
 import { useGetProfile } from "@workspace/api-client-react";
@@ -88,6 +89,17 @@ export function SlideMenuDrawer({ isOpen, onClose, side = "left" }: SlideMenuDra
       ]).start();
     }
   }, [isOpen, hiddenOffset]);
+
+  // Intercept Android hardware/gesture back press to close the drawer instead of killing the app
+  useEffect(() => {
+    if (Platform.OS === "web" || !isOpen) return;
+    const onBackPress = () => {
+      onClose();
+      return true;
+    };
+    const subscription = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+    return () => subscription.remove();
+  }, [isOpen, onClose]);
 
   const handleNavigate = (route: string) => {
     onClose();

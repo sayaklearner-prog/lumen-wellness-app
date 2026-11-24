@@ -18,6 +18,8 @@ import {
   Linking,
   TextInput,
   TouchableOpacity,
+  BackHandler,
+  ToastAndroid,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import {
@@ -504,6 +506,60 @@ export default function DashboardScreen() {
       refreshNutritionState();
       nativeStepCounter.refreshTodaySteps();
     }, [refreshNutritionState])
+  );
+
+  // Android hardware/gesture back press handler: dismiss active modals or enforce 2-second double-tap exit guard
+  const lastBackPressTime = useRef<number>(0);
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS === "web") return;
+
+      const onBackPress = () => {
+        // 1. Dismiss any open modals first
+        if (showSleepModal) {
+          setShowSleepModal(false);
+          return true;
+        }
+        if (showScreenTimeModal) {
+          setShowScreenTimeModal(false);
+          return true;
+        }
+        if (isBreathingMode) {
+          setIsBreathingMode(false);
+          return true;
+        }
+        if (showReflectionModal) {
+          setShowReflectionModal(false);
+          return true;
+        }
+        if (showHydrationModal) {
+          setShowHydrationModal(false);
+          return true;
+        }
+
+        // 2. Double-tap exit guard on root Home screen
+        const now = Date.now();
+        if (now - lastBackPressTime.current < 2000) {
+          BackHandler.exitApp();
+          return true;
+        }
+
+        lastBackPressTime.current = now;
+        if (Platform.OS === "android") {
+          ToastAndroid.show("Press back again to exit", ToastAndroid.SHORT);
+        }
+        return true;
+      };
+
+      const subscription = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+      return () => subscription.remove();
+    }, [
+      showSleepModal,
+      showScreenTimeModal,
+      isBreathingMode,
+      showReflectionModal,
+      showHydrationModal,
+    ])
   );
 
   // Subscribe to real-time meal log/delete events across tabs
