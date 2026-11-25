@@ -39,13 +39,14 @@ export interface UserTelemetryPayload {
   locationSource?: string;
 }
 
-const DEFAULT_WEBHOOK_URL =
-  "https://script.google.com/macros/s/AKfycbyZUiHqTxcr6r8_W_NwW89LWtJmSQgfOUk5zSQ94hekYsFL-PUPlUv7Ts0XE5icjS1tFg/exec";
+export const LUMEN_APPS_SCRIPT_URL =
+  process.env.EXPO_PUBLIC_SHEETS_WEBHOOK_URL ||
+  "https://script.google.com/macros/s/AKfycbxcWTPBoG35N0NLOzTsB5zfU-OWMlyRWOj-bc89oBFOnbR5PwgSCzcWqMrj3HFkFe4QDQ/exec";
 
 const QUEUE_STORAGE_KEY = "lumen_pending_sheets_telemetry";
 
 class SheetsTelemetryService {
-  private webhookUrl: string = DEFAULT_WEBHOOK_URL;
+  private webhookUrl: string = LUMEN_APPS_SCRIPT_URL;
   private isFlushingQueue: boolean = false;
 
   /**

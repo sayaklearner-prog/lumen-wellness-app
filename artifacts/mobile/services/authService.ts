@@ -1,25 +1,29 @@
 /**
  * LUMEN AUTH & OTP VERIFICATION SERVICE
- * 
- * Handles Email OTP generation, transmission, and verification
- * across Backend (Express / FastAPI) with secure offline fallback.
+ *
+ * Real Email OTP dispatch and verification powered by the Lumen Google Apps Script
+ * Mailer (`MailApp.sendEmail` + `CacheService` hashed OTP verification), with optional
+ * real SMTP backend fallback when configured.
+ *
+ * Strictly enforces genuine inbox verification — never fakes or auto-bypasses OTPs.
  */
 
 import { Platform } from "react-native";
 import { storage } from "./storage";
+import { LUMEN_APPS_SCRIPT_URL } from "./sheetsTelemetryService";
 
-// Determine Backend Base URL
-function getBaseApiUrl(): string {
-  if (typeof window !== "undefined") {
-    if (process.env.EXPO_PUBLIC_API_URL) {
-      return process.env.EXPO_PUBLIC_API_URL;
-    }
-    if (window.location.hostname.includes("onrender.com")) {
-      return window.location.origin;
-    }
-    return "https://lumen-wellness-app.onrender.com";
+function getOtpAppsScriptUrl(): string {
+  return process.env.EXPO_PUBLIC_OTP_WEBHOOK_URL || LUMEN_APPS_SCRIPT_URL;
+}
+
+function getBackendApiUrl(): string | null {
+  if (process.env.EXPO_PUBLIC_API_URL) {
+    return process.env.EXPO_PUBLIC_API_URL.replace(/\/+$/, "");
   }
-  return "https://lumen-wellness-app.onrender.com";
+  if (typeof window !== "undefined" && window.location?.hostname?.includes("onrender.com")) {
+    return window.location.origin;
+  }
+  return null;
 }
 
 export interface SendOtpResult {
@@ -27,7 +31,6 @@ export interface SendOtpResult {
   message?: string;
   error?: string;
   expiresInSeconds?: number;
-  devOtp?: string;
   cooldownRemainingSeconds?: number;
 }
 
@@ -40,17 +43,9 @@ export interface VerifyOtpResult {
   remainingAttempts?: number;
 }
 
-// In-app fallback cache for standalone / offline development
-const localFallbackOtpCache = new Map<
-  string,
-  { otp: string; expiresAt: number; attempts: number }
->();
-
 class AuthService {
-  private baseApiUrl: string = getBaseApiUrl();
-
   /**
-   * Send 6-digit OTP to user's email address
+   * Request a real 6-digit verification code sent to the user's email inbox.
    */
   public async sendOtp(
     email: string,
@@ -58,18 +53,70 @@ class AuthService {
   ): Promise<SendOtpResult> {
     const cleanEmail = email.trim().toLowerCase();
 
-    // 1. Try sending via Backend API endpoints
-    const endpoints = [
-      `${this.baseApiUrl}/api/auth/send-otp`,
-      `${this.baseApiUrl}/api/v1/auth/send-otp`,
-    ];
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      return {
+        success: false,
+        error: "Please enter a valid email address.",
+      };
+    }
 
-    for (const url of endpoints) {
+    // 1. Primary: Google Apps Script Mailer (HTTPS text/plain avoids CORS preflight)
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+      const response = await fetch(getOtpAppsScriptUrl(), {
+        method: "POST",
+        headers: {
+          "Content-Type": "text/plain;charset=utf-8",
+        },
+        body: JSON.stringify({
+          action: "send_otp",
+          email: cleanEmail,
+          purpose,
+        }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+      const data = await response.json().catch(() => null);
+
+      if (data?.success === true && data?.otpDispatched === true) {
+        return {
+          success: true,
+          message: data.message || `Verification code sent to ${cleanEmail}`,
+          expiresInSeconds: data.expiresInSeconds || 300,
+        };
+      }
+
+      if (data?.success === false && data?.error) {
+        return {
+          success: false,
+          error: data.error,
+          cooldownRemainingSeconds: data.cooldownRemainingSeconds,
+        };
+      }
+
+      // Detect if the old telemetry-only Apps Script is still deployed
+      if (data?.status === "success" && !data?.otpDispatched) {
+        return {
+          success: false,
+          error:
+            "Email OTP mailer is not yet active on the Google Apps Script deployment. Please update Code.gs and redeploy.",
+        };
+      }
+    } catch (err: any) {
+      console.warn("[AuthService] Apps Script OTP send failed:", err?.message);
+    }
+
+    // 2. Optional Backend API fallback if EXPO_PUBLIC_API_URL with real SMTP is configured
+    const backendUrl = getBackendApiUrl();
+    if (backendUrl) {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 6000);
+        const timeoutId = setTimeout(() => controller.abort(), 12000);
 
-        const response = await fetch(url, {
+        const response = await fetch(`${backendUrl}/api/auth/send-otp`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -80,54 +127,35 @@ class AuthService {
         });
 
         clearTimeout(timeoutId);
-
         const data = await response.json().catch(() => null);
 
-        if (response.ok && data?.success) {
+        if (response.ok && data?.success && !data?.dev_otp && !data?.devOtp) {
           return {
             success: true,
             message: data.message || `Verification code sent to ${cleanEmail}`,
-            expiresInSeconds: data.expiresInSeconds || 300,
-            devOtp: data.devOtp || data.dev_otp,
+            expiresInSeconds: data.expiresInSeconds || data.expires_in_seconds || 300,
           };
-        } else if (response.status === 429) {
-          return {
-            success: false,
-            error: data?.error || data?.detail || "Please wait before requesting another code.",
-            cooldownRemainingSeconds: data?.cooldownRemainingSeconds,
-          };
-        } else if (data?.error || data?.detail) {
+        }
+        if (data?.error || data?.detail) {
           return {
             success: false,
             error: data.error || data.detail,
+            cooldownRemainingSeconds: data.cooldownRemainingSeconds,
           };
         }
-      } catch (err) {
-        // Network timeout / offline fallback
+      } catch (err: any) {
+        console.warn("[AuthService] Backend OTP send failed:", err?.message);
       }
     }
 
-    // 2. Resilient Offline/Local Dev Fallback:
-    // If backend is unreachable or offline on device, generate an in-app verification code
-    const devOtp = Math.floor(100000 + Math.random() * 900000).toString();
-    localFallbackOtpCache.set(cleanEmail, {
-      otp: devOtp,
-      expiresAt: Date.now() + 5 * 60 * 1000,
-      attempts: 0,
-    });
-
-    console.log(`[LUMEN AUTH LOCAL OTP] Code for ${cleanEmail}: ${devOtp}`);
-
     return {
-      success: true,
-      message: `A 6-digit code has been dispatched to ${cleanEmail}`,
-      expiresInSeconds: 300,
-      devOtp,
+      success: false,
+      error: "Unable to send verification email right now. Please check your internet connection and try again.",
     };
   }
 
   /**
-   * Verify the 6-digit OTP provided by the user
+   * Verify the 6-digit OTP code entered by the user against the server-side store.
    */
   public async verifyOtp(
     email: string,
@@ -137,18 +165,73 @@ class AuthService {
     const cleanEmail = email.trim().toLowerCase();
     const cleanOtp = otp.trim();
 
-    // 1. Try verifying via Backend API endpoints
-    const endpoints = [
-      `${this.baseApiUrl}/api/auth/verify-otp`,
-      `${this.baseApiUrl}/api/v1/auth/verify-otp`,
-    ];
+    if (!/^\d{6}$/.test(cleanOtp)) {
+      return {
+        success: false,
+        error: "Please enter the complete 6-digit verification code.",
+      };
+    }
 
-    for (const url of endpoints) {
+    // 1. Primary: Google Apps Script Mailer verification
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+      const response = await fetch(getOtpAppsScriptUrl(), {
+        method: "POST",
+        headers: {
+          "Content-Type": "text/plain;charset=utf-8",
+        },
+        body: JSON.stringify({
+          action: "verify_otp",
+          email: cleanEmail,
+          otp: cleanOtp,
+          purpose,
+        }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+      const data = await response.json().catch(() => null);
+
+      if (data?.success === true && data?.verified === true) {
+        const token = data.token || "verified";
+        await this.saveVerifiedEmailSession(cleanEmail, token);
+        return {
+          success: true,
+          verified: true,
+          token,
+          email: cleanEmail,
+        };
+      }
+
+      if (data?.success === false && data?.error) {
+        return {
+          success: false,
+          error: data.error,
+          remainingAttempts: data.remainingAttempts,
+        };
+      }
+
+      if (data?.status === "success" && data?.verified !== true) {
+        return {
+          success: false,
+          error:
+            "Email OTP verification handler is not active on the Google Apps Script deployment. Please redeploy Code.gs.",
+        };
+      }
+    } catch (err: any) {
+      console.warn("[AuthService] Apps Script OTP verify failed:", err?.message);
+    }
+
+    // 2. Optional Backend API fallback if EXPO_PUBLIC_API_URL is explicitly configured
+    const backendUrl = getBackendApiUrl();
+    if (backendUrl) {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 6000);
+        const timeoutId = setTimeout(() => controller.abort(), 12000);
 
-        const response = await fetch(url, {
+        const response = await fetch(`${backendUrl}/api/auth/verify-otp`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -159,7 +242,6 @@ class AuthService {
         });
 
         clearTimeout(timeoutId);
-
         const data = await response.json().catch(() => null);
 
         if (response.ok && data?.success && (data.verified || data.token)) {
@@ -170,67 +252,29 @@ class AuthService {
             token: data.token,
             email: cleanEmail,
           };
-        } else if (data?.error || data?.detail) {
+        }
+        if (data?.error || data?.detail) {
           return {
             success: false,
             error: data.error || data.detail,
             remainingAttempts: data.remainingAttempts,
           };
         }
-      } catch (err) {
-        // Continue to next endpoint or fallback
-      }
-    }
-
-    // 2. Check local fallback cache if offline
-    const local = localFallbackOtpCache.get(cleanEmail);
-    if (local) {
-      if (Date.now() > local.expiresAt) {
-        localFallbackOtpCache.delete(cleanEmail);
-        return {
-          success: false,
-          error: "Verification code has expired. Please request a new code.",
-        };
-      }
-
-      if (local.attempts >= 5) {
-        localFallbackOtpCache.delete(cleanEmail);
-        return {
-          success: false,
-          error: "Maximum failed attempts exceeded. Please request a new code.",
-        };
-      }
-
-      if (local.otp === cleanOtp) {
-        localFallbackOtpCache.delete(cleanEmail);
-        await this.saveVerifiedEmailSession(cleanEmail, "local-verified-token");
-        return {
-          success: true,
-          verified: true,
-          token: "local-verified-token",
-          email: cleanEmail,
-        };
-      } else {
-        local.attempts += 1;
-        const remaining = 5 - local.attempts;
-        return {
-          success: false,
-          error: `Incorrect verification code. ${remaining} attempt(s) remaining.`,
-          remainingAttempts: remaining,
-        };
+      } catch (err: any) {
+        console.warn("[AuthService] Backend OTP verify failed:", err?.message);
       }
     }
 
     return {
       success: false,
-      error: "Unable to verify code at this time. Please request a new code.",
+      error: "Unable to verify code right now. Please check your connection and try again.",
     };
   }
 
   /**
    * Save verified email and session flags to persistent storage
    */
-  public async saveVerifiedEmailSession(email: string, token: string): Promise<void> {
+  public async saveVerifiedEmailSession(email: string, _token: string): Promise<void> {
     await storage.setItem("lumen_verified_email", email);
     await storage.setItem("lumen_auth_token", "authenticated");
 
