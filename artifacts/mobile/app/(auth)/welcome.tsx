@@ -68,7 +68,6 @@ export default function WelcomeScreen() {
   const [otpExpiresIn, setOtpExpiresIn] = useState(300);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [otpErrorMessage, setOtpErrorMessage] = useState("");
-  const [devOtpNotification, setDevOtpNotification] = useState<string | null>(null);
 
   // Google OAuth Browser Redirect State
   const [isSigningInGoogle, setIsSigningInGoogle] = useState(false);
@@ -236,7 +235,6 @@ export default function WelcomeScreen() {
     setOtpCode("");
     setOtpStage("enter_email");
     setOtpErrorMessage("");
-    setDevOtpNotification(null);
     setShowOtpModal(true);
   };
 
@@ -248,7 +246,6 @@ export default function WelcomeScreen() {
     setOtpCode("");
     setOtpStage("enter_email");
     setOtpErrorMessage("");
-    setDevOtpNotification(null);
     setShowOtpModal(true);
   };
 
@@ -277,10 +274,10 @@ export default function WelcomeScreen() {
         setOtpExpiresIn(result.expiresInSeconds || 300);
         setResendCooldown(60);
         setOtpCode("");
-        if (result.devOtp) {
-          setDevOtpNotification(result.devOtp);
-        }
       } else {
+        if (result.cooldownRemainingSeconds) {
+          setResendCooldown(result.cooldownRemainingSeconds);
+        }
         setOtpErrorMessage(result.error || "Failed to dispatch verification code.");
       }
     } catch (err: any) {
@@ -568,25 +565,6 @@ export default function WelcomeScreen() {
               </View>
             ) : null}
 
-            {/* Dev Notification / Preview Hint if available */}
-            {devOtpNotification && otpStage === "enter_otp" ? (
-              <Pressable
-                style={styles.devBanner}
-                onPress={() => {
-                  setOtpCode(devOtpNotification);
-                  triggerHaptic();
-                }}
-              >
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.devBannerTitle}>Development Preview Code</Text>
-                  <Text style={styles.devBannerBody}>
-                    Tap to auto-fill code:{" "}
-                    <Text style={{ fontWeight: "900", color: "#10b981" }}>{devOtpNotification}</Text>
-                  </Text>
-                </View>
-              </Pressable>
-            ) : null}
-
             {/* STAGE 1: ENTER EMAIL & 1-CLICK OPTIONS */}
             {otpStage === "enter_email" && (
               <View style={{ gap: 14 }}>
@@ -716,8 +694,12 @@ export default function WelcomeScreen() {
                       setOtpCode(clean);
                       if (otpErrorMessage) setOtpErrorMessage("");
                     }}
+                    onSubmitEditing={handleVerifyOtp}
                     autoFocus
                   />
+                  <Text style={styles.otpInboxHint}>
+                    Check your inbox (and spam folder) for the 6-digit Lumen Health OS code.
+                  </Text>
                 </View>
 
                 {/* Resend actions */}
@@ -1451,22 +1433,11 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     flex: 1,
   },
-  devBanner: {
-    backgroundColor: "rgba(16, 185, 129, 0.15)",
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.35)",
-  },
-  devBannerTitle: {
-    color: "#10b981",
+  otpInboxHint: {
+    color: "#9cb6ae",
     fontSize: 11,
-    fontWeight: "800",
-  },
-  devBannerBody: {
-    color: "#dbeae3",
-    fontSize: 12,
-    marginTop: 2,
+    textAlign: "center",
+    marginTop: 4,
   },
 
   // Google Account Chooser Styles

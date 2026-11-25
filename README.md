@@ -27,11 +27,11 @@ A wellness companion that brings nutrition, hydration, sleep, activity, and digi
 
 ## ✨ What is Lumen?
 
-**Lumen AI OS** is a cross-platform wellness and bio-intelligence application focused on everyday health habits and longevity-oriented routines. It combines personal tracking, local-first data storage, native mobile capabilities, and AI-assisted interpretation in a single experience.
+**Lumen AI OS** is a cross-platform Health OS and bio-intelligence application focused on everyday health habits, adaptive clinical profiles, emergency medical readiness, and longevity-oriented routines. It combines personal tracking, local-first data storage, offline clinical safety engines, native mobile capabilities, and AI-assisted interpretation in a single experience.
 
-The dashboard presents a daily readiness-style score and wellness summaries. Users can log meals and hydration, track activity and sleep, configure reminders, and receive AI-generated guidance based on available information.
+The dashboard presents a daily readiness-style score, an instant Health OS Control Center HUD, and wellness summaries. Users can log meals, hydration, blood glucose, and blood pressure; track activity and sleep; screen medications offline; access a First Responder QR Passport; export clinical SOAP consultation briefs; and receive AI-generated guidance tailored to their health profile.
 
-> Lumen is a wellness and educational tool—not a medical device. Its scores and AI outputs are not diagnoses or a substitute for professional medical care.
+> Lumen is a wellness, safety-readiness, and educational tool—not a medical device. Its scores, analytics projections, drug-interaction alerts, and AI outputs are not medical diagnoses or a substitute for professional medical care.
 
 ## 🌟 Key Features
 
@@ -71,11 +71,36 @@ The dashboard presents a daily readiness-style score and wellness summaries. Use
 - Progress tracking for consecutive wellness logging.
 - A gamified approach to encourage consistency.
 
-### 🔐 Local-First Data & Account Features
+## 🩺 Health OS Platform Capabilities (New)
+
+Lumen has expanded beyond everyday habit tracking into a modular **Health OS** architecture built for personal clinical readiness, emergency safety, and longitudinal analytics:
+
+### 🎛️ Health OS Control Center HUD
+- Accessible directly from the dashboard's top-right avatar beacon.
+- **Honest Hardware Telemetry**: Displays live BLE wearable connection and battery health via `wearableSyncService`, or explicitly indicates **Standalone Mode** when running on the phone's internal pedometer and motion sensors.
+- **Rapid Clinical Vitals Logging**: Quick-entry panels for **Blood Glucose** (with fasting, post-meal, and random tags) and **Blood Pressure** (systolic/diastolic).
+- **Active Protocol Shields & Shortcuts**: Surfaces active condition guardrails, 1-tap force sync, voice coach toggles, and direct access to the Medical ID card.
+
+### 🛡️ Medical Safety Platform & Offline QR Passport
+- **Tri-Action Instant Emergency Dispatch**: 1-tap direct dialing (`911`, `112`) and encrypted SOS SMS dispatch to configured In-Case-of-Emergency (ICE) contacts.
+- **Offline Rx Safety Shield**: Pure on-device clinical pharmacology screening with zero network dependency—checks active medications against drug–drug adverse interactions, drug–condition contraindications (e.g., Hypertension, Diabetes, Heart Failure, Pregnancy, CKD), and allergy cross-reactivity.
+- **First Responder Medical ID & Optical QR Passport**: Stores blood type, code status, organ donor status, allergies, medications, and physician info, and generates an **offline-scannable SVG QR code passport** for paramedics and EMTs.
+
+### 📊 Clinical Analytics & Physician SOAP Briefs
+- **Multi-Horizon Telemetry**: Switch across **Daily** (5-pillar biometric inspector), **7-Day** (rolling averages, fatigue index, and recovery pacing), **30-Day** (monthly adherence calendar grid), and **90-Day** (metabolic HbA1c projection and estimated VO₂ max tiers) views.
+- **ADA Time-In-Range (TIR) & Glycemic Variability**: Computes 70–180 mg/dL Time-In-Range percentage, hypo/hyperglycemic percentages, glycemic variability (CV%), and estimated HbA1c (eAG).
+- **Blood Pressure Hemodynamics**: Calculates Mean Arterial Pressure (MAP) and AHA blood pressure classifications.
+- **Physician SOAP Consultation Brief**: Compiles longitudinal vitals, adherence, and clinical observations into a structured SOAP summary ready to copy or share with a clinician.
+
+### 🏥 Adaptive Multi-Condition Clinical Profiles
+- Configurable during onboarding and in Profile settings for **Standard**, **Diabetes** (Type 1, Type 2, Gestational, Prediabetes), **Pregnancy** (Trimesters 1–3, Postpartum), **Hypertension**, **Heart Health**, and **Weight Loss**.
+- Dynamically computes condition-specific targets (Mifflin-St Jeor BMR/TDEE calories, macronutrient splits, daily steps, hydration, and sodium caps) and passes clinical guardrails to the AI Coach.
+
+### 🔐 Local-First Data, Location & Operational Telemetry
 - SQLite-backed storage for supported mobile workflows.
 - Authentication options documented in the project, including Google sign-in and email OTP.
+- **Hybrid Real-Time Location Telemetry**: Requests foreground GPS location (with reverse geocoding to City/Region/Country) and falls back to coarse network location when GPS is unavailable, enriching Google Sheets operational telemetry (`Location`, `City`, `Country`, `Coordinates`).
 - Offline queue support for configured telemetry synchronization.
-- Google Sheets operational telemetry integration when enabled.
 
 ## 🧱 Architecture Overview
 
@@ -83,7 +108,12 @@ The dashboard presents a daily readiness-style score and wellness summaries. Use
 Mobile / Web Client
   ├── Expo + React Native application
   ├── Capacitor Android runtime and native integrations
-  ├── Dashboard, nutrition, activity, coach, reminders
+  ├── Core Modules: Dashboard, Nutrition, Activity, Coach, Reminders
+  ├── Health OS Modules:
+  │     ├── Health OS Control Center HUD (live sensors & rapid vitals)
+  │     ├── Medical Safety Platform (Rx Safety Shield, SOS SMS, Optical QR)
+  │     ├── Clinical Analytics (ADA TIR, MAP, 7/30/90-day, SOAP Brief)
+  │     └── Multi-Condition Clinical Profile & Hybrid Geolocation Engines
   └── Local persistence (SQLite / platform storage)
           │
           ├── Google Gemini API
@@ -93,7 +123,7 @@ Mobile / Web Client
           │     └── API, analysis, persistence, and supporting services
           │
           └── Google Apps Script Web App
-                └── Optional Google Sheets telemetry
+                └── Optional Google Sheets operational & location telemetry
 ```
 
 ## 🛠️ Technology Stack

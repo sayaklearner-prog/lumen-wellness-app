@@ -146,16 +146,18 @@ async def send_otp(payload: SendOtpRequest, request: Request):
     }
 
     result = _send_email_smtp(email, otp, payload.purpose or "signup")
+    if result.get("simulated"):
+        _otp_store.pop(email, None)
+        raise HTTPException(
+            status_code=503,
+            detail="SMTP email credentials are not configured on this server.",
+        )
 
-    response_data = {
+    return {
         "success": True,
         "message": f"Verification code sent to {email}",
         "expires_in_seconds": OTP_TTL_SECONDS,
     }
-    if result.get("simulated"):
-        response_data["dev_otp"] = otp
-
-    return response_data
 
 
 @router.post("/verify-otp")
