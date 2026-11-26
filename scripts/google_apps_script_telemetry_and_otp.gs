@@ -31,6 +31,13 @@ function sha256Hex(input) {
     .join("");
 }
 
+function testEmailPermission() {
+  var quota = MailApp.getRemainingDailyQuota();
+  var sheetName = SpreadsheetApp.getActiveSpreadsheet().getName();
+  Logger.log("Permissions OK! Sheet: " + sheetName + " | Remaining daily email quota: " + quota);
+  return { ok: true, sheet: sheetName, remainingDailyEmailQuota: quota };
+}
+
 function doGet(e) {
   return jsonResponse({
     status: "ok",
@@ -109,25 +116,11 @@ function handleSendOtp(data) {
       }
     }
 
-    // 3. Generate secure 6-digit OTP & store salted SHA-256 hash in CacheService
+    // 3. Generate secure 6-digit OTP & send real HTML email via MailApp first
     var rawOtp = String(Math.floor(100000 + Math.random() * 900000));
     var salt = Utilities.getUuid();
     var hashedOtp = sha256Hex(rawOtp + ":" + salt + ":lumen-os-otp-v1");
 
-    var record = {
-      email: email,
-      hashedOtp: hashedOtp,
-      salt: salt,
-      attempts: 0,
-      lastSentAt: now,
-      expiresAt: now + OTP_TTL_SECONDS * 1000,
-      purpose: purpose
-    };
-
-    cache.put(otpKey, JSON.stringify(record), OTP_TTL_SECONDS);
-    cache.put(rateKey, String(rateCount + 1), RATE_LIMIT_WINDOW_SEC);
-
-    // 4. Send real HTML email via MailApp
     var subject = purpose === "signup"
       ? "Welcome to Lumen OS — Your Verification Code"
       : "Lumen OS — Your Login Verification Code";
@@ -166,6 +159,20 @@ function handleSendOtp(data) {
       name: "Lumen Health OS",
       htmlBody: htmlBody
     });
+
+    // 4. Store salted SHA-256 hash in CacheService only after MailApp succeeds
+    var record = {
+      email: email,
+      hashedOtp: hashedOtp,
+      salt: salt,
+      attempts: 0,
+      lastSentAt: now,
+      expiresAt: now + OTP_TTL_SECONDS * 1000,
+      purpose: purpose
+    };
+
+    cache.put(otpKey, JSON.stringify(record), OTP_TTL_SECONDS);
+    cache.put(rateKey, String(rateCount + 1), RATE_LIMIT_WINDOW_SEC);
 
     return jsonResponse({
       success: true,

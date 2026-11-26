@@ -41,7 +41,7 @@ export interface UserTelemetryPayload {
 
 export const LUMEN_APPS_SCRIPT_URL =
   process.env.EXPO_PUBLIC_SHEETS_WEBHOOK_URL ||
-  "https://script.google.com/macros/s/AKfycbxcWTPBoG35N0NLOzTsB5zfU-OWMlyRWOj-bc89oBFOnbR5PwgSCzcWqMrj3HFkFe4QDQ/exec";
+  "https://script.google.com/macros/s/AKfycbzb0oFCj69iPiUtMkaD-IeBSKbkg34IFhTKjRn1YzKKqwv0shcxKOMmawl2V2NOu4VUZA/exec";
 
 const QUEUE_STORAGE_KEY = "lumen_pending_sheets_telemetry";
 
